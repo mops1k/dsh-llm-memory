@@ -132,6 +132,54 @@ function dshPage(header: Record<string, unknown>, body: string): string {
   return `<!-- dsh-memory: ${JSON.stringify(header)} -->\n${body}\n`
 }
 
+/** Schema of the current dsh-memory plugin (`~/.dsh/memory/memory.db`). */
+const DSH_MEMORY_DB_SCHEMA = `
+  CREATE TABLE memories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    text TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '',
+    pinned INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+`
+
+function dshMemoryDbPath(root: string): string {
+  return join(root, 'memory', 'memory.db')
+}
+
+function insertDshMemoryRow(
+  db: DatabaseSync,
+  text: string,
+  tags: string,
+  pinned: number,
+  createdAt: number,
+  updatedAt: number,
+): void {
+  db.prepare(
+    'INSERT INTO memories (text, tags, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+  ).run(text, tags, pinned, createdAt, updatedAt)
+}
+
+/** A `$DSH_HOME`-shaped root holding the SQLite store under `memory/`. */
+function createDshMemoryDbFixture(base: string, withRows = true): string {
+  const dshRoot = join(base, 'dsh-home')
+  mkdirSync(join(dshRoot, 'memory'), { recursive: true })
+  const db = new DatabaseSync(dshMemoryDbPath(dshRoot))
+  db.exec(DSH_MEMORY_DB_SCHEMA)
+  if (withRows) {
+    insertDshMemoryRow(db, 'User prefers concise answers', 'preference style', 1, 1750000000000, 1750000100000)
+    // The source may already carry the `dsh-memory` tag itself; the importer
+    // must deduplicate it, otherwise every re-import rewrites the entry.
+    insertDshMemoryRow(db, 'The project uses pnpm', 'dsh-memory build tooling', 0, 1750000200000, 1750000300000)
+    // A title cut at exactly 120 chars ends on a space; the store trims it, so
+    // a raw `slice` would make the entry look changed on every re-import.
+    insertDshMemoryRow(db, `${'x'.repeat(119)} tail`, 'long', 0, 1750000400000, 1750000500000)
+  }
+  db.close()
+  return dshRoot
+}
+
 function createDshMemoryFixture(base: string): string {
   const dshRoot = join(base, 'dsh-memory-src')
   mkdirSync(join(dshRoot, '_user'), { recursive: true })
@@ -363,6 +411,88 @@ describe('dsh-memory importer', () => {
 
     const third = runImport({ sources: ['dsh-memory'], config, store })
     expect(third[0]).toMatchObject({ imported: 0, updated: 0, skipped: 2 })
+  })
+
+  it('detects and imports the SQLite store', () => {
+    const dshRoot = createDshMemoryDbFixture(root)
+    expect(detectDshMemoryRoots({ importRoots: [dshRoot], ...OFF })).toEqual([dshRoot])
+
+    const reports = runImport({ sources: ['dsh-memory'], config: { importRoots: [dshRoot], ...OFF }, store })
+    expect(reports[0]).toMatchObject({
+      source: 'dsh-memory',
+      imported: 3,
+      updated: 0,
+      skipped: 0,
+      errors: [],
+      rootsFound: [dshRoot],
+    })
+
+    const pinned = store.getByExtKey('dsh-memory:db:1')
+    expect(pinned).toMatchObject({
+      scope: 'user',
+      project: '',
+      kind: 'facts',
+      tier: 'important',
+      status: 'active',
+      importance: 5,
+      title: 'User prefers concise answers',
+      text: 'User prefers concise answers',
+      createdAt: new Date(1750000000000).toISOString(),
+      updatedAt: new Date(1750000100000).toISOString(),
+    })
+    expect(pinned?.tags).toEqual(['dsh-memory', 'preference', 'style', 'pinned'])
+
+    const plain = store.getByExtKey('dsh-memory:db:2')
+    expect(plain).toMatchObject({ tier: 'normal', importance: 3, text: 'The project uses pnpm' })
+    expect(plain?.tags).toEqual(['dsh-memory', 'build', 'tooling'])
+
+    const longTitle = store.getByExtKey('dsh-memory:db:3')
+    expect(longTitle?.title).toBe('x'.repeat(119))
+    expect(longTitle?.title.length).toBe(119)
+  })
+
+  it('imports an overlapping SQLite store once', () => {
+    const dshRoot = createDshMemoryDbFixture(root)
+    const storeDir = join(dshRoot, 'memory')
+    const reports = runImport({
+      sources: ['dsh-memory'],
+      config: { importRoots: [dshRoot, storeDir], ...OFF },
+      store,
+    })
+
+    expect(reports[0]).toMatchObject({ imported: 3, errors: [], rootsFound: [dshRoot] })
+    expect(store.list().total).toBe(3)
+  })
+
+  it('re-imports the SQLite store idempotently', () => {
+    const dshRoot = createDshMemoryDbFixture(root)
+    const config = { importRoots: [dshRoot], ...OFF }
+    runImport({ sources: ['dsh-memory'], config, store })
+    const idsBefore = store.allIds().sort()
+
+    const second = runImport({ sources: ['dsh-memory'], config, store })
+    expect(second[0]).toMatchObject({ imported: 0, updated: 0, skipped: 3 })
+    expect(store.allIds().sort()).toEqual(idsBefore)
+  })
+
+  it('reads rows committed to a pending WAL', () => {
+    const dshRoot = join(root, 'dsh-wal')
+    mkdirSync(join(dshRoot, 'memory'), { recursive: true })
+    const db = new DatabaseSync(dshMemoryDbPath(dshRoot))
+    db.exec('PRAGMA journal_mode = WAL')
+    db.exec(DSH_MEMORY_DB_SCHEMA)
+    try {
+      insertDshMemoryRow(db, 'WAL row', 'wal', 0, 1750000000000, 1750000000000)
+      const reports = runImport({
+        sources: ['dsh-memory'],
+        config: { importRoots: [dshRoot], ...OFF },
+        store,
+      })
+      expect(reports[0]).toMatchObject({ imported: 1, errors: [] })
+      expect(store.getByExtKey('dsh-memory:db:1')?.text).toBe('WAL row')
+    } finally {
+      db.close()
+    }
   })
 })
 

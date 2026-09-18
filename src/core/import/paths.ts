@@ -10,6 +10,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
+import { hasSqliteTable } from './common.js'
+
 /** Options that control root discovery (mirrors the plugin config block). */
 export interface ImportRootsOptions {
   /** Explicit root paths from the config; checked first and always trusted. */
@@ -90,8 +92,27 @@ function directoryHasDshHeader(dir: string): boolean {
   return false
 }
 
-/** A dsh-memory root holds `_user/*.md` or `<project>/*.md` pages with a JSON header. */
+/** File name of the shared dsh-memory SQLite store. */
+const DSH_MEMORY_DB_FILE = 'memory.db'
+
+/**
+ * Existing dsh-memory SQLite stores reachable from a root: `<root>/memory.db`
+ * (the root *is* the store directory, e.g. `~/.dsh/memory`) and
+ * `<root>/memory/memory.db` (the root is `$DSH_HOME`, e.g. `~/.dsh`). Both are
+ * validated by the `memories` table so unrelated `memory.db` files are skipped.
+ */
+export function dshMemoryDbPaths(root: string): string[] {
+  const candidates = [join(root, DSH_MEMORY_DB_FILE), join(root, 'memory', DSH_MEMORY_DB_FILE)]
+  return candidates.filter((candidate) => hasSqliteTable(candidate, 'memories'))
+}
+
+/**
+ * A dsh-memory root holds either the SQLite store (`memory.db` with a
+ * `memories` table) or the legacy markdown pages with a JSON header
+ * (`_user/*.md`, `<project>/*.md`).
+ */
 export function isDshMemoryRoot(root: string): boolean {
+  if (dshMemoryDbPaths(root).length > 0) return true
   if (directoryHasDshHeader(join(root, '_user'))) return true
   try {
     for (const entry of readdirSync(root, { withFileTypes: true })) {

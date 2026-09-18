@@ -224,12 +224,28 @@ export interface BuildGraphOptions {
   overlapMinCommonWords?: number
   overlapMinScore?: number
   maxDfRatio?: number
+  /**
+   * Tags shared by more than this share of entries link nothing. A tag that
+   * marks every imported entry (`dsh-memory`) carries no information, while a
+   * topical tag (`plasma-keyboard`) still does.
+   */
+  tagMaxDfRatio?: number
+  /** Minimum number of shared tags behind one tag-based edge. */
+  minCommonTags?: number
+  /** Maximum number of tag-based `related` edges per entry. */
+  maxTagLinksPerEntry?: number
 }
 
 /**
  * Build the heuristic knowledge graph: entries are nodes, edges come from
  * supersede/related fields, `depends` for decision/architecture → fact/concept
- * links, and `contradicts` from significant lexical overlap of active entries.
+ * links, `related` for entries sharing a topical tag, and `contradicts` from
+ * significant lexical overlap of active entries.
+ *
+ * The tag pass matters for imported stores: `dsh-memory`/kilo rows carry no
+ * relation fields at all, so their curated tags are the only topical signal
+ * available. Tags that are too common to mean anything are dropped, and the
+ * per-entry cap keeps the rendered graph readable instead of a clique.
  */
 export function buildGraph(entries: MemoryEntry[], options: BuildGraphOptions = {}): MemoryGraph {
   const entities: MemoryGraphEntity[] = entries.map((entry) => ({
@@ -277,6 +293,64 @@ export function buildGraph(entries: MemoryEntry[], options: BuildGraphOptions = 
       relatedPairs.add(pair)
       pushEdge(entry.id, relatedId, 'related')
     }
+  }
+
+  // Tag-based relatedness. Foreign stores imported into this plugin carry no
+  // relation fields, so their tags are the only topical signal: two entries
+  // sharing a tag are related. A tag is only used while it is selective enough
+  // to mean something (see `tagMaxDfRatio`), and every entry keeps at most
+  // `maxTagLinksPerEntry` such edges — strongest (most shared tags) first.
+  const tagMaxDf = Math.max(3, Math.ceil((options.tagMaxDfRatio ?? 0.5) * Math.max(1, entries.length)))
+  const minCommonTags = Math.max(1, Math.floor(options.minCommonTags ?? 1))
+  const maxTagLinks = Math.max(1, Math.floor(options.maxTagLinksPerEntry ?? 6))
+  const tagsOf = new Map<string, string[]>()
+  const tagDf = new Map<string, number>()
+  for (const entry of entries) {
+    const unique = [
+      ...new Set(entry.tags.map((tag) => tag.trim().toLowerCase()).filter((tag) => tag.length > 0)),
+    ]
+    tagsOf.set(entry.id, unique)
+    for (const tag of unique) tagDf.set(tag, (tagDf.get(tag) ?? 0) + 1)
+  }
+  const entriesByTag = new Map<string, string[]>()
+  for (const entry of entries) {
+    for (const tag of tagsOf.get(entry.id) ?? []) {
+      const count = tagDf.get(tag) ?? 0
+      if (count < 2 || count > tagMaxDf) continue
+      const list = entriesByTag.get(tag)
+      if (list) list.push(entry.id)
+      else entriesByTag.set(tag, [entry.id])
+    }
+  }
+  const tagPairWeights = new Map<string, { left: string; right: string; weight: number }>()
+  for (const ids of entriesByTag.values()) {
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const first = ids[i]!
+        const second = ids[j]!
+        const left = first < second ? first : second
+        const right = first < second ? second : first
+        const key = `${left}|${right}`
+        const pair = tagPairWeights.get(key)
+        if (pair) pair.weight++
+        else tagPairWeights.set(key, { left, right, weight: 1 })
+      }
+    }
+  }
+  const tagDegree = new Map<string, number>()
+  const rankedTagPairs = [...tagPairWeights.values()]
+    .filter((pair) => pair.weight >= minCommonTags)
+    .sort((a, b) => b.weight - a.weight || a.left.localeCompare(b.left) || a.right.localeCompare(b.right))
+  for (const pair of rankedTagPairs) {
+    const key = `${pair.left}|${pair.right}`
+    if (relatedPairs.has(key)) continue
+    const leftDegree = tagDegree.get(pair.left) ?? 0
+    const rightDegree = tagDegree.get(pair.right) ?? 0
+    if (leftDegree >= maxTagLinks || rightDegree >= maxTagLinks) continue
+    tagDegree.set(pair.left, leftDegree + 1)
+    tagDegree.set(pair.right, rightDegree + 1)
+    relatedPairs.add(key)
+    pushEdge(pair.left, pair.right, 'related', pair.weight)
   }
 
   const active = entries.filter((entry) => entry.status === 'active')

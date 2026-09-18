@@ -47,7 +47,12 @@ and can import existing memory from other plugins.
 - **Importers** (idempotent, keyed by an external key):
   - `kilo-memory` — `~/.config/kilo/memory/db/memory.db` (opened read-only),
   - `dsh-mnemon` — `~/.mnemon/data/*/mnemon.db` (read-only),
-  - `dsh-memory` — markdown files with a `<!-- dsh-memory: {...} -->` header.
+  - `dsh-memory` — the SQLite store of the plugin (`~/.dsh/memory/memory.db`,
+    table `memories(id, text, tags, pinned, created_at, updated_at)`, opened
+    read-only) and, for older layouts, markdown files with a
+    `<!-- dsh-memory: {...} -->` header. The plugin keeps one database per
+    machine, so its rows are imported into the cross-project `user` layer;
+    `pinned` rows become `tier: important` with importance 5.
   Source roots are auto-detected on Windows, WSL (`/mnt/<drive>/Users/*`) and
   Linux; extra paths can be listed in `importRoots`. Imported projects are
   registered as **dsh workspaces** (when their root path exists).

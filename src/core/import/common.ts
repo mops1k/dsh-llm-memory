@@ -114,6 +114,51 @@ export function openReadOnlyDatabase(dbPath: string): ReadOnlyDatabase {
   }
 }
 
+/**
+ * Cheap presence check for a table inside a foreign SQLite file.
+ *
+ * Root detection must not create side files for every probed candidate, so the
+ * file is first opened through an `immutable=1` URI: SQLite then reads the main
+ * file directly. A freshly created WAL store keeps its schema only in the
+ * pending `-wal` file, where `immutable` cannot see it — for those the database
+ * is snapshotted exactly like a real import would.
+ */
+export function hasSqliteTable(dbPath: string, table: string): boolean {
+  if (!existsSync(dbPath)) return false
+  try {
+    const db = new DatabaseSync(`${pathToFileURL(dbPath).href}?immutable=1`, { readOnly: true })
+    try {
+      if (sqliteTablePresent(db, table)) return true
+    } finally {
+      db.close()
+    }
+  } catch {
+    /* not an immutable-readable SQLite file, fall through to the snapshot path */
+  }
+
+  let opened: ReadOnlyDatabase | null = null
+  try {
+    opened = openReadOnlyDatabase(dbPath)
+    return sqliteTablePresent(opened.db, table)
+  } catch {
+    return false
+  } finally {
+    try {
+      opened?.db.close()
+    } catch {
+      /* ignore close failure */
+    }
+    opened?.cleanup()
+  }
+}
+
+function sqliteTablePresent(db: DatabaseSync, table: string): boolean {
+  const rows = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .all(table) as unknown[]
+  return rows.length > 0
+}
+
 /** Coerce a value into a string list (JSON array text, array or comma list). */
 export function toStringList(value: unknown): string[] {
   if (Array.isArray(value)) return value.map((item) => String(item))
@@ -195,7 +240,9 @@ export function firstLine(text: string, maxLength = 120): string {
   const line = text.split(/\r?\n/u).find((candidate) => candidate.trim().length > 0) ?? ''
   const trimmed = line.trim()
   if (trimmed.length === 0) return 'untitled'
-  return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed
+  // `slice` can stop on a space; the store trims titles, so leaving one would
+  // make every re-import look like a change.
+  return trimmed.length > maxLength ? trimmed.slice(0, maxLength).trimEnd() : trimmed
 }
 
 /** Stringify a value, with a fallback for null/undefined. */

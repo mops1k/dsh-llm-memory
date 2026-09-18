@@ -84,6 +84,64 @@ describe('wiki', () => {
     expect(graph.edges.filter((edge) => edge.type === 'related')).toHaveLength(1)
   })
 
+  it('relates entries that share a topical tag and ignores tags shared by nearly all', () => {
+    const topical = [
+      newMemoryEntry({ id: 'm_g_t1', kind: 'facts', title: 'A', text: 'alpha', tags: ['plasma-keyboard', 'build'] }),
+      newMemoryEntry({ id: 'm_g_t2', kind: 'facts', title: 'B', text: 'beta', tags: ['plasma-keyboard', 'packaging'] }),
+    ]
+    // Six entries marked by the importer's source tag: 6/8 = 75% > the 50% cap.
+    const imported = Array.from({ length: 6 }, (_, index) =>
+      newMemoryEntry({
+        id: `m_g_i${index}`,
+        kind: 'facts',
+        title: `imported ${index}`,
+        text: `imported body ${index}`,
+        tags: ['dsh-memory'],
+      }),
+    )
+
+    const graph = buildGraph([...topical, ...imported], { overlapMinCommonWords: 50, overlapMinScore: 0.99 })
+    const related = graph.edges.filter((edge) => edge.type === 'related')
+    expect(related).toEqual([
+      expect.objectContaining({ source: 'm_g_t1', target: 'm_g_t2', type: 'related', weight: 1 }),
+    ])
+    expect(graph.edges).toHaveLength(1)
+  })
+
+  it('weights tag edges by the number of shared tags and caps them per entry', () => {
+    const strong = [
+      newMemoryEntry({ id: 'm_g_s1', kind: 'facts', title: 'S1', text: 's1', tags: ['one', 'two'] }),
+      newMemoryEntry({ id: 'm_g_s2', kind: 'facts', title: 'S2', text: 's2', tags: ['one', 'two'] }),
+    ]
+    const common = Array.from({ length: 3 }, (_, index) =>
+      newMemoryEntry({
+        id: `m_g_c${index}`,
+        kind: 'facts',
+        title: `C${index}`,
+        text: `c${index}`,
+        tags: ['common'],
+      }),
+    )
+    // Nine entries keep `common` (df 3) under the 50% cap, so it still links.
+    const fillers = Array.from({ length: 4 }, (_, index) =>
+      newMemoryEntry({ id: `m_g_f${index}`, kind: 'facts', title: `F${index}`, text: `f${index}` }),
+    )
+
+    const weighted = buildGraph([...strong, ...common, ...fillers], {
+      overlapMinCommonWords: 50,
+      overlapMinScore: 0.99,
+    })
+    const strongEdge = weighted.edges.find((edge) => edge.type === 'related' && edge.weight === 2)
+    expect(strongEdge).toMatchObject({ source: 'm_g_s1', target: 'm_g_s2', weight: 2 })
+
+    const capped = buildGraph([...common, ...fillers], {
+      overlapMinCommonWords: 50,
+      overlapMinScore: 0.99,
+      maxTagLinksPerEntry: 1,
+    })
+    expect(capped.edges.filter((edge) => edge.type === 'related')).toHaveLength(1)
+  })
+
   it('keeps the store and wiki pages consistent', () => {
     const store = new MemoryStore({ storageRoot: root })
     try {

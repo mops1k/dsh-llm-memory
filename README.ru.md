@@ -49,7 +49,12 @@
 - **Импортёры** (идемпотентные, по внешнему ключу):
   - `kilo-memory` — `~/.config/kilo/memory/db/memory.db` (только чтение),
   - `dsh-mnemon` — `~/.mnemon/data/*/mnemon.db` (только чтение),
-  - `dsh-memory` — markdown-файлы с заголовком `<!-- dsh-memory: {...} -->`.
+  - `dsh-memory` — SQLite-хранилище плагина (`~/.dsh/memory/memory.db`, таблица
+    `memories(id, text, tags, pinned, created_at, updated_at)`, только чтение)
+    и, для старых раскладок, markdown-файлы с заголовком
+    `<!-- dsh-memory: {...} -->`. У плагина одна база на машину, поэтому его
+    записи импортируются в кросс-проектный слой `user`; записи с `pinned`
+    становятся `tier: important` с важностью 5.
   Корни источников определяются автоматически на Windows, в WSL (`/mnt/<drive>/Users/*`) и
   Linux; дополнительные пути задаются в `importRoots`. Импортированные проекты
   регистрируются как **воркспейсы dsh** (если их корневой путь существует).
