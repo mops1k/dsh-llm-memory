@@ -15,6 +15,7 @@ import {
   resolveStoragePaths,
   resolveStorageRoot,
   safeJoin,
+  sanitizeProjectKey,
   scopeDir,
   titleSlug,
   writeFileAtomic,
@@ -42,6 +43,13 @@ describe('paths', () => {
     expect(projectKeyFromCwd('C:\\work\\tv2.local\\')).toBe('tv2.local')
     expect(projectKeyFromCwd()).toBe(NO_CWD_KEY)
     expect(projectKeyFromCwd('///')).toBe(NO_CWD_KEY)
+  })
+
+  it('keeps the no-cwd placeholder stable when sanitized again', () => {
+    expect(sanitizeProjectKey(NO_CWD_KEY)).toBe(NO_CWD_KEY)
+    expect(sanitizeProjectKey('')).toBe(NO_CWD_KEY)
+    expect(projectKeyFromCwd(sanitizeProjectKey(NO_CWD_KEY))).toBe(NO_CWD_KEY)
+    expect(scopeDir('/tmp/root', 'project', NO_CWD_KEY)).toBe(join('/tmp/root', NO_CWD_KEY))
   })
 
   it('slugs titles keeping unicode letters', () => {

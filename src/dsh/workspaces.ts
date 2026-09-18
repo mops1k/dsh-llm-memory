@@ -13,7 +13,7 @@ import { existsSync } from 'node:fs'
 import { basename } from 'node:path'
 
 import type { ImportedProject } from '../core/import/common.js'
-import { sanitizeProjectKey } from '../core/paths.js'
+import { NO_CWD_KEY, sanitizeProjectKey } from '../core/paths.js'
 
 /** Minimal structural view of a `@deepseek-ai/dsh-workspace` record. */
 export interface WorkspaceLike {
@@ -55,7 +55,8 @@ const WINDOWS_DRIVE_RE = /^([A-Za-z]):[\\/](.*)$/u
  * - `\\wsl.localhost\<distro>\<rest>` / `\\wsl$\<distro>\<rest>` -> `/<rest>`
  * - `X:\...` on Linux -> `/mnt/x/...`; on Windows kept as `X:\...`
  * - native Unix paths are returned as-is
- * - empty values, `_user` and `_no-cwd` yield `null`
+ * - empty values, `_user` and the no-cwd placeholder (`_no-cwd`, legacy
+ *   `no-cwd`) yield `null`
  *
  * @param root - Raw project root from an importer.
  * @param platform - Host platform (overridable for tests).
@@ -67,7 +68,7 @@ export function toLocalPath(
 ): string | null {
   const raw = typeof root === 'string' ? root.trim() : ''
   if (raw.length === 0) return null
-  if (raw === '_user' || raw === '_no-cwd') return null
+  if (raw === '_user' || raw === NO_CWD_KEY || raw === 'no-cwd') return null
 
   const wsl = WSL_UNC_RE.exec(raw)
   if (wsl) {

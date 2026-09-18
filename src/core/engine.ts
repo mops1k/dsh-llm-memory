@@ -528,13 +528,30 @@ export class MemoryEngine {
     const scope: RecallScope = options.scope ?? this.config.recallScope
     const format: RecallFormat = options.format ?? 'markdown'
     const limit = Math.max(1, options.limit ?? this.config.recallLimit)
-    const filter: MemoryFilter = { status: 'active' }
-    if (scope !== 'all') filter.scope = scope
-    if (options.project && options.project !== 'all') filter.project = options.project
-    if (options.kind && options.kind !== 'all') filter.kind = options.kind
-    if (options.tier && options.tier !== 'all') filter.tier = options.tier
+    const text = (query ?? '').trim()
 
-    const candidates = this.store.search((query ?? '').trim(), filter)
+    const base: MemoryFilter = { status: 'active' }
+    if (options.kind && options.kind !== 'all') base.kind = options.kind
+    if (options.tier && options.tier !== 'all') base.tier = options.tier
+
+    let candidates: MemoryEntry[]
+    if (scope === 'project') {
+      // The project layer means the calling session's project PLUS the
+      // cross-project user layer, so user-wide rules and preferences are always
+      // visible while entries of foreign projects stay hidden.
+      const key =
+        options.project && options.project !== 'all' ? sanitizeProjectKey(options.project) : this.project
+      candidates = [
+        ...this.store.search(text, { ...base, scope: 'project', project: key }),
+        ...this.store.search(text, { ...base, scope: 'user' }),
+      ]
+    } else {
+      const filter: MemoryFilter = { ...base }
+      if (scope === 'user') filter.scope = 'user'
+      if (options.project && options.project !== 'all') filter.project = options.project
+      candidates = this.store.search(text, filter)
+    }
+
     const ranked = rankItems(candidates, query, DEFAULT_RANKING, scope)
     const items = ranked.slice(0, limit)
     return { items, text: renderRecall(items, format), format }

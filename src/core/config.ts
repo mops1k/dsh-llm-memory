@@ -24,7 +24,10 @@ export interface MemoryConfig {
   storageRoot: string | undefined
   /** Default number of entries returned by `recall`. */
   recallLimit: number
-  /** Default scope used by `recall`. */
+  /**
+   * Default scope used by `recall`. `project` means the calling session's
+   * project plus the cross-project user layer; `all` searches every project.
+   */
   recallScope: RecallScope
   /** Minimum number of significant common words for a lint overlap pair. */
   lintOverlapMinCommonWords: number
@@ -83,7 +86,7 @@ export const DEFAULT_SYSTEM_PROMPT = [
 export const DEFAULT_CONFIG: MemoryConfig = {
   storageRoot: undefined,
   recallLimit: 10,
-  recallScope: 'all',
+  recallScope: 'project',
   lintOverlapMinCommonWords: 8,
   lintMaxPairs: 200,
   autonomous: true,

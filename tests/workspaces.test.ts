@@ -64,6 +64,7 @@ describe('toLocalPath', () => {
     expect(toLocalPath(undefined, 'linux')).toBeNull()
     expect(toLocalPath('_user', 'linux')).toBeNull()
     expect(toLocalPath('_no-cwd', 'linux')).toBeNull()
+    expect(toLocalPath('no-cwd', 'linux')).toBeNull()
     expect(toLocalPath('relative/path', 'linux')).toBeNull()
   })
 })

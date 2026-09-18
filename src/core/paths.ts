@@ -64,9 +64,17 @@ export function resolveStorageRoot(override?: string | null): string {
   return resolve(join(homedir(), '.dsh', 'llm-memory'))
 }
 
-/** Sanitize a raw directory name into a safe project key. */
+/**
+ * Sanitize a raw directory name into a safe project key.
+ *
+ * The placeholder {@link NO_CWD_KEY} is idempotent: sanitizing it again must not
+ * strip its leading underscore, otherwise the key written to disk
+ * (`no-cwd`) would differ from the constant (`_no-cwd`).
+ */
 export function sanitizeProjectKey(value: string): string {
-  const cleaned = (value ?? '')
+  const raw = value ?? ''
+  if (raw === NO_CWD_KEY) return NO_CWD_KEY
+  const cleaned = raw
     .replace(/[^a-zA-Z0-9._-]+/gu, '-')
     .replace(/-+/g, '-')
     .replace(/^[-._]+|[-._]+$/g, '')

@@ -35,6 +35,11 @@ and can import existing memory from other plugins.
   The file name is `<title-slug>-<id>.md`; the category is the subdirectory
   (matching the KiloCode `pages/<kind>/<slug>.md` layout). Legacy flat pages are
   migrated into `<kind>/` on startup.
+  Project entries are keyed by the **basename of the session's working
+  directory** (`dsh-llm-memory`, `plasma-keyboard`); the key is mapped to an
+  absolute root through `projects.json` and the dsh workspace registry, so pages
+  land inside the repository. A session without a working directory falls back to
+  the `_no-cwd` placeholder.
 - **System-prompt guidance** injected as a prompt section; the text is editable in
   settings (English by default).
 - **Dedicated Settings section**: **Settings → LLM Memory** holds every option,
@@ -86,6 +91,7 @@ Open **Settings → LLM Memory**. Values are applied on the next plugin restart.
 | --- | --- | --- |
 | `storageRoot` | `$DSH_HOME/llm-memory` | Memory root (empty uses the default). |
 | `recallLimit` | `10` | Maximum entries returned by `llm_memory_recall`. |
+| `recallScope` | `project` | Default recall layer: `project` = the session project plus the cross-project `user` layer; `user` = user only; `all` = every project. |
 | `autonomous` | `true` | The agent manages memory without asking. |
 | `requireConfirmation` | `false` | Ask before irreversible operations. |
 | `systemPrompt` | built-in (English) | System-prompt guidance injected into the agent. |
@@ -128,6 +134,8 @@ tests/             vitest suites
   (an `immutable=1` snapshot is used when a WAL file is present).
 - `node:sqlite` is synchronous, so the store has a single owner per process.
 - `storageRoot` and `webPath` changes take effect after a plugin restart.
+- `llm_memory_recall` searches the current project plus the cross-project `user`
+  layer by default; pass `scope: all` to search every project.
 - Running several dsh instances at once can rewrite the same state; keep one
   process. After a hard stop, remove a stale `~/.dsh/.credentials.yaml.lock` if
   the next start fails to boot.

@@ -82,6 +82,34 @@ describe('MemoryEngine', () => {
     expect(engine.recall('cross project', { scope: 'user' }).items.map((item) => item.id)).toContain(userEntry.id)
   })
 
+  it('recalls the current project plus user entries and hides foreign projects', () => {
+    const own = engine.save({ text: 'Own project note about widgets.', title: 'Own' })
+    const foreign = engine.save({
+      text: 'Foreign project note about widgets.',
+      title: 'Foreign',
+      project: 'other',
+      scope: 'project',
+    })
+    const shared = engine.save({
+      text: 'User-wide note about widgets.',
+      title: 'Shared',
+      scope: 'user',
+    })
+
+    const result = engine.recall('widgets')
+    const ids = result.items.map((item) => item.id)
+    expect(ids).toContain(own.id)
+    expect(ids).toContain(shared.id)
+    expect(ids).not.toContain(foreign.id)
+
+    const all = engine.recall('widgets', { scope: 'all' })
+    expect(all.items.map((item) => item.id)).toContain(foreign.id)
+
+    const explicit = engine.recall('widgets', { project: 'other' })
+    expect(explicit.items.map((item) => item.id)).toContain(foreign.id)
+    expect(explicit.items.map((item) => item.id)).not.toContain(own.id)
+  })
+
   it('updates an entry and returns null for an unknown id', () => {
     const entry = engine.save({ text: 'Draft.', title: 'Draft' })
     const updated = engine.update(entry.id, { text: 'Final text.', title: 'Final', importance: 5 })

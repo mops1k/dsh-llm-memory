@@ -8,7 +8,7 @@ import type { HealReport, LintReport, StatusReport } from '../src/core/engine'
 import type { MemoryEngine } from '../src/core/engine'
 import type { MemoryEntry } from '../src/core/types'
 import { createMemoryRuntime } from '../src/dsh/engine'
-import { registerMemoryTools } from '../src/dsh/tools'
+import { registerMemoryTools, sessionProjectKey } from '../src/dsh/tools'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 const TOOL_NAMES = [
@@ -119,6 +119,20 @@ function tool(tools: ToolDefinition[], name: string): ToolDefinition {
   const found = tools.find((definition) => definition.name === name)
   if (!found) throw new Error(`tool not registered: ${name}`)
   return found
+}
+
+/**
+ * Install a fake `ctx.sessions` on a harness context. A `null` cwd marks a
+ * session without working directory.
+ */
+function withSessions(ctx: Context, byId: Record<string, string | null>): void {
+  ;(ctx as unknown as { sessions: unknown }).sessions = {
+    get(id: string): unknown {
+      if (!Object.prototype.hasOwnProperty.call(byId, id)) return undefined
+      const cwd = byId[id]
+      return { header: cwd === null || cwd === undefined ? {} : { cwd } }
+    },
+  }
 }
 
 function expectValidOutput(definition: ToolDefinition, value: unknown): void {
@@ -336,6 +350,61 @@ describe('registerMemoryTools', () => {
     expect(engine.heal).toHaveBeenCalledTimes(1)
     expect(value).toMatchObject({ removedLinks: 1, addedBacklinks: 2, reindexed: 3, brokenAfter: 0 })
     expectValidOutput(definition, value)
+  })
+
+  it('resolves the project key from the calling session cwd', () => {
+    const { ctx } = makeHarness()
+    expect(sessionProjectKey(ctx, {})).toBeNull()
+    expect(sessionProjectKey(ctx, { agent: { id: 'session-1' } })).toBeNull()
+
+    withSessions(ctx, { 'session-1': '/home/deck/vibecoding/demo-project' })
+    expect(sessionProjectKey(ctx, { agent: { id: 'session-1' } })).toBe('demo-project')
+    expect(sessionProjectKey(ctx, { agent: { id: 'unknown' } })).toBeNull()
+    expect(sessionProjectKey(ctx, { agent: { id: 'no-cwd' } })).toBeNull()
+  })
+
+  it('memory_save attaches project entries to the session project', async () => {
+    const engine = makeEngine()
+    const { ctx, tools } = makeHarness()
+    withSessions(ctx, { 'session-1': '/home/deck/vibecoding/demo-project' })
+    registerMemoryTools(ctx, engine as unknown as MemoryEngine, mergeConfig({}))
+
+    await tool(tools, 'llm_memory_save').execute(
+      { title: 'T', text: 'B' },
+      { agent: { id: 'session-1' } } as never,
+    )
+    expect(engine.save.mock.calls[0]?.[0]).toMatchObject({ project: 'demo-project' })
+
+    await tool(tools, 'llm_memory_save').execute({ title: 'T', text: 'B', scope: 'user' }, {} as never)
+    expect(engine.save.mock.calls[1]?.[0]).not.toHaveProperty('project')
+  })
+
+  it('memory_recall sends the session project only for the project scope', async () => {
+    const engine = makeEngine()
+    const { ctx, tools } = makeHarness()
+    withSessions(ctx, { 'session-1': '/home/deck/vibecoding/demo-project' })
+    registerMemoryTools(ctx, engine as unknown as MemoryEngine, mergeConfig({}))
+    const definition = tool(tools, 'llm_memory_recall')
+    const exec = { agent: { id: 'session-1' } } as never
+
+    await definition.execute({ query: 'build' }, exec)
+    expect(engine.recall.mock.calls[0]?.[1]).toMatchObject({ project: 'demo-project' })
+
+    await definition.execute({ query: 'build', scope: 'all' }, exec)
+    expect(engine.recall.mock.calls[1]?.[1]).not.toHaveProperty('project')
+
+    await definition.execute({ query: 'build', project: 'explicit' }, exec)
+    expect(engine.recall.mock.calls[2]?.[1]).toMatchObject({ project: 'explicit' })
+  })
+
+  it('memory_recall omits the project when the host has no session store', async () => {
+    const engine = makeEngine()
+    const { ctx, tools } = makeHarness()
+    registerMemoryTools(ctx, engine as unknown as MemoryEngine, mergeConfig({}))
+    const definition = tool(tools, 'llm_memory_recall')
+
+    await definition.execute({ query: 'build' }, { agent: { id: 'session-1' } } as never)
+    expect(engine.recall.mock.calls[0]?.[1]).not.toHaveProperty('project')
   })
 })
 

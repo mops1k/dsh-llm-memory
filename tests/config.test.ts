@@ -7,7 +7,7 @@ describe('mergeConfig', () => {
     const config = mergeConfig()
     expect(config).toEqual(DEFAULT_CONFIG)
     expect(config.recallLimit).toBe(10)
-    expect(config.recallScope).toBe('all')
+    expect(config.recallScope).toBe('project')
     expect(config.lintOverlapMinCommonWords).toBe(8)
     expect(config.lintMaxPairs).toBe(200)
     expect(config.autonomous).toBe(true)
@@ -39,7 +39,7 @@ describe('mergeConfig', () => {
 
   it('keeps a custom system prompt and drops invalid scopes', () => {
     expect(mergeConfig({ systemPrompt: 'Custom guidance' }).systemPrompt).toBe('Custom guidance')
-    expect(mergeConfig({ recallScope: 'nope' as never }).recallScope).toBe('all')
+    expect(mergeConfig({ recallScope: 'nope' as never }).recallScope).toBe('project')
     expect(mergeConfig({ storageRoot: '   ' }).storageRoot).toBeUndefined()
   })
 })

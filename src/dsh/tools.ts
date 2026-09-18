@@ -17,6 +17,7 @@ import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 
 import type { MemoryConfig } from '../core/config.js'
 import type { MemoryEngine } from '../core/engine.js'
+import { projectKeyFromCwd } from '../core/paths.js'
 import type { MemoryEntry } from '../core/types.js'
 import { MEMORY_KINDS, MEMORY_SCOPES, MEMORY_TIERS, clampImportance } from '../core/types.js'
 
@@ -25,6 +26,69 @@ const AUTONOMY_NOTE = 'Runs autonomously: never asks the user for confirmation.'
 
 /** Enum options for the `format` parameter of `memory_recall`. */
 const RECALL_FORMATS = ['markdown', 'table', 'timeline', 'json'] as const
+
+/** Structural view of `ctx.sessions` limited to what a memory tool needs. */
+export interface SessionStoreLike {
+  get(id: string): { header?: { cwd?: string } } | undefined
+}
+
+/** Structural view of the tool execution needed to find the calling session. */
+export interface ToolExecutionLike {
+  agent?: { id?: unknown }
+}
+
+/**
+ * Resolve `ctx.sessions` without requiring it to be injected: try the reflected
+ * property, the `ctx.get` mixin and finally the non-strict reflection lookup,
+ * which works without an `inject` declaration. Mirrors the workspace-registry
+ * resolution in `web.ts`.
+ */
+export function resolveSessionStore(ctx: Context): SessionStoreLike | undefined {
+  const source = ctx as unknown as {
+    sessions?: unknown
+    get?: (name: string) => unknown
+    reflect?: { get?: (name: string, strict?: boolean) => unknown }
+  }
+  const candidates: Array<() => unknown> = [
+    () => source.sessions,
+    () => source.get?.('sessions'),
+    () => source.reflect?.get?.('sessions', false),
+  ]
+  for (const read of candidates) {
+    try {
+      const value = read()
+      if (value !== null && typeof value === 'object' && typeof (value as SessionStoreLike).get === 'function') {
+        return value as SessionStoreLike
+      }
+    } catch {
+      /* try the next resolution path */
+    }
+  }
+  return undefined
+}
+
+/**
+ * Project key of the session that issued a tool call (basename of its cwd).
+ *
+ * Returns `null` when the host has no session store, the execution has no
+ * agent, or the session carries no cwd — callers then fall back to the engine's
+ * own default key instead of inventing a project.
+ */
+export function sessionProjectKey(ctx: Context, exec: unknown): string | null {
+  const sessions = resolveSessionStore(ctx)
+  if (!sessions) return null
+  const agentId = (exec as ToolExecutionLike | undefined)?.agent?.id
+  if (agentId === undefined || agentId === null) return null
+  const id = String(agentId)
+  if (id.length === 0) return null
+  try {
+    const cwd = sessions.get(id)?.header?.cwd
+    if (typeof cwd !== 'string' || cwd.trim().length === 0) return null
+    return projectKeyFromCwd(cwd)
+  } catch {
+    return null
+  }
+}
 
 /**
  * Unique, plugin-prefixed tool names. The `llm_memory_` prefix keeps the seven
@@ -202,9 +266,14 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
         scope: {
           type: 'string',
           enum: ['project', 'user', 'all'],
-          description: 'Restrict results to the project layer, the user layer, or both.',
+          description:
+            'Restrict results: project = the current session project plus the cross-project user layer (default); ' +
+            'user = the cross-project layer only; all = every project and the user layer.',
         },
-        project: { type: 'string', description: 'Restrict project entries to one project key.' },
+        project: {
+          type: 'string',
+          description: 'Restrict project entries to one project key (default: the current session project).',
+        },
         limit: { type: 'integer', description: `Maximum number of entries to return (default ${defaultLimit}).` },
         format: {
           type: 'string',
@@ -227,11 +296,15 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
           { type: 'text', text: value.text.length > 0 ? value.text : 'No matching memory entries.' },
         ],
       },
-      execute: async (args) => {
+      execute: async (args, exec) => {
+        const effectiveScope = args.scope ?? config.recallScope
+        const projectKey = sessionProjectKey(ctx, exec)
+        const project =
+          args.project ?? (effectiveScope === 'project' && projectKey !== null ? projectKey : undefined)
         const result = engine.recall(args.query, {
           ...(args.kind !== undefined ? { kind: args.kind } : {}),
           ...(args.scope !== undefined ? { scope: args.scope } : {}),
-          ...(args.project !== undefined ? { project: args.project } : {}),
+          ...(project !== undefined ? { project } : {}),
           ...(args.limit !== undefined ? { limit: args.limit } : {}),
           ...(args.format !== undefined ? { format: args.format } : {}),
         })
@@ -252,6 +325,7 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
         'Save one durable memory entry (a fact, decision, preference, rule, architecture detail or concept). ' +
         'Save immediately after learning durable knowledge; do not wait for the user to ask. ' +
         'Choose `kind`, `scope`, `tier` (`normal`, `important` or `immutable`) and `importance` (1-5) yourself. ' +
+        'Project entries are attached to the project of the calling session (basename of its working directory). ' +
         'To replace outdated knowledge, list the old entry ids in `supersedes`; those entries are marked superseded. ' +
         AUTONOMY_NOTE,
       parameters: {
@@ -276,18 +350,21 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
           { type: 'text', text: `Saved memory entry ${value.id} "${value.title}" (${value.kind}, ${value.scope}).` },
         ],
       },
-      execute: async (args) => {
+      execute: async (args, exec) => {
         if (
           args.importance !== undefined &&
           (!Number.isInteger(args.importance) || args.importance < 1 || args.importance > 5)
         ) {
           throw new Error('importance must be an integer between 1 and 5')
         }
+        const scope = args.scope ?? 'project'
+        const projectKey = scope === 'user' ? null : sessionProjectKey(ctx, exec)
         const saved = engine.save({
           title: args.title,
           text: args.text,
           ...(args.kind !== undefined ? { kind: args.kind } : {}),
           ...(args.scope !== undefined ? { scope: args.scope } : {}),
+          ...(projectKey !== null ? { project: projectKey } : {}),
           ...(args.tier !== undefined ? { tier: args.tier } : {}),
           ...(args.importance !== undefined ? { importance: clampImportance(args.importance) } : {}),
           ...(args.tags !== undefined ? { tags: args.tags } : {}),
