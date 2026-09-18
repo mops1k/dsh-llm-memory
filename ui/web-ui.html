@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LLM Memory</title>
+<style>
+  :root {
+    --bg: #0f1319;
+    --panel: #161c24;
+    --panel-2: #1d2530;
+    --border: #2a3441;
+    --text: #e6edf3;
+    --muted: #93a1b1;
+    --accent: #4c9aff;
+    --accent-2: #2f6fd0;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --danger: #f85149;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  a { color: var(--accent); }
+  header.top { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--panel); flex-wrap: wrap; }
+  header.top h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 600; }
+  header.top .spacer { flex: 1; }
+  .btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent-2); border-color: var(--accent-2); }
+  .btn.danger { color: var(--danger); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  nav.tabs { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--border); background: var(--panel); flex-wrap: wrap; }
+  nav.tabs button { background: transparent; border: 1px solid transparent; border-bottom: none; padding: 8px 14px; border-radius: 8px 8px 0 0; cursor: pointer; color: var(--muted); }
+  nav.tabs button[aria-selected="true"] { background: var(--bg); color: var(--text); border-color: var(--border); }
+  main { padding: 16px; max-width: 1200px; }
+  section[hidden] { display: none; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .field label { color: var(--muted); font-size: 12px; }
+  input[type="text"], input[type="number"], select, textarea { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; min-width: 120px; }
+  textarea { min-height: 90px; resize: vertical; width: 100%; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .card h3 { margin: 0 0 6px; font-size: 14px; }
+  .card .meta { color: var(--muted); font-size: 11px; margin-bottom: 6px; word-break: break-all; }
+  .card .text { white-space: pre-wrap; max-height: 160px; overflow: auto; }
+  .pills { display: flex; gap: 5px; flex-wrap: wrap; margin: 6px 0; }
+  .pill { font-size: 11px; border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; color: var(--muted); }
+  .pill.kind { color: var(--accent); border-color: var(--accent-2); }
+  .pill.warn { color: var(--warn); border-color: var(--warn); }
+  .card .actions { display: flex; gap: 6px; margin-top: 8px; }
+  .muted { color: var(--muted); }
+  .error { color: var(--danger); }
+  .success { color: var(--ok); }
+  pre.report { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow: auto; max-height: 240px; white-space: pre-wrap; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .kpi { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .kpi .n { font-size: 22px; font-weight: 600; }
+  .kpi .l { color: var(--muted); font-size: 12px; }
+  .bars { display: grid; gap: 6px; }
+  .bar { display: grid; grid-template-columns: 120px 1fr 40px; gap: 8px; align-items: center; }
+  .bar .track { display: block; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; height: 14px; overflow: hidden; }
+  .bar .fill { display: block; min-width: 2px; height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+  #graph { position: relative; }
+  #graph svg { width: 100%; height: 520px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); cursor: grab; display: block; }
+  #graph .hint { position: absolute; right: 10px; bottom: 10px; color: var(--muted); font-size: 11px; background: rgba(15,19,25,.8); padding: 3px 7px; border-radius: 6px; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; padding: 24px; }
+  #overlay.open { display: flex; }
+  #overlay .box { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); max-width: 760px; width: 100%; max-height: 80vh; overflow: auto; padding: 18px; }
+  #overlay .box h2 { margin-top: 0; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>LLM Memory</h1>
+  <button class="btn" id="btn-import">Import memory</button>
+  <button class="btn" id="btn-export">Export rules to dsh AGENTS.md</button>
+  <span class="muted" id="export-note"></span>
+  <span class="muted" id="action-status"></span>
+  <span class="spacer"></span>
+  <button class="btn" id="btn-refresh">Refresh</button>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="browse" aria-selected="true">Search &amp; Browse</button>
+  <button role="tab" data-tab="edit" aria-selected="false">Create / Edit</button>
+  <button role="tab" data-tab="graph" aria-selected="false">Graph</button>
+  <button role="tab" data-tab="status" aria-selected="false">Status</button>
+  <button role="tab" data-tab="lint" aria-selected="false">Lint</button>
+  <button role="tab" data-tab="health" aria-selected="false">Health</button>
+</nav>
+
+<main>
+  <section id="tab-browse">
+    <div class="panel">
+      <div class="row">
+        <div class="field"><label for="q">Query</label><input id="q" type="text" placeholder="search title, text, tags" /></div>
+        <div class="field"><label for="f-kind">Kind</label><select id="f-kind"><option value="">any</option></select></div>
+        <div class="field"><label for="f-scope">Scope</label><select id="f-scope"><option value="">any</option><option value="project">project</option><option value="user">user</option></select></div>
+        <div class="field"><label for="f-status">Status</label><select id="f-status"><option value="">any</option><option value="active">active</option><option value="superseded">superseded</option><option value="archived">archived</option></select></div>
+        <div class="field"><label for="f-project">Project</label><select id="f-project"><option value="">any</option></select></div>
+        <div class="field"><label for="f-limit">Limit</label><input id="f-limit" type="number" value="50" min="1" max="500" style="width:80px" /></div>
+        <button class="btn primary" id="btn-search">Search</button>
+      </div>
+    </div>
+    <div class="muted" id="browse-count"></div>
+    <div class="grid" id="browse-results"></div>
+  </section>
+
+  <section id="tab-edit" hidden>
+    <div class="panel">
+      <h3 id="edit-title">Create a memory entry</h3>
+      <input type="hidden" id="e-id" />
+      <div class="grid">
+        <div class="field"><label for="e-title">Title</label><input id="e-title" type="text" /></div>
+        <div class="field"><label for="e-kind">Kind</label><select id="e-kind"></select></div>
+        <div class="field"><label for="e-scope">Scope</label><select id="e-scope"><option value="project">project</option><option value="user">user</option></select></div>
+        <div class="field"><label for="e-project">Project</label><input id="e-project" type="text" placeholder="project key (project scope only)" /></div>
+        <div class="field"><label for="e-tier">Tier</label><select id="e-tier"><option value="normal">normal</option><option value="important">important</option><option value="immutable">immutable</option></select></div>
+        <div class="field"><label for="e-importance">Importance (1-5)</label><input id="e-importance" type="number" min="1" max="5" value="3" /></div>
+        <div class="field"><label for="e-tags">Tags (comma separated)</label><input id="e-tags" type="text" /></div>
+        <div class="field"><label for="e-keywords">Keywords</label><input id="e-keywords" type="text" /></div>
+      </div>
+      <div class="field"><label for="e-text">Text</label><textarea id="e-text"></textarea></div>
+      <div class="field"><label for="e-supersedes">Supersedes (comma separated ids)</label><input id="e-supersedes" type="text" /></div>
+      <div class="field"><label for="e-related">Related (comma separated ids)</label><input id="e-related" type="text" /></div>
+      <div class="row">
+        <button class="btn primary" id="btn-save">Save</button>
+        <button class="btn" id="btn-reset">Reset</button>
+        <span id="edit-status" class="muted"></span>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-graph" hidden>
+    <div class="panel">
+      <div class="legend" id="graph-legend"></div>
+      <div id="graph"><svg id="graph-svg"></svg><div class="hint">Wheel to zoom · drag to pan · click a node for details</div></div>
+    </div>
+  </section>
+
+  <section id="tab-status" hidden>
+    <div class="panel" id="status-panel"></div>
+  </section>
+
+  <section id="tab-lint" hidden>
+    <div class="panel" id="lint-panel"></div>
+  </section>
+
+  <section id="tab-health" hidden>
+    <div class="panel">
+      <div class="row">
+        <button class="btn primary" id="btn-run-lint">Run lint</button>
+        <button class="btn" id="btn-heal">Heal</button>
+        <button class="btn" id="btn-preview-rules">Preview rules</button>
+        <span class="muted" id="health-export-note"></span>
+        <button class="btn" id="btn-sync-workspaces">Sync workspaces</button>
+        <button class="btn" id="btn-refresh-health">Refresh status / health</button>
+        <span id="health-status" class="muted"></span>
+      </div>
+    </div>
+    <div class="panel" id="health-status-panel"></div>
+    <div class="panel" id="health-lint-panel"></div>
+    <div class="panel" id="health-heal-panel"></div>
+    <div class="panel" id="health-workspaces-panel"></div>
+  </section>
+</main>
+
+<div id="overlay"><div class="box" id="overlay-box"></div></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var BASE = (function () {
+    var path = location.pathname.replace(/\/+$/, "");
+    return path.slice(-3) === "/ui" ? path.slice(0, -3) : path;
+  })();
+
+  var KINDS = ["rules", "preferences", "decisions", "facts", "architecture", "concepts"];
+  var KIND_COLORS = {
+    rules: "#f85149",
+    preferences: "#d29922",
+    decisions: "#4c9aff",
+    facts: "#3fb950",
+    architecture: "#a371f7",
+    concepts: "#39c5cf"
+  };
+
+  function esc(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function $(id) { return document.getElementById(id); }
+
+  async function api(path, options) {
+    var opts = options || {};
+    var response = await fetch(BASE + path, {
+      method: opts.method || "GET",
+      headers: opts.body === undefined ? undefined : { "content-type": "application/json" },
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body)
+    });
+    var data = null;
+    try { data = await response.json(); } catch (error) { data = null; }
+    if (!response.ok) {
+      throw new Error((data && data.error) ? data.error : ("HTTP " + response.status));
+    }
+    return data;
+  }
+
+  function setActionStatus(text, isError) {
+    var node = $("action-status");
+    node.textContent = text || "";
+    node.className = isError ? "error" : "success";
+  }
+
+  /* ---------------- tabs ---------------- */
+
+  function showTab(name) {
+    var buttons = document.querySelectorAll("nav.tabs button");
+    for (var i = 0; i < buttons.length; i++) {
+      var active = buttons[i].getAttribute("data-tab") === name;
+      buttons[i].setAttribute("aria-selected", active ? "true" : "false");
+      $(("tab-" + buttons[i].getAttribute("data-tab"))).hidden = !active;
+    }
+    if (name === "graph") loadGraph();
+    if (name === "status") loadStatus();
+    if (name === "lint") loadLint();
+    if (name === "health") refreshHealth();
+    if (name === "browse") search();
+  }
+
+  function initTabs() {
+    var buttons = document.querySelectorAll("nav.tabs button");
+    for (var i = 0; i < buttons.length; i++) {
+      (function (button) {
+        button.addEventListener("click", function () { showTab(button.getAttribute("data-tab")); });
+      })(buttons[i]);
+    }
+  }
+
+  /* ---------------- browse ---------------- */
+
+  function kindOptions() {
+    var select = $("f-kind");
+    var html = '<option value="">any</option>';
+    for (var i = 0; i < KINDS.length; i++) html += '<option value="' + KINDS[i] + '">' + KINDS[i] + "</option>";
+    select.innerHTML = html;
+    $("e-kind").innerHTML = KINDS.map(function (k) { return '<option value="' + k + '">' + k + "</option>"; }).join("");
+    $("graph-legend").innerHTML = KINDS.map(function (k) {
+      return '<span><i style="background:' + KIND_COLORS[k] + '"></i>' + k + "</span>";
+    }).join("");
+  }
+
+  function entryCard(entry) {
+    var pills = '<span class="pill kind">' + esc(entry.kind) + "</span>" +
+      '<span class="pill">' + esc(entry.scope) + (entry.project ? "/" + esc(entry.project) : "") + "</span>" +
+      '<span class="pill">' + esc(entry.status) + "</span>" +
+      '<span class="pill">' + esc(entry.tier) + "</span>" +
+      '<span class="pill">imp ' + esc(entry.importance) + "</span>";
+    var tags = (entry.tags && entry.tags.length) ? '<div class="meta">tags: ' + esc(entry.tags.join(", ")) + "</div>" : "";
+    return '<div class="card" data-id="' + esc(entry.id) + '">' +
+      "<h3>" + esc(entry.title || "(untitled)") + "</h3>" +
+      '<div class="meta">' + esc(entry.id) + " · updated " + esc(String(entry.updatedAt || "").slice(0, 10)) + "</div>" +
+      '<div class="pills">' + pills + "</div>" + tags +
+      '<div class="text">' + esc(entry.text) + "</div>" +
+      '<div class="actions">' +
+      '<button class="btn" data-action="view" data-id="' + esc(entry.id) + '">View</button>' +
+      '<button class="btn" data-action="edit" data-id="' + esc(entry.id) + '">Edit</button>' +
+      '<button class="btn" data-action="forget" data-id="' + esc(entry.id) + '">Forget</button>' +
+      '<button class="btn danger" data-action="delete" data-id="' + esc(entry.id) + '">Delete</button>' +
+      "</div></div>";
+  }
+
+  async function search() {
+    var params = new URLSearchParams();
+    var q = $("q").value.trim(); if (q) params.set("query", q);
+    var kind = $("f-kind").value; if (kind) params.set("kind", kind);
+    var scope = $("f-scope").value; if (scope) params.set("scope", scope);
+    var status = $("f-status").value; if (status) params.set("status", status);
+    var project = $("f-project").value.trim(); if (project) params.set("project", project);
+    var limit = $("f-limit").value; if (limit) params.set("limit", limit);
+    var count = $("browse-count");
+    var results = $("browse-results");
+    count.textContent = "Loading…";
+    try {
+      var data = await api("/api/items?" + params.toString());
+      count.textContent = data.total + " entr" + (data.total === 1 ? "y" : "ies") + (data.query ? ' matching "' + data.query + '"' : "");
+      results.innerHTML = data.items.length ? data.items.map(entryCard).join("") : '<p class="muted">No entries.</p>';
+    } catch (error) {
+      count.textContent = "";
+      results.innerHTML = '<p class="error">' + esc(error.message) + "</p>";
+    }
+  }
+
+  async function loadProjects() {
+    var select = $("f-project");
+    try {
+      var report = await api("/api/status");
+      var current = select.value;
+      var keys = Object.keys(report.byProject || {}).sort();
+      select.innerHTML = '<option value="">any</option>' + keys.map(function (key) {
+        return '<option value="' + esc(key) + '">' + esc(key) + "</option>";
+      }).join("");
+      if (keys.indexOf(current) >= 0) select.value = current;
+    } catch (error) {
+      /* keep the existing options when the status call fails */
+    }
+  }
+
+  async function openItem(id) {
+    try {
+      var data = await api("/api/item?id=" + encodeURIComponent(id));
+      var entry = data.item;
+      $("overlay-box").innerHTML =
+        "<h2>" + esc(entry.title || "(untitled)") + "</h2>" +
+        '<div class="meta">' + esc(entry.id) + " · " + esc(entry.scope) + (entry.project ? "/" + esc(entry.project) : "") + " · " + esc(entry.kind) + " · " + esc(entry.status) + " · " + esc(entry.tier) + "</div>" +
+        '<div class="pills">' + (entry.tags || []).map(function (t) { return '<span class="pill">' + esc(t) + "</span>"; }).join("") + "</div>" +
+        '<div class="text" style="white-space:pre-wrap">' + esc(entry.text) + "</div>" +
+        '<div class="row" style="margin-top:12px"><button class="btn" id="ov-edit">Edit</button>' +
+        '<button class="btn" id="ov-forget">Forget</button>' +
+        '<button class="btn danger" id="ov-delete">Delete</button>' +
+        '<button class="btn" id="ov-close">Close</button></div>';
+      $("overlay").classList.add("open");
+      $("ov-close").onclick = closeOverlay;
+      $("ov-edit").onclick = function () { fillEditor(entry); closeOverlay(); showTab("edit"); };
+      $("ov-forget").onclick = function () { doForget(entry.id); closeOverlay(); };
+      $("ov-delete").onclick = function () { doDelete(entry.id); closeOverlay(); };
+    } catch (error) {
+      setActionStatus(error.message, true);
+    }
+  }
+
+  function closeOverlay() { $("overlay").classList.remove("open"); }
+
+  /* ---------------- edit ---------------- */
+
+  function fillEditor(entry) {
+    $("edit-title").textContent = 'Edit memory entry ' + entry.id;
+    $("e-id").value = entry.id;
+    $("e-title").value = entry.title || "";
+    $("e-kind").value = entry.kind || "facts";
+    $("e-scope").value = entry.scope || "project";
+    $("e-project").value = entry.project || "";
+    $("e-tier").value = entry.tier || "normal";
+    $("e-importance").value = entry.importance || 3;
+    $("e-tags").value = (entry.tags || []).join(", ");
+    $("e-keywords").value = entry.keywords || "";
+    $("e-text").value = entry.text || "";
+    $("e-supersedes").value = (entry.supersedes || []).join(", ");
+    $("e-related").value = (entry.related || []).join(", ");
+    $("edit-status").textContent = "";
+    $("edit-status").className = "muted";
+  }
+
+  function resetEditor() {
+    $("edit-title").textContent = "Create a memory entry";
+    $("e-id").value = "";
+    $("e-title").value = "";
+    $("e-kind").value = "facts";
+    $("e-scope").value = "project";
+    $("e-project").value = "";
+    $("e-tier").value = "normal";
+    $("e-importance").value = "3";
+    $("e-tags").value = "";
+    $("e-keywords").value = "";
+    $("e-text").value = "";
+    $("e-supersedes").value = "";
+    $("e-related").value = "";
+    $("edit-status").textContent = "";
+  }
+
+  function splitList(value) {
+    return String(value || "").split(",").map(function (item) { return item.trim(); }).filter(Boolean);
+  }
+
+  async function saveEntry() {
+    var status = $("edit-status");
+    var id = $("e-id").value;
+    var body = {
+      title: $("e-title").value.trim(),
+      text: $("e-text").value,
+      kind: $("e-kind").value,
+      scope: $("e-scope").value,
+      project: $("e-project").value.trim(),
+      tier: $("e-tier").value,
+      importance: Number($("e-importance").value),
+      tags: splitList($("e-tags").value),
+      keywords: $("e-keywords").value.trim(),
+      supersedes: splitList($("e-supersedes").value),
+      related: splitList($("e-related").value)
+    };
+    if (id) body.id = id;
+    status.textContent = "Saving…";
+    status.className = "muted";
+    try {
+      var data = await api("/api/save", { method: "POST", body: body });
+      status.textContent = data.mode === "updated" ? ("Updated " + data.item.id) : ("Created " + data.item.id);
+      status.className = "success";
+      if (data.mode === "created") resetEditor();
+    } catch (error) {
+      status.textContent = error.message;
+      status.className = "error";
+    }
+  }
+
+  async function doForget(id) {
+    if (!window.confirm("Mark " + id + " as forgotten (superseded)?")) return;
+    try { await api("/api/forget", { method: "POST", body: { id: id } }); search(); }
+    catch (error) { setActionStatus(error.message, true); }
+  }
+
+  async function doDelete(id) {
+    if (!window.confirm("Permanently delete " + id + "? This cannot be undone.")) return;
+    try { await api("/api/delete", { method: "POST", body: { id: id } }); search(); }
+    catch (error) { setActionStatus(error.message, true); }
+  }
+
+  /* ---------------- graph ---------------- */
+
+  var graphState = { nodes: [], links: [], scale: 1, tx: 0, ty: 0 };
+
+  async function loadGraph() {
+    var svg = $("graph-svg");
+    try {
+      var data = await api("/api/graph");
+      renderGraph(svg, data);
+    } catch (error) {
+      svg.innerHTML = '<text x="20" y="30" fill="#f85149">' + esc(error.message) + "</text>";
+    }
+  }
+
+  function renderGraph(svg, data) {
+    var width = svg.clientWidth || 900;
+    var height = svg.clientHeight || 520;
+    var nodes = (data.entities || []).map(function (entity, index) {
+      var angle = (index / Math.max(1, data.entities.length)) * Math.PI * 2;
+      return {
+        id: entity.id, name: entity.name, kind: entity.kind,
+        x: width / 2 + Math.cos(angle) * (width / 4),
+        y: height / 2 + Math.sin(angle) * (height / 4),
+        vx: 0, vy: 0, degree: 0
+      };
+    });
+    var byId = {};
+    nodes.forEach(function (node) { byId[node.id] = node; });
+    var links = (data.edges || []).map(function (edge) {
+      return { type: edge.type, s: byId[edge.source], t: byId[edge.target] };
+    }).filter(function (edge) { return edge.s && edge.t; });
+    links.forEach(function (edge) { edge.s.degree++; edge.t.degree++; });
+
+    var ticks = 300;
+    for (var step = 0; step < ticks; step++) {
+      var alpha = 1 - step / ticks;
+      for (var i = 0; i < nodes.length; i++) {
+        for (var j = i + 1; j < nodes.length; j++) {
+          var a = nodes[i], b = nodes[j];
+          var dx = a.x - b.x, dy = a.y - b.y;
+          var dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+          var force = 1800 / (dist * dist);
+          var fx = (dx / dist) * force, fy = (dy / dist) * force;
+          a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+        }
+      }
+      links.forEach(function (edge) {
+        var dx = edge.t.x - edge.s.x, dy = edge.t.y - edge.s.y;
+        var dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        var force = (dist - 130) * 0.02;
+        var fx = (dx / dist) * force, fy = (dy / dist) * force;
+        edge.s.vx += fx; edge.s.vy += fy; edge.t.vx -= fx; edge.t.vy -= fy;
+      });
+      nodes.forEach(function (node) {
+        node.vx += (width / 2 - node.x) * 0.002;
+        node.vy += (height / 2 - node.y) * 0.002;
+        node.x += node.vx * alpha;
+        node.y += node.vy * alpha;
+        node.vx *= 0.6; node.vy *= 0.6;
+      });
+    }
+
+    var maxDegree = 1;
+    nodes.forEach(function (node) { if (node.degree > maxDegree) maxDegree = node.degree; });
+    var edgeColors = { supersedes: "#f85149", related: "#4c9aff", depends: "#d29922", contradicts: "#a371f7" };
+    var parts = [];
+    parts.push('<defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#54616f"/></marker></defs>');
+    parts.push('<g id="graph-viewport">');
+    links.forEach(function (edge) {
+      parts.push('<line x1="' + edge.s.x.toFixed(1) + '" y1="' + edge.s.y.toFixed(1) + '" x2="' + edge.t.x.toFixed(1) + '" y2="' + edge.t.y.toFixed(1) + '" stroke="' + (edgeColors[edge.type] || "#54616f") + '" stroke-opacity="0.55" stroke-width="1.2" marker-end="url(#arrow)"></line>');
+    });
+    nodes.forEach(function (node) {
+      var radius = 6 + Math.round((node.degree / maxDegree) * 10);
+      var color = KIND_COLORS[node.kind] || "#93a1b1";
+      parts.push('<circle data-node="' + esc(node.id) + '" cx="' + node.x.toFixed(1) + '" cy="' + node.y.toFixed(1) + '" r="' + radius + '" fill="' + color + '" stroke="#0f1319" stroke-width="1.5" style="cursor:pointer"></circle>');
+      parts.push('<text x="' + node.x.toFixed(1) + '" y="' + (node.y - radius - 4).toFixed(1) + '" fill="#93a1b1" font-size="10" text-anchor="middle">' + esc(node.name).slice(0, 40) + "</text>");
+    });
+    parts.push("</g>");
+    svg.innerHTML = parts.join("");
+    graphState = { nodes: nodes, links: links, scale: 1, tx: 0, ty: 0 };
+    bindGraphInteraction(svg);
+  }
+
+  function applyViewport() {
+    var viewport = document.getElementById("graph-viewport");
+    if (viewport) viewport.setAttribute("transform", "translate(" + graphState.tx + "," + graphState.ty + ") scale(" + graphState.scale + ")");
+  }
+
+  function bindGraphInteraction(svg) {
+    var dragging = false;
+    var lastX = 0, lastY = 0;
+    svg.addEventListener("wheel", function (event) {
+      event.preventDefault();
+      var factor = event.deltaY < 0 ? 1.1 : 0.9;
+      graphState.scale = Math.min(4, Math.max(0.3, graphState.scale * factor));
+      applyViewport();
+    }, { passive: false });
+    svg.addEventListener("mousedown", function (event) {
+      if (event.target.getAttribute && event.target.getAttribute("data-node")) return;
+      dragging = true; lastX = event.clientX; lastY = event.clientY;
+      svg.style.cursor = "grabbing";
+    });
+    window.addEventListener("mousemove", function (event) {
+      if (!dragging) return;
+      graphState.tx += event.clientX - lastX;
+      graphState.ty += event.clientY - lastY;
+      lastX = event.clientX; lastY = event.clientY;
+      applyViewport();
+    });
+    window.addEventListener("mouseup", function () { dragging = false; svg.style.cursor = "grab"; });
+    svg.addEventListener("click", function (event) {
+      var id = event.target.getAttribute && event.target.getAttribute("data-node");
+      if (id) openItem(id);
+    });
+  }
+
+  /* ---------------- status ---------------- */
+
+  function bars(title, counts) {
+    var entries = Object.keys(counts || {}).map(function (key) { return [key, counts[key]]; }).sort(function (a, b) { return b[1] - a[1]; });
+    var max = 1;
+    entries.forEach(function (pair) { if (pair[1] > max) max = pair[1]; });
+    var html = '<h3 style="margin-top:14px">' + esc(title) + "</h3><div class=\"bars\">";
+    entries.forEach(function (pair) {
+      html += '<div class="bar"><span class="muted">' + esc(pair[0]) + '</span><span class="track"><span class="fill" style="width:' + Math.round((pair[1] / max) * 100) + '%"></span></span><span>' + pair[1] + "</span></div>";
+    });
+    if (!entries.length) html += '<span class="muted">none</span>';
+    return html + "</div>";
+  }
+
+  async function loadStatus(panelId) {
+    var panel = $(panelId || "status-panel");
+    panel.innerHTML = '<p class="muted">Loading…</p>';
+    try {
+      var report = await api("/api/status");
+      panel.innerHTML =
+        '<div class="kpis">' +
+        '<div class="kpi"><div class="n">' + report.total + '</div><div class="l">Total entries</div></div>' +
+        '<div class="kpi"><div class="n">' + report.active + '</div><div class="l">Active</div></div>' +
+        '<div class="kpi"><div class="n">' + report.dbSizeBytes + '</div><div class="l">Index bytes</div></div>' +
+        "</div>" +
+        '<div class="meta">root: ' + esc(report.root) + "<br />database: " + esc(report.dbPath) + "</div>" +
+        bars("By kind", report.byKind) + bars("By scope", report.byScope) +
+        bars("By status", report.byStatus) + bars("By project", report.byProject);
+    } catch (error) {
+      panel.innerHTML = '<p class="error">' + esc(error.message) + "</p>";
+    }
+  }
+
+  /* ---------------- lint ---------------- */
+
+  async function loadLint(panelId) {
+    var panel = $(panelId || "lint-panel");
+    panel.innerHTML = '<p class="muted">Loading…</p>';
+    try {
+      var report = await api("/api/lint");
+      var html = '<div class="kpis">' +
+        '<div class="kpi"><div class="n">' + report.totalCount + '</div><div class="l">Total entries</div></div>' +
+        '<div class="kpi"><div class="n">' + report.activeCount + '</div><div class="l">Active</div></div>' +
+        '<div class="kpi"><div class="n">' + report.brokenLinks.length + '</div><div class="l">Broken links</div></div>' +
+        '<div class="kpi"><div class="n">' + report.overlaps.length + '</div><div class="l">Overlapping pairs</div></div>' +
+        '<div class="kpi"><div class="n">' + report.stale.length + '</div><div class="l">Stale (&gt; ' + report.staleDays + "d)</div></div>" +
+        "</div>";
+      html += "<h3>Broken links</h3>";
+      html += report.brokenLinks.length ? "<ul>" + report.brokenLinks.map(function (link) {
+        return "<li>" + esc(link.title) + " (" + esc(link.id) + ") → " + esc(link.field) + ": " + esc(link.missingId) + "</li>";
+      }).join("") + "</ul>" : '<p class="muted">none</p>';
+      html += "<h3>Overlapping active pairs</h3>";
+      html += report.overlaps.length ? "<ul>" + report.overlaps.map(function (pair) {
+        return "<li>" + esc(pair.aTitle) + " ↔ " + esc(pair.bTitle) + " (common " + pair.common + ", score " + pair.score + ")</li>";
+      }).join("") + "</ul>" : '<p class="muted">none</p>';
+      if (report.overlapsHidden) html += '<p class="muted">' + report.overlapsHidden + " more pairs hidden by the cap.</p>";
+      html += "<h3>Stale entries</h3>";
+      html += report.stale.length ? "<ul>" + report.stale.map(function (entry) {
+        return "<li>" + esc(entry.title) + " (" + esc(entry.id) + ") · updated " + esc(String(entry.updatedAt).slice(0, 10)) + "</li>";
+      }).join("") + "</ul>" : '<p class="muted">none</p>';
+      panel.innerHTML = html;
+    } catch (error) {
+      panel.innerHTML = '<p class="error">' + esc(error.message) + "</p>";
+    }
+  }
+
+  /* ---------------- health ---------------- */
+
+  async function refreshHealth() {
+    $("health-status").textContent = "Loading…";
+    $("health-status").className = "muted";
+    await loadStatus("health-status-panel");
+    await loadLint("health-lint-panel");
+    $("health-status").textContent = "";
+  }
+
+  async function runLint() {
+    $("health-status").textContent = "Running lint…";
+    $("health-status").className = "muted";
+    await loadLint("health-lint-panel");
+    $("health-status").textContent = "Lint finished.";
+    $("health-status").className = "success";
+  }
+
+  async function healMemory() {
+    $("health-status").textContent = "Healing…";
+    $("health-status").className = "muted";
+    try {
+      var report = await api("/api/heal", { method: "POST", body: {} });
+      $("health-heal-panel").innerHTML = '<h3>Heal report</h3><pre class="report">' + esc(
+        "Removed broken links: " + report.removedLinks + "\n" +
+        "Added backlinks: " + report.addedBacklinks + "\n" +
+        "Reindexed entries: " + report.reindexed + "\n" +
+        "Broken links: " + report.brokenBefore + " -> " + report.brokenAfter
+      ) + "</pre>";
+      await loadStatus("health-status-panel");
+      await loadLint("health-lint-panel");
+      await loadProjects();
+      $("health-status").textContent = "Heal finished.";
+      $("health-status").className = "success";
+    } catch (error) {
+      $("health-status").textContent = error.message;
+      $("health-status").className = "error";
+    }
+  }
+
+  async function syncWorkspaces() {
+    $("health-status").textContent = "Syncing workspaces…";
+    $("health-status").className = "muted";
+    try {
+      var data = await api("/api/workspaces/sync", { method: "POST", body: {} });
+      renderWorkspaceReport($("health-workspaces-panel"), data.workspaces, data.projects);
+      $("health-status").textContent = workspaceSummary(data.workspaces);
+      $("health-status").className = (data.workspaces && data.workspaces.unavailable) ? "error" : "success";
+    } catch (error) {
+      $("health-status").textContent = error.message;
+      $("health-status").className = "error";
+    }
+  }
+
+  function workspaceSummary(workspaces) {
+    if (!workspaces) return "Workspaces: no data.";
+    if (workspaces.unavailable) return "Workspaces: registry unavailable.";
+    return "Workspaces: created " + workspaces.created.length + ", existing " + workspaces.existing.length +
+      ", skipped " + workspaces.skipped.length + ", errors " + workspaces.errors.length + ".";
+  }
+
+  function renderWorkspaceReport(panel, workspaces, projects) {
+    var html = "<h3>Workspace sync report</h3>";
+    if (!workspaces || workspaces.unavailable) {
+      panel.innerHTML = html + '<p class="muted">Workspace registry is unavailable in this profile.</p>';
+      return;
+    }
+    function list(title, items) {
+      html += "<h4>" + esc(title) + "</h4>";
+      html += items.length ? "<ul>" + items.map(function (item) { return "<li>" + esc(item) + "</li>"; }).join("") + "</ul>" : '<p class="muted">none</p>';
+    }
+    html += '<p class="muted">Projects seen: ' + esc((projects || []).length) + "</p>";
+    list("Created (" + workspaces.created.length + ")", workspaces.created);
+    list("Already registered (" + workspaces.existing.length + ")", workspaces.existing);
+    list("Skipped (" + workspaces.skipped.length + ")", workspaces.skipped);
+    list("Errors (" + workspaces.errors.length + ")", workspaces.errors);
+    panel.innerHTML = html;
+  }
+
+  /* ---------------- actions ---------------- */
+
+  async function importMemory() {
+    setActionStatus("Importing…", false);
+    try {
+      var data = await api("/api/import", { method: "POST", body: {} });
+      var lines = ["Imported " + data.totals.imported + ", updated " + data.totals.updated + ", skipped " + data.totals.skipped + "."];
+      if (data.totals.droppedRelations) lines.push("Dropped unresolved relation links: " + data.totals.droppedRelations + ".");
+      (data.reports || []).forEach(function (report) {
+        lines.push("- " + report.source + ": imported=" + report.imported + " updated=" + report.updated + " skipped=" + report.skipped + (report.droppedRelations ? " dropped=" + report.droppedRelations : "") + (report.errors.length ? " errors=" + report.errors.length : ""));
+      });
+      lines.push(workspaceSummary(data.workspaces));
+      showOverlayReport("Import report", lines.join("\n"));
+      setActionStatus("Import finished.", false);
+      await loadProjects();
+      search();
+    } catch (error) {
+      setActionStatus(error.message, true);
+    }
+  }
+
+  var RULES_PREVIEW_LIMIT = 20000;
+
+  function truncatePreview(value) {
+    var text = String(value == null ? "" : value);
+    if (text.length <= RULES_PREVIEW_LIMIT) return text;
+    return text.slice(0, RULES_PREVIEW_LIMIT) + "\n… truncated, " + text.length + " chars total";
+  }
+
+  var ALREADY_EXPORTED_NOTE = "Rules are already exported to ~/.dsh/AGENTS.md.";
+  var rulesExportState = { alreadyExported: false };
+
+  function applyRulesExportState(alreadyExported) {
+    rulesExportState.alreadyExported = alreadyExported === true;
+    var exportButton = $("btn-export");
+    if (exportButton) exportButton.disabled = rulesExportState.alreadyExported;
+    var note = rulesExportState.alreadyExported ? ALREADY_EXPORTED_NOTE : "";
+    var headerNote = $("export-note");
+    if (headerNote) headerNote.textContent = note;
+    var healthNote = $("health-export-note");
+    if (healthNote) healthNote.textContent = note;
+  }
+
+  async function refreshRulesExportState() {
+    try {
+      var data = await api("/api/rules/preview", { method: "POST", body: {} });
+      applyRulesExportState(data && data.alreadyExported);
+    } catch (error) {
+      applyRulesExportState(false);
+    }
+  }
+
+  async function previewRules() {
+    setActionStatus("Loading rules preview…", false);
+    try {
+      var data = await api("/api/rules/preview", { method: "POST", body: {} });
+      applyRulesExportState(data && data.alreadyExported);
+      showRulesPreview(data);
+      setActionStatus("Preview ready. Review before exporting.", false);
+    } catch (error) {
+      setActionStatus(error.message, true);
+    }
+  }
+
+  function showRulesPreview(data) {
+    var already = data.alreadyExported === true;
+    var sources = (data.sources || []).map(function (source) {
+      return "- " + source.path + " (" + source.bytes + " bytes)";
+    }).join("\n");
+    $("overlay-box").innerHTML =
+      "<h2>Rules export preview</h2>" +
+      '<p class="muted">Target: ' + esc(data.target) + " · Mode: " + esc(data.mode) +
+      (data.changed ? "" : " · no changes") + "</p>" +
+      (data.message ? '<p class="muted">' + esc(data.message) + "</p>" : "") +
+      (already ? '<p class="muted">' + esc(ALREADY_EXPORTED_NOTE) + "</p>" : "") +
+      "<h3>Sources" + (sources ? "" : " (none)") + "</h3>" +
+      '<pre class="report">' + esc(sources) + "</pre>" +
+      "<h3>Block</h3>" +
+      '<pre class="report" style="max-height:320px;font-family:ui-monospace,Menlo,Consolas,monospace">' +
+      esc(truncatePreview(data.block)) + "</pre>" +
+      '<div class="row"><button class="btn primary" id="ov-confirm"' + (already ? " disabled" : "") + ">Confirm export</button>" +
+      '<button class="btn" id="ov-cancel">Cancel</button></div>';
+    $("overlay").classList.add("open");
+    $("ov-confirm").onclick = confirmRulesExport;
+    $("ov-cancel").onclick = closeOverlay;
+  }
+
+  async function confirmRulesExport() {
+    closeOverlay();
+    setActionStatus("Exporting rules…", false);
+    try {
+      var data = await api("/api/rules/export", { method: "POST", body: {} });
+      var lines = [data.message || ("changed=" + data.changed + ", bytes=" + data.bytes)];
+      lines.push("target: " + data.target);
+      (data.sources || []).forEach(function (source) { lines.push("- " + source); });
+      showOverlayReport("Rules export report", lines.join("\n"));
+      setActionStatus(data.changed ? "Rules exported." : "Nothing to export.", false);
+      applyRulesExportState(data && data.alreadyExported);
+      await refreshRulesExportState();
+    } catch (error) {
+      setActionStatus(error.message, true);
+    }
+  }
+
+  function showOverlayReport(title, text) {
+    $("overlay-box").innerHTML = "<h2>" + esc(title) + '</h2><pre class="report">' + esc(text) + '</pre><div class="row"><button class="btn" id="ov-close">Close</button></div>';
+    $("overlay").classList.add("open");
+    $("ov-close").onclick = closeOverlay;
+  }
+
+  /* ---------------- wiring ---------------- */
+
+  function init() {
+    kindOptions();
+    initTabs();
+    $("btn-search").onclick = search;
+    $("q").addEventListener("keydown", function (event) { if (event.key === "Enter") search(); });
+    $("btn-save").onclick = saveEntry;
+    $("btn-reset").onclick = resetEditor;
+    $("btn-refresh").onclick = function () { search(); };
+    $("btn-import").onclick = importMemory;
+    $("btn-export").onclick = previewRules;
+    $("btn-preview-rules").onclick = previewRules;
+    $("btn-run-lint").onclick = runLint;
+    $("btn-heal").onclick = healMemory;
+    $("btn-sync-workspaces").onclick = syncWorkspaces;
+    $("btn-refresh-health").onclick = refreshHealth;
+    $("browse-results").addEventListener("click", function (event) {
+      var button = event.target.closest ? event.target.closest("button[data-action]") : null;
+      if (!button) return;
+      var id = button.getAttribute("data-id");
+      var action = button.getAttribute("data-action");
+      if (action === "view") openItem(id);
+      else if (action === "edit") api("/api/item?id=" + encodeURIComponent(id)).then(function (data) { fillEditor(data.item); showTab("edit"); }).catch(function (error) { setActionStatus(error.message, true); });
+      else if (action === "forget") doForget(id);
+      else if (action === "delete") doDelete(id);
+    });
+    $("overlay").addEventListener("click", function (event) { if (event.target === $("overlay")) closeOverlay(); });
+    refreshRulesExportState();
+    loadProjects();
+    search();
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>
