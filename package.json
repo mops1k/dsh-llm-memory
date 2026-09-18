@@ -19,7 +19,8 @@
     "rules",
     "ui",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "README.ru.md"
   ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
