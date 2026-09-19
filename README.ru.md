@@ -28,7 +28,7 @@
 - **Слоистое markdown-хранилище** (источник правды) с центральным FTS5-индексом.
   Страницы разложены по категориям в подпапки `<kind>/`:
   ```
-  <projectRoot>/.harness/llm-memory/<kind>/<title-slug>-<id>.md   project + feedback
+  <projectRoot>/.dsh/llm-memory/<kind>/<title-slug>-<id>.md       project + feedback
   ~/.dsh/llm-memory/_user/<kind>/<title-slug>-<id>.md             user (кросс-проектные)
   ~/.dsh/llm-memory/_db/memory.db                                 центральный FTS5-индекс
   ~/.dsh/llm-memory/_digest/<id>.md                               сырые дайджесты сессий
@@ -130,7 +130,7 @@ tests/             наборы vitest
 ## Заметки и ограничения
 
 - Память хранится в каталоге dsh и внутри каждого проекта
-  (`<project>/.harness/llm-memory/`) — отдельно от Kilo и от плагина
+  (`<project>/.dsh/llm-memory/`) — отдельно от Kilo и от плагина
   `dsh-memory` (`~/.dsh/memory`), поэтому они могут существовать одновременно.
 - Конфиг Kilo никогда не изменяется; sqlite-источники открываются только на чтение
   (при наличии WAL используется снимок `immutable=1`).

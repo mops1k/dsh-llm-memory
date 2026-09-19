@@ -8,7 +8,7 @@
  *   <root>/<project>/<kind>/<name>.md legacy/global fallback for projects with no root
  *
  * Project pages live inside the repository itself:
- *   <projectRoot>/.harness/llm-memory/<kind>/<name>.md
+ *   <projectRoot>/.dsh/llm-memory/<kind>/<name>.md
  *
  * The `kind` (rules/preferences/decisions/facts/architecture/concepts) is a
  * subdirectory and the file name is `<title-slug>-<id>.md`.
@@ -47,7 +47,7 @@ export const DIGEST_DIR = '_digest'
 export const PROJECTS_FILE = 'projects.json'
 
 /** Project-relative directory that holds a project's markdown pages. */
-export const PROJECT_MEMORY_DIR = '.harness/llm-memory'
+export const PROJECT_MEMORY_DIR = '.dsh/llm-memory'
 
 /** Maximum length of a generated file name slug. */
 export const MAX_SLUG_LENGTH = 48
@@ -145,7 +145,7 @@ export function kindDir(baseDir: string, kind: string): string {
   return join(resolve(baseDir), kind)
 }
 
-/** Absolute markdown directory inside a project: `<projectRoot>/.harness/llm-memory`. */
+/** Absolute markdown directory inside a project: `<projectRoot>/.dsh/llm-memory`. */
 export function projectMemoryRoot(projectRoot: string, dirName: string = PROJECT_MEMORY_DIR): string {
   return join(resolve(projectRoot), dirName)
 }
@@ -154,7 +154,7 @@ export function projectMemoryRoot(projectRoot: string, dirName: string = PROJECT
  * Directory that stores entries of a scope/project, preferring the project tree.
  *
  * A known `projectRoot` routes project entries into
- * `<projectRoot>/.harness/llm-memory`; otherwise the legacy/global fallback
+ * `<projectRoot>/.dsh/llm-memory`; otherwise the legacy/global fallback
  * `<root>/<key>/` is used, which also covers projects whose root is unknown.
  */
 export function scopeDirFor(

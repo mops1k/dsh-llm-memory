@@ -141,7 +141,7 @@ export function migrateFlatPages(root: string, projects?: Record<string, string>
  *
  * - `_user` holds cross-project (user) memories;
  * - each entry of `projects.json` points at a repository root whose pages live
- *   in `<projectRoot>/.harness/llm-memory`;
+ *   in `<projectRoot>/.dsh/llm-memory`;
  * - child directories of the storage root are the legacy/global fallback used
  *   when a project root is unknown.
  *

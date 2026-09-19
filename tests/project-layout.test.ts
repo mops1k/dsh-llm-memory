@@ -35,7 +35,7 @@ describe('paths: project registry', () => {
   })
 
   it('builds the project memory directory', () => {
-    expect(projectMemoryRoot('/repo/proj')).toBe(join('/repo/proj', '.harness', 'llm-memory'))
+    expect(projectMemoryRoot('/repo/proj')).toBe(join('/repo/proj', '.dsh', 'llm-memory'))
   })
 
   it('writes and reads projects.json round-trip', () => {

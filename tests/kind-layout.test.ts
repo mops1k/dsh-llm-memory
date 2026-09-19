@@ -59,7 +59,7 @@ describe('kind subfolders: writes', () => {
     cleanupRoot(projectRoot)
   })
 
-  it('writes project pages into <projectRoot>/.harness/llm-memory/<kind>/', () => {
+  it('writes project pages into <projectRoot>/.dsh/llm-memory/<kind>/', () => {
     const entry = engine.save({ text: 'A decision body.', title: 'Use tabs', kind: 'decisions' })
     const base = projectMemoryRoot(projectRoot)
     const file = join(base, 'decisions', entryFileName(entry))

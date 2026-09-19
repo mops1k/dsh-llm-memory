@@ -330,7 +330,7 @@ export class MemoryEngine {
 
   /**
    * Register (or update) the absolute root of a project so its markdown pages
-   * are stored inside the repository at `<root>/.harness/llm-memory`.
+   * are stored inside the repository at `<root>/.dsh/llm-memory`.
    */
   registerProject(key: string, root: string): void {
     const projectKey = sanitizeProjectKey(key)

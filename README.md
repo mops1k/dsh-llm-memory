@@ -25,7 +25,7 @@ and can import existing memory from other plugins.
 - **Layered markdown store** as the source of truth, indexed by a central FTS5
   database. Pages are grouped by category in `<kind>/` subdirectories:
   ```
-  <projectRoot>/.harness/llm-memory/<kind>/<title-slug>-<id>.md   project + feedback
+  <projectRoot>/.dsh/llm-memory/<kind>/<title-slug>-<id>.md       project + feedback
   ~/.dsh/llm-memory/_user/<kind>/<title-slug>-<id>.md             user (cross-project)
   ~/.dsh/llm-memory/_db/memory.db                                 central FTS5 index
   ~/.dsh/llm-memory/_digest/<id>.md                               raw session digests
@@ -128,7 +128,7 @@ tests/             vitest suites
 ## Notes and limitations
 
 - Memory lives under the dsh home and inside each project
-  (`<project>/.harness/llm-memory/`), separate from Kilo and from the
+  (`<project>/.dsh/llm-memory/`), separate from Kilo and from the
   `dsh-memory` plugin (`~/.dsh/memory`), so they can coexist.
 - The Kilo config is never modified; sqlite sources are opened read-only
   (an `immutable=1` snapshot is used when a WAL file is present).
