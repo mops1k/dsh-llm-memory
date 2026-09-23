@@ -1,7 +1,20 @@
 {
   "name": "dsh-llm-memory",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Layered long-term memory plugin for DeepSeek Harness: memory tools, system-prompt guidance, FTS5 index, shell WebUI, and importers for kilo-memory, dsh-mnemon and dsh-memory.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mops1k/dsh-llm-memory.git"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "client-plugin",
+    "memory",
+    "llm-memory"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -19,6 +32,7 @@
     "rules",
     "ui",
     "cordis.patch.yml",
+    "LICENSE",
     "README.md",
     "README.ru.md"
   ],
