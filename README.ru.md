@@ -46,10 +46,9 @@
 - **Отдельный пункт настроек**: **Settings → LLM Memory** содержит все опции, в том
   числе редактируемый системный промпт, а также кнопки **Save settings**,
   **Import memory** и **Export rules to dsh AGENTS.md**.
-- **WebUI-панель в оболочке dsh**: кнопка **LLM Memory** в левой панели открывает
-  панель поверх основной области (iframe со страницей плагина); закрывается кликом
-  вне панели и по `Escape`. На странице — разделы Search & Browse, Create/Edit,
-  Graph, Status, Health (lint/heal).
+- **WebUI-панель в оболочке dsh**: вкладка **LLM Memory** рядом с разговором
+  встраивает страницу плагина в iframe. На странице — разделы Search & Browse,
+  Create/Edit, Graph, Status, Health (lint/heal).
 - **Импортёры** (идемпотентные, по внешнему ключу):
   - `kilo-memory` — `~/.config/kilo/memory/db/memory.db` (только чтение),
   - `dsh-mnemon` — `~/.mnemon/data/*/mnemon.db` (только чтение),
@@ -119,7 +118,7 @@ pnpm run build      # tsc + копирование client/client.js в lib/clien
 ```
 src/core/          хранилище, движок, ranking, wiki, frontmatter, импортёры
 src/dsh/           хост-обвязка: tools, context, settings, web, экспорт правил, workspaces
-client/client.js   браузерный клиент (classic script, React.createElement, панель из сайдбара)
+client/client.js   браузерный клиент (classic script, React.createElement, вкладка разговора и раздел настроек)
 ui/web-ui.html     самодостаточная страница WebUI
 rules/en/          зашитые английские правила для экспорта
 cordis.patch.yml   bundle-patch

@@ -45,10 +45,9 @@ and can import existing memory from other plugins.
 - **Dedicated Settings section**: **Settings → LLM Memory** holds every option,
   including the editable system prompt, plus **Save settings**, **Import memory**
   and **Export rules to dsh AGENTS.md**.
-- **WebUI panel in the dsh shell**: the **LLM Memory** button in the left sidebar
-  opens a panel over the main area (an iframe over the plugin HTTP page); it closes
-  on an outside click and on `Escape`. The page has Search & Browse, Create/Edit,
-  Graph, Status and Health (lint/heal) sections.
+- **WebUI panel in the dsh shell**: the **LLM Memory** view tab next to the
+  conversation embeds the plugin HTTP page in an iframe. The page has Search &
+  Browse, Create/Edit, Graph, Status and Health (lint/heal) sections.
 - **Importers** (idempotent, keyed by an external key):
   - `kilo-memory` — `~/.config/kilo/memory/db/memory.db` (opened read-only),
   - `dsh-mnemon` — `~/.mnemon/data/*/mnemon.db` (read-only),
@@ -117,7 +116,7 @@ pnpm run build      # tsc + copies client/client.js to lib/client.js
 ```
 src/core/          storage, engine, ranking, wiki, frontmatter, importers
 src/dsh/           host plugin wiring: tools, context, settings, web, rules export, workspaces
-client/client.js   browser client (classic script, React.createElement, sidebar panel)
+client/client.js   browser client (classic script, React.createElement, conversation view + settings section)
 ui/web-ui.html     self-contained WebUI page
 rules/en/          bundled English rules used by the rules export
 cordis.patch.yml   bundle patch

@@ -2,8 +2,8 @@
  * dsh-llm-memory client half (classic browser module).
  *
  * Registered through the dsh module loader: a conversation View that embeds the
- * host WebUI in an iframe, a sidebar footer action that opens that View, and the
- * settings card for the plugin namespace. All UI text is English.
+ * host WebUI in an iframe, and the settings card for the plugin namespace.
+ * All UI text is English.
  *
  * Authoritative source: build copies this file to `lib/client.js`
  * (see scripts/copy-client.mjs). Kept as plain classic JS on purpose — the dsh
@@ -160,128 +160,6 @@ window.__ModuleLoader__.load({
       return true;
     }
 
-    const PANEL_ID = "dsh-llm-memory-panel";
-
-    function panelUrl(scope) {
-      return joinUrl(webBase(scope), "/ui");
-    }
-
-    function buildPanel(scope) {
-      const panel = document.createElement("div");
-      panel.id = PANEL_ID;
-      panel.setAttribute("role", "dialog");
-      panel.setAttribute("aria-label", VIEW_LABEL);
-      panel.style.cssText = [
-        "position:fixed",
-        "top:0",
-        "right:0",
-        "bottom:0",
-        "left:264px",
-        "z-index:2147483000",
-        "display:flex",
-        "flex-direction:column",
-        "background:var(--vscode-editor-background,#1e1e1e)",
-        "color:inherit",
-        "border-left:1px solid rgba(127,127,127,0.35)",
-        "box-shadow:-8px 0 24px rgba(0,0,0,0.28)",
-        "pointer-events:auto",
-        "font:inherit",
-      ].join(";");
-
-      const header = document.createElement("div");
-      header.style.cssText =
-        "display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid rgba(127,127,127,0.35);flex:0 0 auto";
-
-      const title = document.createElement("span");
-      title.textContent = VIEW_LABEL;
-      title.style.cssText = "font-size:13px;font-weight:500";
-
-      const close = document.createElement("button");
-      close.type = "button";
-      close.textContent = "Close";
-      close.style.cssText =
-        "padding:6px 12px;border-radius:8px;border:1px solid rgba(127,127,127,0.35);background:transparent;color:inherit;cursor:pointer;font:inherit";
-      close.addEventListener("click", () => {
-        hidePanel();
-      });
-
-      header.appendChild(title);
-      header.appendChild(close);
-
-      const frame = document.createElement("iframe");
-      frame.title = VIEW_LABEL;
-      frame.src = panelUrl(scope);
-      frame.style.cssText =
-        "flex:1 1 auto;width:100%;height:100%;border:0;display:block;background:transparent";
-
-      panel.appendChild(header);
-      panel.appendChild(frame);
-      return panel;
-    }
-
-    /** Hide the panel and drop the global listeners it installed. */
-    function hidePanel() {
-      const panel = document.getElementById(PANEL_ID);
-      if (panel) panel.style.display = "none";
-      document.removeEventListener("pointerdown", onDocumentPointerDown, true);
-      document.removeEventListener("keydown", onDocumentKeyDown, true);
-    }
-
-    /** Close on any pointer press outside the panel (sidebar button excluded). */
-    function onDocumentPointerDown(event) {
-      const panel = document.getElementById(PANEL_ID);
-      if (!panel || panel.style.display === "none") return;
-      const target = event.target;
-      if (target && typeof target.nodeType === "number" && panel.contains(target)) return;
-      if (
-        target &&
-        typeof target.closest === "function" &&
-        target.closest("[data-llm-memory-toggle]")
-      ) {
-        return;
-      }
-      hidePanel();
-    }
-
-    /** Close on Escape. */
-    function onDocumentKeyDown(event) {
-      if (event.key === "Escape") hidePanel();
-    }
-
-    /** Install the outside-click / Escape listeners (idempotent). */
-    function showPanelListeners() {
-      document.addEventListener("pointerdown", onDocumentPointerDown, true);
-      document.addEventListener("keydown", onDocumentKeyDown, true);
-    }
-
-    /**
-     * Mount or toggle the WebUI panel directly in the DOM. This path only
-     * depends on the sidebar button, not on undeclared slots or View tabs.
-     */
-    function togglePanel(scope) {
-      if (typeof document === "undefined" || !document.body) return false;
-      let panel = document.getElementById(PANEL_ID);
-      if (!panel) {
-        panel = buildPanel(scope);
-        document.body.appendChild(panel);
-        showPanelListeners();
-        if (typeof console !== "undefined" && typeof console.debug === "function") {
-          console.debug("[dsh-llm-memory] panel mounted");
-        }
-        return true;
-      }
-      const hidden = panel.style.display === "none";
-      panel.style.display = hidden ? "flex" : "none";
-      if (hidden) {
-        const frame = panel.querySelector("iframe");
-        if (frame) frame.src = panelUrl(scope);
-        showPanelListeners();
-      } else {
-        hidePanel();
-      }
-      return true;
-    }
-
     async function postJson(scope, path, body) {
       const response = await fetch(joinUrl(webBase(scope), path), {
         method: "POST",
@@ -338,9 +216,8 @@ window.__ModuleLoader__.load({
     /* ------------------------------------------------------------------ *
      * shell.overlay — panel that hosts the WebUI iframe
      *
-     * The shell has no public API to switch `conversation.view` tabs and the
-     * tab element is not always rendered, so the primary opening path is this
-     * overlay: the sidebar button emits a window event, the overlay listens.
+     * Currently unregistered: kept as an alternative opening path for the
+     * WebUI iframe (a `dsh-llm-memory:open` window event opens the overlay).
      * ------------------------------------------------------------------ */
 
     const OVERLAY = {
@@ -444,53 +321,6 @@ window.__ModuleLoader__.load({
             title: VIEW_LABEL,
             style: OVERLAY.frame,
           }),
-        );
-      };
-    }
-
-    /* ------------------------------------------------------------------ *
-     * sidebar.footer.action — open the View
-     * ------------------------------------------------------------------ */
-
-    function createSidebarAction(scope) {
-      return function SidebarAction(props) {
-        const wide = !!(props && props.wide);
-        const open = () => {
-          if (typeof console !== "undefined" && typeof console.debug === "function") {
-            console.debug("[dsh-llm-memory] open requested");
-          }
-          togglePanel(scope);
-        };
-        return h(
-          "button",
-          {
-            type: "button",
-            title: VIEW_LABEL,
-            "aria-label": VIEW_LABEL,
-            "data-llm-memory-toggle": "true",
-            onClick: open,
-            style: {
-              display: "flex",
-              alignItems: "center",
-              justifyContent: wide ? "flex-start" : "center",
-              gap: "8px",
-              width: "100%",
-              padding: wide ? "6px 10px" : "8px",
-              background: "transparent",
-              border: "1px solid transparent",
-              borderRadius: "8px",
-              color: "inherit",
-              cursor: "pointer",
-              font: "inherit",
-              textAlign: "left",
-            },
-          },
-          h(
-            "span",
-            { "aria-hidden": "true", style: { fontSize: "14px", lineHeight: 1 } },
-            "\u25C9",
-          ),
-          wide ? h("span", null, VIEW_LABEL) : null,
         );
       };
     }
@@ -979,22 +809,12 @@ window.__ModuleLoader__.load({
       if (!scope) scope = unavailableScope();
 
       const MemoryView = createMemoryView(scope);
-      const SidebarAction = createSidebarAction(scope);
       const SettingsCard = createSettingsCard(scope);
 
       ctx.slots.inject("conversation.view", () =>
         ctx.slots.register(
           { name: "conversation.view", id: VIEW_ID, order: ORDER, label: () => VIEW_LABEL },
           MemoryView,
-        ),
-      );
-
-      // The WebUI panel is mounted directly in the DOM by the sidebar action.
-
-      ctx.slots.inject("sidebar.footer.action", () =>
-        ctx.slots.register(
-          { name: "sidebar.footer.action", id: VIEW_ID, order: ORDER, label: () => VIEW_LABEL },
-          SidebarAction,
         ),
       );
 
