@@ -1,11 +1,12 @@
 /**
  * dsh settings integration: host half of the plugin configuration.
  *
- * The namespace is registered with the native settings provider so that every
- * field (including the editable system prompt) is exposed to a configuration
- * UI, persisted by the provider and hot-reloaded into the running plugin. The
- * settings card itself is a separate client-side plugin keyed by this
- * namespace; nothing here renders UI.
+ * The namespace is registered with the native settings provider so every
+ * user-editable field is exposed to a configuration UI, persisted and
+ * hot-reloaded into the running plugin. Startup-only profile fields are
+ * intentionally absent from this schema and live only in the plugin
+ * composition config. The settings card itself is a separate client-side
+ * plugin keyed by this namespace; nothing here renders UI.
  *
  * @module dsh-llm-memory/dsh/settings
  */
@@ -19,7 +20,7 @@ import type { MemoryEngine } from '../core/engine.js'
 /** Settings namespace owned by this plugin (lowercase, hyphenated). */
 export const SETTINGS_NAMESPACE = 'dsh-llm-memory'
 
-/** Configuration schema shared by the plugin entry and the settings namespace. */
+/** Native Settings schema, containing only user-editable fields. */
 export const MemorySettingsSchema = z.object({
   storageRoot: z
     .string()
@@ -75,6 +76,15 @@ export const MemorySettingsSchema = z.object({
     .description('Base HTTP path for the plugin WebUI and API.'),
 })
 
+/** Full plugin schema: native Settings fields plus startup-only profile fields. */
+export const MemoryPluginConfigSchema = z.object({
+  ...MemorySettingsSchema.dict,
+  sessionStartGuide: z
+    .boolean()
+    .default(DEFAULT_CONFIG.sessionStartGuide)
+    .description('Inject the short session-start guide; disable when a richer system prompt is always available.'),
+})
+
 /** Resolved value of the plugin settings namespace. */
 export type MemorySettings = ReturnType<typeof MemorySettingsSchema>
 
@@ -110,6 +120,7 @@ function fromSettings(next: MemorySettings, current: MemoryConfig): MemoryConfig
     importAutoDetect: next.importAutoDetect,
     rulesSource: next.rulesSource,
     webPath: next.webPath,
+    sessionStartGuide: current.sessionStartGuide,
   })
 }
 
@@ -131,6 +142,7 @@ function applyConfig(target: MemoryConfig, next: MemoryConfig): void {
   target.importAutoDetect = next.importAutoDetect
   target.rulesSource = next.rulesSource
   target.webPath = next.webPath
+  // `sessionStartGuide` is startup-only; changing it requires a plugin reload.
 }
 
 /** Log a warning through the Cordis logger, falling back to the console. */

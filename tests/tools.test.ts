@@ -8,18 +8,8 @@ import type { HealReport, LintReport, StatusReport } from '../src/core/engine'
 import type { MemoryEngine } from '../src/core/engine'
 import type { MemoryEntry } from '../src/core/types'
 import { createMemoryRuntime } from '../src/dsh/engine'
-import { registerMemoryTools, sessionProjectKey } from '../src/dsh/tools'
+import { MEMORY_TOOL_NAMES, registerMemoryTools, sessionProjectKey } from '../src/dsh/tools'
 import { cleanupRoot, makeTempRoot } from './helpers'
-
-const TOOL_NAMES = [
-  'llm_memory_recall',
-  'llm_memory_save',
-  'llm_memory_forget',
-  'llm_memory_delete',
-  'llm_memory_status',
-  'llm_memory_lint',
-  'llm_memory_heal',
-]
 
 const ENTRY: MemoryEntry = {
   id: 'm_0123456789ab',
@@ -145,7 +135,7 @@ describe('registerMemoryTools', () => {
     registerMemoryTools(ctx, makeEngine() as unknown as MemoryEngine, mergeConfig({}))
 
     expect(tools).toHaveLength(7)
-    expect(tools.map((definition) => definition.name).sort()).toEqual([...TOOL_NAMES].sort())
+    expect(tools.map((definition) => definition.name).sort()).toEqual([...MEMORY_TOOL_NAMES].sort())
 
     for (const definition of tools) {
       expect(definition.description.length).toBeGreaterThan(0)

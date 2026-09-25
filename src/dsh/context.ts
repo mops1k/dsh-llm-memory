@@ -222,7 +222,8 @@ function registerSessionDigest(ctx: Context, engine: MemoryEngine): void {
 }
 
 /** Inject the short memory guide when an agent session starts. */
-function registerSessionStartGuide(ctx: Context): void {
+function registerSessionStartGuide(ctx: Context, enabled: boolean): void {
+  if (!enabled) return
   ctx.on('agent/session-start', (payload: { agent: Agent }) => {
     try {
       payload.agent.inject(
@@ -322,6 +323,6 @@ function registerMemoryCommand(ctx: Context, engine: MemoryEngine, config: Memor
 export function registerMemoryContext(ctx: Context, engine: MemoryEngine, config: MemoryConfig): void {
   registerSystemPrompt(ctx, engine, config)
   registerSessionDigest(ctx, engine)
-  registerSessionStartGuide(ctx)
+  registerSessionStartGuide(ctx, config.sessionStartGuide)
   registerMemoryCommand(ctx, engine, config)
 }

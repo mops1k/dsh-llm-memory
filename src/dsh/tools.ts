@@ -104,6 +104,14 @@ export const MEMORY_TOOL_NAMES = [
   'llm_memory_heal',
 ] as const
 
+/** Tools kept available only to the full agent preset. */
+export const MEMORY_FULL_ONLY_TOOL_NAMES = [
+  'llm_memory_delete',
+  'llm_memory_status',
+  'llm_memory_lint',
+  'llm_memory_heal',
+] as const
+
 /** Sink for non-fatal registration problems (a colliding name, a failed register). */
 export interface MemoryToolLogger {
   warn(message: string): void

@@ -24,6 +24,9 @@ export const RULES_BLOCK_END = '<!-- END llm-memory-kilo-rules -->'
 /** Rule file names probed in every discovered Kilo config directory. */
 export const RULE_FILE_NAMES = ['AGENTS.md', 'immutable-rules.md'] as const
 
+/** Bundled translation exports the canonical AGENTS.md only; Kilo verbatim keeps both files. */
+const BUNDLED_RULE_FILE_NAMES = ['AGENTS.md'] as const
+
 /** Label prefix shown for sources read from the bundled English translation. */
 const BUNDLED_LABEL_PREFIX = 'bundled-en'
 
@@ -169,12 +172,13 @@ function bundledRuleFile(name: string, base: string | URL): string | null {
 }
 
 /**
- * Read the bundled English rule files shipped in `rules/en/`, in package order
- * (`AGENTS.md` before `immutable-rules.md`). Missing files are skipped.
+ * Read the bundled English canonical AGENTS.md. The separate immutable source
+ * remains available to `kilo-verbatim` exports, but is not duplicated into the
+ * bundled managed block.
  */
 function resolveBundledRuleSources(base: string | URL): RulesSource[] {
   const sources: RulesSource[] = []
-  for (const name of RULE_FILE_NAMES) {
+  for (const name of BUNDLED_RULE_FILE_NAMES) {
     const file = bundledRuleFile(name, base)
     if (file === null) continue
     const content = readFileIfExists(file)
@@ -227,8 +231,8 @@ function resolveKiloRuleSources(config: MemoryConfig): RulesSource[] {
 /**
  * Resolve the rule sources for the export action.
  *
- * `config.rulesSource === 'bundled-en'` (the default) reads the English
- * translation shipped in this package, labelled `bundled-en:<name>`.
+ * `config.rulesSource === 'bundled-en'` (the default) reads the canonical
+ * English translation shipped in this package, labelled `bundled-en:AGENTS.md`.
  * `'kilo-verbatim'` resolves the original Kilo files on this machine, honouring
  * explicit `importRoots` and optional auto-detection. Nothing under the Kilo
  * config is ever modified.
@@ -246,7 +250,7 @@ function noRuleSourcesMessage(config: MemoryConfig): string {
   if (config.rulesSource === 'kilo-verbatim') {
     return 'No Kilo rule sources were found. Checked the native HOME, WSL/Windows Kilo config roots and config.importRoots.'
   }
-  return 'The bundled English rule files are missing from the package (rules/en/AGENTS.md and rules/en/immutable-rules.md).'
+  return 'The bundled English canonical rules file is missing from the package (rules/en/AGENTS.md).'
 }
 
 /** Build the managed block body for the resolved sources. */

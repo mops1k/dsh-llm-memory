@@ -49,6 +49,8 @@ export interface MemoryConfig {
   rulesSource: RulesSourceMode
   /** HTTP path of the standalone memory web UI. */
   webPath: string
+  /** Inject the short guide at session start when no richer system section is available. */
+  sessionStartGuide: boolean
 }
 
 /**
@@ -63,8 +65,8 @@ export const DEFAULT_SYSTEM_PROMPT = [
   '- llm_memory_recall: before answering questions about user preferences, past decisions, project facts or earlier work, search memory first.',
   '- llm_memory_save: save durable knowledge immediately after learning it; do not wait for the user to ask.',
   '- llm_memory_forget: mark outdated knowledge forgotten so it stops appearing in recall.',
-  '- llm_memory_delete: erase an entry permanently; use it only when forgetting is not enough.',
-  '- llm_memory_status / llm_memory_lint: inspect storage health and clean up overlaps or broken links.',
+  '- Use maintenance tools, when exposed, only for an explicit storage health or irreversible-cleanup request.',
+  '- Prefer `llm_memory_forget` for outdated entries; permanent deletion is a last resort.',
   '',
   'When to save:',
   '- Save after each milestone: confirmed project facts, chosen decisions with their reasoning, user preferences and rules, architecture details and non-obvious constraints.',
@@ -97,6 +99,7 @@ export const DEFAULT_CONFIG: MemoryConfig = {
   importAutoDetect: true,
   rulesSource: 'bundled-en',
   webPath: '/llm-memory',
+  sessionStartGuide: true,
 }
 
 function asNumber(value: unknown, fallback: number, min: number, max: number): number {
@@ -185,5 +188,7 @@ export function mergeConfig(partial?: Partial<MemoryConfig> | null): MemoryConfi
       typeof src.importAutoDetect === 'boolean' ? src.importAutoDetect : DEFAULT_CONFIG.importAutoDetect,
     rulesSource: asRulesSource(src.rulesSource, DEFAULT_CONFIG.rulesSource),
     webPath: src.webPath === undefined ? DEFAULT_CONFIG.webPath : asWebPath(src.webPath, DEFAULT_CONFIG.webPath),
+    sessionStartGuide:
+      typeof src.sessionStartGuide === 'boolean' ? src.sessionStartGuide : DEFAULT_CONFIG.sessionStartGuide,
   }
 }

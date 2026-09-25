@@ -16,6 +16,7 @@ describe('mergeConfig', () => {
     expect(config.webPath).toBe('/llm-memory')
     expect(config.importRoots).toEqual([])
     expect(config.systemPrompt).toBe(DEFAULT_SYSTEM_PROMPT)
+    expect(config.sessionStartGuide).toBe(true)
   })
 
   it('overrides, clamps and normalizes values', () => {
@@ -27,6 +28,7 @@ describe('mergeConfig', () => {
       webPath: 'memory',
       importRoots: [' /a ', '/a', '', '/b'],
       systemPrompt: '   ',
+      sessionStartGuide: false,
     })
     expect(config.storageRoot).toBe('/tmp/memory')
     expect(config.recallLimit).toBe(1)
@@ -35,6 +37,7 @@ describe('mergeConfig', () => {
     expect(config.webPath).toBe('/memory')
     expect(config.importRoots).toEqual(['/a', '/b'])
     expect(config.systemPrompt).toBe(DEFAULT_SYSTEM_PROMPT)
+    expect(config.sessionStartGuide).toBe(false)
   })
 
   it('keeps a custom system prompt and drops invalid scopes', () => {

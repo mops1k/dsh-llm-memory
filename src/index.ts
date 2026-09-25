@@ -13,7 +13,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { mergeConfig } from './core/config.js'
 import { registerMemoryContext } from './dsh/context.js'
 import { createMemoryRuntime } from './dsh/engine.js'
-import { MemorySettingsSchema, registerMemorySettings } from './dsh/settings.js'
+import { MemoryPluginConfigSchema, registerMemorySettings } from './dsh/settings.js'
 import { registerMemoryTools } from './dsh/tools.js'
 import { registerMemoryWeb, resolveWorkspaceProjectRoot } from './dsh/web.js'
 
@@ -24,11 +24,10 @@ export const name = 'dsh-llm-memory'
 export const inject = ['tools']
 
 /**
- * Plugin configuration schema (schemastery). Shared verbatim with the native
- * settings namespace, so the composition config and the user-editable settings
- * stay in sync (see `dsh/settings.ts`).
+ * Plugin configuration schema (schemastery). It extends the native settings
+ * schema with startup-only fields that the settings UI deliberately omits.
  */
-export const Config = MemorySettingsSchema
+export const Config = MemoryPluginConfigSchema
 
 /** Resolved plugin configuration. */
 export type Config = ReturnType<typeof Config>

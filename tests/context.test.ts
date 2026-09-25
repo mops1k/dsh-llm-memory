@@ -100,6 +100,19 @@ describe('system prompt section', () => {
     expect(/[А-Яа-яЁё]/u.test(text)).toBe(false)
   })
 
+  it('keeps the default prompt neutral about full-only tools', () => {
+    const { ctx, sections } = makeContextHarness()
+    registerMemoryContext(ctx, makeEngine('/tmp/memory'), mergeConfig({}))
+
+    const text = sectionText(sections[0] as PromptSection)
+    expect(text).toContain('llm_memory_recall')
+    expect(text).toContain('llm_memory_save')
+    expect(text).toContain('llm_memory_forget')
+    for (const name of ['llm_memory_delete', 'llm_memory_status', 'llm_memory_lint', 'llm_memory_heal']) {
+      expect(text).not.toContain(name)
+    }
+  })
+
   it('serves the configured prompt and follows live config changes', () => {
     const { ctx, sections } = makeContextHarness()
     const config = mergeConfig({ systemPrompt: 'Custom guidance.' })
@@ -285,5 +298,15 @@ describe('memory human command', () => {
     const message = injected[0] as { content: Array<{ text: string }>; source: { plugin: string } }
     expect(message.source.plugin).toBe('dsh-llm-memory')
     expect(message.content[0]?.text).toContain('llm_memory_recall')
+  })
+
+  it('does not register a session-start listener when the startup guide is disabled', () => {
+    const { ctx, listeners, sections, commands } = makeContextHarness()
+    registerMemoryContext(ctx, makeEngine('/tmp/memory'), mergeConfig({ sessionStartGuide: false }))
+
+    expect(listeners.some((entry) => entry.event === 'agent/session-start')).toBe(false)
+    expect(listeners.some((entry) => entry.event === 'session/event')).toBe(true)
+    expect(sections).toHaveLength(1)
+    expect(commands).toHaveLength(1)
   })
 })

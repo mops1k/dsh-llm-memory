@@ -40,10 +40,13 @@ and can import existing memory from other plugins.
   absolute root through `projects.json` and the dsh workspace registry, so pages
   land inside the repository. A session without a working directory falls back to
   the `_no-cwd` placeholder.
+- **Scoped lite restrictions**: an agent preset can import
+  `dsh-llm-memory/tool-restrict` to hide delete/status/lint/heal while the full
+  preset and the WebUI/API keep all seven globally registered tools.
 - **System-prompt guidance** injected as a prompt section; the text is editable in
   settings (English by default).
-- **Dedicated Settings section**: **Settings → LLM Memory** holds every option,
-  including the editable system prompt, plus **Save settings**, **Import memory**
+- **Dedicated Settings section**: **Settings → LLM Memory** holds the live-editable
+  options, including the system prompt, plus **Save settings**, **Import memory**
   and **Export rules to dsh AGENTS.md**.
 - **WebUI panel in the dsh shell**: the **LLM Memory** view tab next to the
   conversation embeds the plugin HTTP page in an iframe. The page has Search &
@@ -64,9 +67,9 @@ and can import existing memory from other plugins.
   - a **preview** first (target, mode, sources, full block text), then confirm;
   - an idempotent managed block — all previous blocks are collapsed into one;
   - the button is **disabled** while the exported block is already in sync;
-  - the default source is the **bundled English rules** (`rules/en/AGENTS.md`,
-    `rules/en/immutable-rules.md`), so export works on any machine without Kilo;
-    `rulesSource: kilo-verbatim` copies the Kilo files as they are.
+  - the default source is the **bundled English canonical rules** (`rules/en/AGENTS.md`),
+    which already carries the unique immutable clauses;
+    `rulesSource: kilo-verbatim` still copies both Kilo files as they are.
   Kilo files are only ever read.
 
 ## Install
@@ -99,7 +102,22 @@ Open **Settings → LLM Memory**. Values are applied on the next plugin restart.
 | `lintOverlapMinCommonWords` | `8` | Overlap threshold for the lint report. |
 | `lintMaxPairs` | `200` | Maximum pairs checked by lint (0 = unlimited). |
 | `webPath` | `/llm-memory` | Base HTTP path for the WebUI and the API. |
-| `rulesSource` | `bundled-en` | Rules export source: bundled English rules or `kilo-verbatim`. |
+| `rulesSource` | `bundled-en` | Rules export source: canonical bundled English AGENTS.md or `kilo-verbatim` (both source files). |
+
+### Startup-only profile option
+
+The native Settings card intentionally omits `sessionStartGuide`. Configure it in the
+profile patch when the richer system-prompt section is always present:
+
+```yaml
+- id: dsh-llm-memory
+  config:
+    sessionStartGuide: false
+```
+
+Reload or restart the profile plugin so the listener is reconstructed. A live patch reload
+may do this automatically, but a running plugin does not change the listener set in place.
+Other profiles retain the compatibility default `true`.
 
 ## Development
 
@@ -116,6 +134,7 @@ pnpm run build      # tsc + copies client/client.js to lib/client.js
 ```
 src/core/          storage, engine, ranking, wiki, frontmatter, importers
 src/dsh/           host plugin wiring: tools, context, settings, web, rules export, workspaces
+src/tool-restrict.ts  scoped preset restriction subpath
 client/client.js   browser client (classic script, React.createElement, conversation view + settings section)
 ui/web-ui.html     self-contained WebUI page
 rules/en/          bundled English rules used by the rules export

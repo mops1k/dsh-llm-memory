@@ -78,24 +78,21 @@ describe('resolveRuleSources', () => {
 })
 
 describe('bundled-en source', () => {
-  it('resolves the two bundled English rule files from the package in order', () => {
+  it('resolves the canonical bundled English AGENTS.md only', () => {
     const sources = resolveRuleSources(mergeConfig({ rulesSource: 'bundled-en' }))
     expect(sources.map((source) => source.path)).toEqual([
       'bundled-en:AGENTS.md',
-      'bundled-en:immutable-rules.md',
     ])
     expect(sources[0]?.content).toContain('English translation maintained by dsh-llm-memory')
     expect(sources[0]?.content).toContain('Immutable rules (highest priority)')
-    expect(sources[1]?.content).toContain('Confidence threshold 90%')
+    expect(sources[0]?.content).toContain('Confidence threshold 90%')
     expect(sources[0]?.content).not.toMatch(/[\u0400-\u04FF]/u)
-    expect(sources[1]?.content).not.toMatch(/[\u0400-\u04FF]/u)
   })
 
   it('is the default source', () => {
     const sources = resolveRuleSources(mergeConfig({}))
     expect(sources.map((source) => source.path)).toEqual([
       'bundled-en:AGENTS.md',
-      'bundled-en:immutable-rules.md',
     ])
   })
 
@@ -106,7 +103,6 @@ describe('bundled-en source', () => {
     )
     expect(sources.map((source) => source.path)).toEqual([
       'bundled-en:AGENTS.md',
-      'bundled-en:immutable-rules.md',
     ])
   })
 
@@ -116,12 +112,14 @@ describe('bundled-en source', () => {
     expect(preview.changed).toBe(true)
     expect(preview.sources.map((source) => source.path)).toEqual([
       'bundled-en:AGENTS.md',
-      'bundled-en:immutable-rules.md',
     ])
     expect(preview.block).toContain(RULES_BLOCK_BEGIN)
     expect(preview.block).toContain(RULES_BLOCK_END)
     expect(preview.block).toContain('## Immutable rules (highest priority)')
     expect(preview.block).toContain('## Memory')
+    expect(preview.block).toContain('## User profile at task start')
+    expect(preview.block).toContain('Without an explicit task or clarifying question')
+    expect(preview.block).not.toContain('### Kilo source: bundled-en:immutable-rules.md')
     expect(preview.block).not.toMatch(/[\u0400-\u04FF]/u)
   })
 
@@ -131,7 +129,7 @@ describe('bundled-en source', () => {
 
     const result = exportRulesToDshAgents(config)
     expect(result.changed).toBe(true)
-    expect(result.sources).toEqual(['bundled-en:AGENTS.md', 'bundled-en:immutable-rules.md'])
+    expect(result.sources).toEqual(['bundled-en:AGENTS.md'])
     expect(result.alreadyExported).toBe(true)
 
     expect(previewRulesExport(config).alreadyExported).toBe(true)

@@ -41,11 +41,14 @@
   (`dsh-llm-memory`, `plasma-keyboard`); ключ сопоставляется с абсолютным корнем
   через `projects.json` и реестр workspace'ов dsh, поэтому страницы попадают
   внутрь репозитория. Сессия без рабочего каталога использует заглушку `_no-cwd`.
+- **Scoped-ограничения для lite-пресета**: пресет может импортировать
+  `dsh-llm-memory/tool-restrict`, чтобы скрыть delete/status/lint/heal; full-пресет,
+  WebUI и API сохраняют все семь глобально зарегистрированных инструментов.
 - **Инструкции в системном промпте**: текст добавляется отдельной секцией и
   редактируется в настройках (по умолчанию — английский).
-- **Отдельный пункт настроек**: **Settings → LLM Memory** содержит все опции, в том
-  числе редактируемый системный промпт, а также кнопки **Save settings**,
-  **Import memory** и **Export rules to dsh AGENTS.md**.
+- **Отдельный пункт настроек**: **Settings → LLM Memory** содержит изменяемые
+  во время работы опции, в том числе системный промпт, а также кнопки
+  **Save settings**, **Import memory** и **Export rules to dsh AGENTS.md**.
 - **WebUI-панель в оболочке dsh**: вкладка **LLM Memory** рядом с разговором
   встраивает страницу плагина в iframe. На странице — разделы Search & Browse,
   Create/Edit, Graph, Status, Health (lint/heal).
@@ -66,9 +69,9 @@
     подтверждение;
   - идемпотентный управляемый блок — все прежние блоки схлопываются в один;
   - кнопка **неактивна**, пока экспортированный блок совпадает с источниками;
-  - источник по умолчанию — **зашитые английские правила** (`rules/en/AGENTS.md`,
-    `rules/en/immutable-rules.md`), поэтому экспорт работает на любой машине без
-    Kilo; режим `rulesSource: kilo-verbatim` копирует файлы Kilo как есть.
+  - источник по умолчанию — **канонические зашитые английские правила** (`rules/en/AGENTS.md`),
+    в которые перенесены уникальные immutable clauses;
+    режим `rulesSource: kilo-verbatim` по-прежнему копирует оба файла Kilo как есть.
   Файлы Kilo при этом только читаются.
 
 ## Установка
@@ -101,7 +104,22 @@ dsh --profile web --dump-config   # строка плагина должна п�
 | `lintOverlapMinCommonWords` | `8` | Порог пересечения слов для отчёта lint. |
 | `lintMaxPairs` | `200` | Максимум пар, проверяемых lint (0 — без лимита). |
 | `webPath` | `/llm-memory` | Базовый HTTP-путь для WebUI и API. |
-| `rulesSource` | `bundled-en` | Источник правил для экспорта: зашитые английские правила или `kilo-verbatim`. |
+| `rulesSource` | `bundled-en` | Источник правил для экспорта: канонический bundled AGENTS.md или `kilo-verbatim` (оба исходных файла). |
+
+### Startup-only опция профиля
+
+Карточка Settings намеренно не содержит `sessionStartGuide`. Задайте её в patch профиля,
+если подробная system-prompt секция присутствует всегда:
+
+```yaml
+- id: dsh-llm-memory
+  config:
+    sessionStartGuide: false
+```
+
+перезагрузите/перезапустите плагин профиля, чтобы listener был создан заново. Live patch
+reload может сделать это автоматически, но уже работающий плагин не меняет listener на
+месте. В остальных профилях сохраняется совместимое значение `true`.
 
 ## Разработка
 
@@ -118,6 +136,7 @@ pnpm run build      # tsc + копирование client/client.js в lib/clien
 ```
 src/core/          хранилище, движок, ranking, wiki, frontmatter, импортёры
 src/dsh/           хост-обвязка: tools, context, settings, web, экспорт правил, workspaces
+src/tool-restrict.ts  subpath ограничения инструментов для scoped-пресета
 client/client.js   браузерный клиент (classic script, React.createElement, вкладка разговора и раздел настроек)
 ui/web-ui.html     самодостаточная страница WebUI
 rules/en/          зашитые английские правила для экспорта
