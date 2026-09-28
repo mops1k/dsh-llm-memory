@@ -49,8 +49,11 @@ and can import existing memory from other plugins.
   options, including the system prompt, plus **Save settings**, **Import memory**
   and **Export rules to dsh AGENTS.md**.
 - **WebUI panel in the dsh shell**: the **LLM Memory** view tab next to the
-  conversation embeds the plugin HTTP page in an iframe. The page has Search &
-  Browse, Create/Edit, Graph, Status and Health (lint/heal) sections.
+  conversation renders the WebUI as a React view inside the shell (no iframe) and
+  follows the dsh light/dark theme through the `--dsw-*` design tokens. The view
+  has Search & Browse, Create/Edit, Graph, Status, Lint and Health (lint/heal)
+  sections. The same page is still served standalone at the plugin HTTP path
+  (`<webPath>/ui`), using the same tokens.
 - **Importers** (idempotent, keyed by an external key):
   - `kilo-memory` — `~/.config/kilo/memory/db/memory.db` (opened read-only),
   - `dsh-mnemon` — `~/.mnemon/data/*/mnemon.db` (read-only),
@@ -135,8 +138,8 @@ pnpm run build      # tsc + copies client/client.js to lib/client.js
 src/core/          storage, engine, ranking, wiki, frontmatter, importers
 src/dsh/           host plugin wiring: tools, context, settings, web, rules export, workspaces
 src/tool-restrict.ts  scoped preset restriction subpath
-client/client.js   browser client (classic script, React.createElement, conversation view + settings section)
-ui/web-ui.html     self-contained WebUI page
+client/client.js   browser client (classic script, React.createElement, React view on --dsw-* tokens + settings section)
+ui/web-ui.html     standalone WebUI page (same dsh tokens, light/dark)
 rules/en/          bundled English rules used by the rules export
 cordis.patch.yml   bundle patch
 scripts/           build helpers

@@ -50,8 +50,11 @@
   во время работы опции, в том числе системный промпт, а также кнопки
   **Save settings**, **Import memory** и **Export rules to dsh AGENTS.md**.
 - **WebUI-панель в оболочке dsh**: вкладка **LLM Memory** рядом с разговором
-  встраивает страницу плагина в iframe. На странице — разделы Search & Browse,
-  Create/Edit, Graph, Status, Health (lint/heal).
+  рендерит WebUI как React-представление прямо в оболочке (без iframe) и следует
+  светлой/тёмной теме dsh через дизайн-токены `--dsw-*`. На странице — разделы
+  Search & Browse, Create/Edit, Graph, Status, Lint и Health (lint/heal).
+  Та же страница по-прежнему доступна отдельно по HTTP-пути плагина
+  (`<webPath>/ui`) и использует те же токены.
 - **Импортёры** (идемпотентные, по внешнему ключу):
   - `kilo-memory` — `~/.config/kilo/memory/db/memory.db` (только чтение),
   - `dsh-mnemon` — `~/.mnemon/data/*/mnemon.db` (только чтение),
@@ -137,8 +140,8 @@ pnpm run build      # tsc + копирование client/client.js в lib/clien
 src/core/          хранилище, движок, ranking, wiki, frontmatter, импортёры
 src/dsh/           хост-обвязка: tools, context, settings, web, экспорт правил, workspaces
 src/tool-restrict.ts  subpath ограничения инструментов для scoped-пресета
-client/client.js   браузерный клиент (classic script, React.createElement, вкладка разговора и раздел настроек)
-ui/web-ui.html     самодостаточная страница WebUI
+client/client.js   браузерный клиент (classic script, React.createElement, React-вкладка на токенах --dsw-* и раздел настроек)
+ui/web-ui.html     самостоятельная страница WebUI (те же токены dsh, light/dark)
 rules/en/          зашитые английские правила для экспорта
 cordis.patch.yml   bundle-patch
 scripts/           вспомогательные скрипты сборки
