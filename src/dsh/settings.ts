@@ -1,21 +1,22 @@
 /**
  * dsh settings integration: host half of the plugin configuration.
  *
- * The namespace is registered with the native settings provider so every
- * user-editable field is exposed to a configuration UI, persisted and
- * hot-reloaded into the running plugin. Startup-only profile fields are
+ * The plugin ships its configuration as a Loader `Config` schema (see
+ * `src/index.ts`): the values are held by the profile patch, edited through the
+ * native configuration editor, and applied by cordis re-activating the plugin
+ * fiber. This module owns the schema and the page policy that exposes it in the
+ * settings UI; nothing here renders UI itself. Startup-only profile fields are
  * intentionally absent from this schema and live only in the plugin
- * composition config. The settings card itself is a separate client-side
- * plugin keyed by this namespace; nothing here renders UI.
+ * composition config.
  *
  * @module dsh-llm-memory/dsh/settings
  */
 import type { Context } from '@deepseek-ai/cordis'
-import type { SettingsScope } from '@deepseek-ai/dsh-settings'
+// Type-only import: it activates the service's `Context.settings` declaration merging.
+import type { SettingsForms } from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 
-import { DEFAULT_CONFIG, DEFAULT_SYSTEM_PROMPT, mergeConfig, type MemoryConfig } from '../core/config.js'
-import type { MemoryEngine } from '../core/engine.js'
+import { DEFAULT_CONFIG, DEFAULT_SYSTEM_PROMPT } from '../core/config.js'
 
 /** Settings namespace owned by this plugin (lowercase, hyphenated). */
 export const SETTINGS_NAMESPACE = 'dsh-llm-memory'
@@ -88,63 +89,6 @@ export const MemoryPluginConfigSchema = z.object({
 /** Resolved value of the plugin settings namespace. */
 export type MemorySettings = ReturnType<typeof MemorySettingsSchema>
 
-/** Project the resolved engine config onto the settings shape. */
-function toSettings(config: MemoryConfig): MemorySettings {
-  return {
-    storageRoot: config.storageRoot ?? '',
-    recallLimit: config.recallLimit,
-    autonomous: config.autonomous,
-    requireConfirmation: config.requireConfirmation,
-    systemPrompt: config.systemPrompt,
-    importRoots: [...config.importRoots],
-    importAutoDetect: config.importAutoDetect,
-    rulesSource: config.rulesSource,
-    lintOverlapMinCommonWords: config.lintOverlapMinCommonWords,
-    lintMaxPairs: config.lintMaxPairs,
-    webPath: config.webPath,
-  }
-}
-
-/** Merge a settings value over the current config, preserving `recallScope`. */
-function fromSettings(next: MemorySettings, current: MemoryConfig): MemoryConfig {
-  return mergeConfig({
-    storageRoot: next.storageRoot,
-    recallLimit: next.recallLimit,
-    recallScope: current.recallScope,
-    lintOverlapMinCommonWords: next.lintOverlapMinCommonWords,
-    lintMaxPairs: next.lintMaxPairs,
-    autonomous: next.autonomous,
-    requireConfirmation: next.requireConfirmation,
-    systemPrompt: next.systemPrompt,
-    importRoots: next.importRoots,
-    importAutoDetect: next.importAutoDetect,
-    rulesSource: next.rulesSource,
-    webPath: next.webPath,
-    sessionStartGuide: current.sessionStartGuide,
-  })
-}
-
-/**
- * Copy resolved values into a live config object that the tools, the system
- * prompt provider and the engine read on every call, so a settings change
- * takes effect without a restart. `storageRoot` is applied for reporting only:
- * the SQLite store already owns its directory, so a root change needs a
- * plugin restart (warned about by the caller).
- */
-function applyConfig(target: MemoryConfig, next: MemoryConfig): void {
-  target.recallLimit = next.recallLimit
-  target.lintOverlapMinCommonWords = next.lintOverlapMinCommonWords
-  target.lintMaxPairs = next.lintMaxPairs
-  target.autonomous = next.autonomous
-  target.requireConfirmation = next.requireConfirmation
-  target.systemPrompt = next.systemPrompt
-  target.importRoots = [...next.importRoots]
-  target.importAutoDetect = next.importAutoDetect
-  target.rulesSource = next.rulesSource
-  target.webPath = next.webPath
-  // `sessionStartGuide` is startup-only; changing it requires a plugin reload.
-}
-
 /** Log a warning through the Cordis logger, falling back to the console. */
 function warnSettings(ctx: Context, message: string): void {
   try {
@@ -155,42 +99,23 @@ function warnSettings(ctx: Context, message: string): void {
 }
 
 /**
- * Register the plugin settings namespace (host half) and hot-reload changes
- * into the live configuration objects.
+ * Register this plugin instance with the native configuration editor.
+ *
+ * Since dsh 0.1.7 a plugin's settings *are* its Loader config: {@link
+ * MemorySettingsSchema} is exported as the plugin `Config`, the values live in
+ * the profile patch, and cordis applies an edit by re-activating the fiber with
+ * the new config — so there is no scope to watch here. What this function still
+ * owns is the page policy: whether the editor may autogenerate a settings page
+ * for this instance.
  *
  * @param ctx - context carrying the `settings` service.
- * @param engine - live engine whose own config backs recall/lint.
- * @param config - shared resolved config read by the tools and prompt section.
  */
-export function registerMemorySettings(ctx: Context, engine: MemoryEngine, config: MemoryConfig): void {
-  let scope: SettingsScope<MemorySettings>
+export function registerMemorySettings(ctx: Context): void {
+  const forms: SettingsForms = ctx.settings
   try {
-    scope = ctx.settings.register(SETTINGS_NAMESPACE, MemorySettingsSchema, {
-      base: toSettings(config),
-      applies: 'live',
-    })
+    const dispose = forms.configure({ auto: true })
+    ctx.effect(() => dispose)
   } catch (error) {
-    warnSettings(ctx, `Settings namespace "${SETTINGS_NAMESPACE}" was not registered: ${String(error)}`)
-    return
+    warnSettings(ctx, `Settings page for "${SETTINGS_NAMESPACE}" was not registered: ${String(error)}`)
   }
-
-  const apply = (next: MemorySettings): void => {
-    const merged = fromSettings(next, config)
-    if (merged.storageRoot !== config.storageRoot) {
-      warnSettings(
-        ctx,
-        'storageRoot changed: the memory store keeps its current directory until the plugin restarts.',
-      )
-    }
-    applyConfig(config, merged)
-    applyConfig(engine.config, merged)
-  }
-
-  try {
-    scope.watch((next) => apply(next))
-  } catch (error) {
-    warnSettings(ctx, `Settings watcher for "${SETTINGS_NAMESPACE}" was not installed: ${String(error)}`)
-  }
-
-  apply(scope.get())
 }

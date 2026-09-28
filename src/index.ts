@@ -50,7 +50,5 @@ export function apply(ctx: Context, config: Config): void {
     registerMemoryContext(promptCtx, runtime.engine, resolved),
   )
   ctx.inject(['webServer'], (webCtx) => registerMemoryWeb(webCtx, runtime.engine, resolved))
-  ctx.inject(['settings'], (settingsCtx) =>
-    registerMemorySettings(settingsCtx, runtime.engine, resolved),
-  )
+  ctx.inject(['settings'], (settingsCtx) => registerMemorySettings(settingsCtx))
 }

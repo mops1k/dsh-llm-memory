@@ -25,7 +25,7 @@ window.__ModuleLoader__.load({
     const ORDER = 30;
     const ALREADY_EXPORTED_NOTE = "Rules are already exported to ~/.dsh/AGENTS.md.";
 
-    const inject = ["slots", "settingsScope"];
+    const inject = ["slots", "configForms"];
 
     /* ------------------------------------------------------------------ *
      * helpers
@@ -802,7 +802,10 @@ window.__ModuleLoader__.load({
       const ctx = rawContext;
       let scope = null;
       try {
-        scope = ctx.settingsScope.bind({ namespace: NAMESPACE });
+        // dsh 0.1.7 replaced the client `settingsScope` service: the entry's
+        // values and write queue now come from the shared configuration form
+        // provider, keyed by the Host entry id (this plugin's own namespace).
+        scope = ctx.configForms.get(NAMESPACE);
       } catch (error) {
         scope = null;
       }

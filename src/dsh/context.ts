@@ -7,8 +7,8 @@
  *   compact digest of active rules ({@link MemoryEngine.rulesForPrompt});
  * - a raw per-session digest that captures only user/assistant message text
  *   and flushes it atomically on compaction or shutdown;
- * - a short memory guide injected with `agent.inject()` when a session starts,
- *   plus the `/memory status|import|export` human command.
+ * - a short memory guide injected with `agent.inject()` when an agent is
+ *   created, plus the `/memory status|import|export` human command.
  *
  * @module dsh-llm-memory/dsh/context
  */
@@ -16,11 +16,17 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { join } from 'node:path'
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
 import { createUserMessage, type ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { PromptSection } from '@deepseek-ai/dsh-system-prompt'
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    /** Short memory guide injected by this plugin when an agent is created. */
+    'dsh-llm-memory': { kind: 'dsh-llm-memory' }
+  }
+}
 
 import type { MemoryConfig } from '../core/config.js'
 import type { MemoryEngine } from '../core/engine.js'
@@ -28,9 +34,6 @@ import { detectImportProjects, mergeImportedProjects, runImport } from '../core/
 import { DIGEST_DIR } from '../core/paths.js'
 import { exportRulesToDshAgents } from './rules-export.js'
 import { registerProjectRoots } from './workspaces.js'
-
-/** Plugin name used as the injected-context source. */
-const PLUGIN_NAME = 'dsh-llm-memory'
 
 /** Unique name of the system-prompt section contributed by this plugin. */
 const PROMPT_SECTION_NAME = 'llm-memory'
@@ -224,17 +227,18 @@ function registerSessionDigest(ctx: Context, engine: MemoryEngine): void {
 /** Inject the short memory guide when an agent session starts. */
 function registerSessionStartGuide(ctx: Context, enabled: boolean): void {
   if (!enabled) return
-  ctx.on('agent/session-start', (payload: { agent: Agent }) => {
+  ctx.on('agent/created', ({ agent }) => {
     try {
-      payload.agent.inject(
+      agent.inject(
         createUserMessage({
           content: [{ type: 'text', text: MEMORY_GUIDE }],
-          source: { kind: 'plugin', plugin: PLUGIN_NAME },
+          source: { kind: 'dsh-llm-memory' },
         }),
       )
     } catch (error) {
       warnContext(ctx, `Failed to inject the memory guide: ${errorMessage(error)}`)
     }
+    return undefined
   })
 }
 

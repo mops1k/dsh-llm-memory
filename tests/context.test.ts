@@ -283,20 +283,20 @@ describe('memory human command', () => {
     }
   })
 
-  it('injects the memory guide when a session starts', () => {
+  it('injects the memory guide when an agent is created', () => {
     const { ctx, listeners } = makeContextHarness()
     registerMemoryContext(ctx, makeEngine('/tmp/memory'), mergeConfig({}))
 
-    const start = listeners.find((entry) => entry.event === 'agent/session-start')
-    expect(start).toBeDefined()
+    const created = listeners.find((entry) => entry.event === 'agent/created')
+    expect(created).toBeDefined()
 
     const injected: unknown[] = []
     const agent = { inject: (message: unknown) => injected.push(message) }
-    start?.callback({ agent } as never)
+    created?.callback({ agent, source: 'fresh' } as never)
 
     expect(injected).toHaveLength(1)
-    const message = injected[0] as { content: Array<{ text: string }>; source: { plugin: string } }
-    expect(message.source.plugin).toBe('dsh-llm-memory')
+    const message = injected[0] as { content: Array<{ text: string }>; source: { kind: string } }
+    expect(message.source.kind).toBe('dsh-llm-memory')
     expect(message.content[0]?.text).toContain('llm_memory_recall')
   })
 
