@@ -134,6 +134,25 @@ pnpm test
 pnpm run build      # tsc + копирование client/client.js в lib/client.js
 ```
 
+## Совместимость при обновлении DSH
+
+Начиная с DSH 0.2.0-rc.2 загрузчик профиля пропускает бандл целиком, если его
+peerDependencies вида `@deepseek-ai/dsh*` не удовлетворяют текущему runtime
+(`evaluatePluginCompatibility` в `@deepseek-ai/dsh-app-boot`) — плагин молча
+исчезает из сессии. Поэтому все DSH-peer объявлены как `workspace:^` (загрузчик
+всегда читает это как текущий runtime), а `scripts/check-dsh-compat.mjs`
+проверяет и peer-диапазоны, и рантайм-символы, которые использует плагин.
+
+После каждого обновления DSH:
+
+```sh
+pnpm check:dsh     # peer-диапазоны + рантайм-символы
+pnpm run typecheck
+pnpm test
+```
+
+Затем перезапустить DSH.
+
 ## Структура репозитория
 
 ```
