@@ -60,6 +60,29 @@ function makeContextHarness(): ContextHarness {
   return { ctx, sections, listeners, commands }
 }
 
+/**
+ * Announce one created agent, the way the agent registry does.
+ *
+ * The memory section is registered per agent (`agent.ctx`), so a test must emit
+ * the event before the section exists.
+ */
+function emitAgentCreated(harness: ContextHarness): void {
+  const agent = {
+    inject: (): void => {},
+    ctx: {
+      systemPrompt: {
+        section(section: PromptSection): () => void {
+          harness.sections.push(section)
+          return () => {}
+        },
+      },
+    },
+  }
+  for (const entry of harness.listeners) {
+    if (entry.event === 'agent/created') entry.callback({ agent, source: 'fresh' } as never)
+  }
+}
+
 function makeEngine(root: string): MemoryEngine {
   return {
     root,
@@ -85,11 +108,12 @@ function sectionText(section: PromptSection): string {
 
 describe('system prompt section', () => {
   it('contains the autonomy and forget rules in English', () => {
-    const { ctx, sections } = makeContextHarness()
-    registerMemoryContext(ctx, makeEngine('/tmp/memory'), mergeConfig({}))
+    const harness = makeContextHarness()
+    registerMemoryContext(harness.ctx, makeEngine('/tmp/memory'), mergeConfig({}))
+    emitAgentCreated(harness)
 
-    expect(sections).toHaveLength(1)
-    const text = sectionText(sections[0] as PromptSection)
+    expect(harness.sections).toHaveLength(1)
+    const text = sectionText(harness.sections[0] as PromptSection)
 
     expect(text).toContain('llm_memory_save')
     expect(text).toContain('supersedes')
@@ -101,10 +125,11 @@ describe('system prompt section', () => {
   })
 
   it('keeps the default prompt neutral about full-only tools', () => {
-    const { ctx, sections } = makeContextHarness()
-    registerMemoryContext(ctx, makeEngine('/tmp/memory'), mergeConfig({}))
+    const harness = makeContextHarness()
+    registerMemoryContext(harness.ctx, makeEngine('/tmp/memory'), mergeConfig({}))
+    emitAgentCreated(harness)
 
-    const text = sectionText(sections[0] as PromptSection)
+    const text = sectionText(harness.sections[0] as PromptSection)
     expect(text).toContain('llm_memory_recall')
     expect(text).toContain('llm_memory_save')
     expect(text).toContain('llm_memory_forget')
@@ -113,16 +138,22 @@ describe('system prompt section', () => {
     }
   })
 
-  it('serves the configured prompt and follows live config changes', () => {
-    const { ctx, sections } = makeContextHarness()
+  it('freezes the rendered prompt at agent creation', () => {
+    const harness = makeContextHarness()
+    const engine = makeEngine('/tmp/memory')
     const config = mergeConfig({ systemPrompt: 'Custom guidance.' })
-    registerMemoryContext(ctx, makeEngine('/tmp/memory'), config)
+    registerMemoryContext(harness.ctx, engine, config)
+    emitAgentCreated(harness)
 
-    const section = sections[0] as PromptSection
+    const section = harness.sections[0] as PromptSection
     expect(sectionText(section)).toContain('Custom guidance.')
 
+    // A live config change must not alter an agent's rendered prompt: a changed
+    // system prompt invalidates the provider prefix cache for the whole session.
     config.systemPrompt = 'Updated guidance.'
-    expect(sectionText(section)).toContain('Updated guidance.')
+    expect(sectionText(section)).toContain('Custom guidance.')
+    expect(sectionText(section)).not.toContain('Updated guidance.')
+    expect(engine.rulesForPrompt).toHaveBeenCalledTimes(1)
   })
 
   it('ships autonomy and forget rules in the default prompt', () => {
@@ -287,12 +318,15 @@ describe('memory human command', () => {
     const { ctx, listeners } = makeContextHarness()
     registerMemoryContext(ctx, makeEngine('/tmp/memory'), mergeConfig({}))
 
-    const created = listeners.find((entry) => entry.event === 'agent/created')
-    expect(created).toBeDefined()
+    const created = listeners.filter((entry) => entry.event === 'agent/created')
+    expect(created.length).toBeGreaterThan(0)
 
     const injected: unknown[] = []
-    const agent = { inject: (message: unknown) => injected.push(message) }
-    created?.callback({ agent, source: 'fresh' } as never)
+    const agent = {
+      inject: (message: unknown) => injected.push(message),
+      ctx: { systemPrompt: { section: () => () => {} } },
+    }
+    for (const entry of created) entry.callback({ agent, source: 'fresh' } as never)
 
     expect(injected).toHaveLength(1)
     const message = injected[0] as { content: Array<{ text: string }>; source: { kind: string } }
@@ -301,12 +335,13 @@ describe('memory human command', () => {
   })
 
   it('does not register a session-start listener when the startup guide is disabled', () => {
-    const { ctx, listeners, sections, commands } = makeContextHarness()
-    registerMemoryContext(ctx, makeEngine('/tmp/memory'), mergeConfig({ sessionStartGuide: false }))
+    const harness = makeContextHarness()
+    registerMemoryContext(harness.ctx, makeEngine('/tmp/memory'), mergeConfig({ sessionStartGuide: false }))
+    emitAgentCreated(harness)
 
-    expect(listeners.some((entry) => entry.event === 'agent/session-start')).toBe(false)
-    expect(listeners.some((entry) => entry.event === 'session/event')).toBe(true)
-    expect(sections).toHaveLength(1)
-    expect(commands).toHaveLength(1)
+    expect(harness.listeners.some((entry) => entry.event === 'agent/session-start')).toBe(false)
+    expect(harness.listeners.some((entry) => entry.event === 'session/event')).toBe(true)
+    expect(harness.sections).toHaveLength(1)
+    expect(harness.commands).toHaveLength(1)
   })
 })

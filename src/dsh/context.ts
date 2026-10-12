@@ -176,29 +176,50 @@ export class MemoryDigest {
   }
 }
 
-/** Register the system-prompt section (its text is re-evaluated per assembly). */
-function registerSystemPrompt(ctx: Context, engine: MemoryEngine, config: MemoryConfig): void {
-  const section: PromptSection = {
-    name: PROMPT_SECTION_NAME,
-    order: PROMPT_SECTION_ORDER,
-    text: () => {
-      const parts: string[] = []
-      const base = (config.systemPrompt ?? '').trim()
-      if (base.length > 0) parts.push(base)
-      try {
-        const rules = engine.rulesForPrompt().trim()
-        if (rules.length > 0) parts.push(rules)
-      } catch (error) {
-        warnContext(ctx, `rulesForPrompt() failed: ${errorMessage(error)}`)
-      }
-      return parts.join('\n\n')
-    },
-  }
+/**
+ * Render the section text once, when an agent is created.
+ *
+ * The text deliberately does NOT change for the rest of the session: any change
+ * to the rendered system prompt rewrites its head and invalidates the provider's
+ * prefix cache, so the whole session history is resent as uncached input. The
+ * live digest stays reachable through `llm_memory_recall` and the WebUI.
+ */
+function sectionText(engine: MemoryEngine, config: MemoryConfig, warn: (message: string) => void): string {
+  const parts: string[] = []
+  const base = (config.systemPrompt ?? '').trim()
+  if (base.length > 0) parts.push(base)
   try {
-    ctx.systemPrompt.section(section)
+    const rules = engine.rulesForPrompt().trim()
+    if (rules.length > 0) parts.push(rules)
   } catch (error) {
-    warnContext(ctx, `System-prompt section "${PROMPT_SECTION_NAME}" was not registered: ${errorMessage(error)}`)
+    warn(`rulesForPrompt() failed: ${errorMessage(error)}`)
   }
+  return parts.join('\n\n')
+}
+
+/**
+ * Register the system-prompt section for one agent, frozen at creation time.
+ *
+ * A global section whose text is re-evaluated on every assembly would change
+ * whenever memory is saved, and that prompt change alone measured as 65-92% of
+ * all uncached input across sessions (2026-10-12). Registering through
+ * `agent.ctx` scopes the section to that agent, so each new session renders the
+ * digest once and keeps it stable while the agent lives.
+ */
+function registerSystemPrompt(ctx: Context, engine: MemoryEngine, config: MemoryConfig): void {
+  ctx.on('agent/created', ({ agent }) => {
+    try {
+      const section: PromptSection = {
+        name: PROMPT_SECTION_NAME,
+        order: PROMPT_SECTION_ORDER,
+        text: sectionText(engine, config, (message) => warnContext(ctx, message)),
+      }
+      agent.ctx.systemPrompt.section(section)
+    } catch (error) {
+      warnContext(ctx, `System-prompt section "${PROMPT_SECTION_NAME}" was not registered: ${errorMessage(error)}`)
+    }
+    return undefined
+  })
 }
 
 /** Subscribe to durable session events and keep a raw digest per session. */
