@@ -1,10 +1,11 @@
 /**
  * Model-facing memory tools registered on `ctx.tools`.
  *
- * Seven tools map one-to-one onto {@link MemoryEngine} operations:
- * `llm_memory_recall`, `llm_memory_save`, `llm_memory_forget`,
- * `llm_memory_delete`, `llm_memory_status`, `llm_memory_lint` and
- * `llm_memory_heal`. Every tool is
+ * Four tools map one-to-one onto {@link MemoryEngine} operations:
+ * `llm_memory_recall`, `llm_memory_save`, `llm_memory_forget` and
+ * `llm_memory_status`. `llm_memory_delete`, `llm_memory_lint` and
+ * `llm_memory_heal` keep their engine and WebUI surfaces but are no longer
+ * model-facing (see {@link MEMORY_TOOL_NAMES}). Every tool is
  * autonomous: it performs the requested operation without asking the user for
  * confirmation, regardless of the UI-level `requireConfirmation` flag. Names
  * carry the `llm_memory_` prefix and registration skips a name another plugin
@@ -91,26 +92,23 @@ export function sessionProjectKey(ctx: Context, exec: unknown): string | null {
 }
 
 /**
- * Unique, plugin-prefixed tool names. The `llm_memory_` prefix keeps the seven
+ * Unique, plugin-prefixed tool names. The `llm_memory_` prefix keeps the four
  * tools from colliding with other memory plugins (dsh-mnemon, dsh-memory, …).
+ *
+ * `llm_memory_delete`, `llm_memory_lint` and `llm_memory_heal` are deliberately
+ * NOT model-facing: their schemas cost tokens on every request and they were
+ * never called (0 of 19 706 recorded tool calls, 2026-10-12). The engine
+ * methods and the WebUI tabs that drive them stay available.
  */
 export const MEMORY_TOOL_NAMES = [
   'llm_memory_recall',
   'llm_memory_save',
   'llm_memory_forget',
-  'llm_memory_delete',
   'llm_memory_status',
-  'llm_memory_lint',
-  'llm_memory_heal',
 ] as const
 
 /** Tools kept available only to the full agent preset. */
-export const MEMORY_FULL_ONLY_TOOL_NAMES = [
-  'llm_memory_delete',
-  'llm_memory_status',
-  'llm_memory_lint',
-  'llm_memory_heal',
-] as const
+export const MEMORY_FULL_ONLY_TOOL_NAMES = ['llm_memory_status'] as const
 
 /** Sink for non-fatal registration problems (a colliding name, a failed register). */
 export interface MemoryToolLogger {
@@ -426,35 +424,6 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
 
   register(
     defineTool({
-      name: 'llm_memory_delete',
-      description:
-        'Permanently delete a memory entry, its markdown page and every reference to it. ' +
-        'This is irreversible; prefer `memory_forget` unless the entry must be erased. ' +
-        AUTONOMY_NOTE,
-      parameters: {
-        id: { type: 'string', required: true, description: 'Memory entry id to delete.' },
-      },
-      output: {
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            id: { type: 'string', required: true, description: 'Deleted entry id.' },
-            deleted: { type: 'boolean', required: true, description: 'Always true on success.' },
-          },
-        },
-        render: (args) => [{ type: 'text', text: `Deleted memory entry ${args.id}.` }],
-      },
-      execute: async (args) => {
-        const deleted = engine.delete(args.id)
-        if (!deleted) throw new Error(`Memory entry not found: ${args.id}`)
-        return { id: args.id, deleted: true }
-      },
-    }),
-  )
-
-  register(
-    defineTool({
       name: 'llm_memory_status',
       description:
         'Report memory storage statistics: storage root, database path and size, totals and ' +
@@ -522,155 +491,6 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
           byScope: report.byScope,
           byKind: report.byKind,
           byProject: report.byProject,
-        }
-      },
-    }),
-  )
-
-  register(
-    defineTool({
-      name: 'llm_memory_lint',
-      description:
-        'Run a health check over long-term memory: broken relation links, significantly ' +
-        'overlapping active entries and stale entries. Use it to keep the store clean. ' +
-        AUTONOMY_NOTE,
-      parameters: {},
-      output: {
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            totalCount: { type: 'integer', required: true, description: 'Total number of entries.' },
-            activeCount: { type: 'integer', required: true, description: 'Number of active entries.' },
-            overlapsHidden: { type: 'integer', required: true, description: 'Overlap pairs hidden by the cap.' },
-            staleDays: { type: 'integer', required: true, description: 'Staleness threshold in days.' },
-            brokenLinks: {
-              type: 'array',
-              required: true,
-              items: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  id: { type: 'string', required: true },
-                  title: { type: 'string', required: true },
-                  field: { type: 'string', required: true },
-                  missingId: { type: 'string', required: true },
-                },
-              },
-              description: 'Links pointing at entries that do not exist.',
-            },
-            overlaps: {
-              type: 'array',
-              required: true,
-              items: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  a: { type: 'string', required: true },
-                  b: { type: 'string', required: true },
-                  aTitle: { type: 'string', required: true },
-                  bTitle: { type: 'string', required: true },
-                  common: { type: 'integer', required: true },
-                  score: { type: 'number', required: true },
-                },
-              },
-              description: 'Active entry pairs with a significant lexical overlap.',
-            },
-            stale: {
-              type: 'array',
-              required: true,
-              items: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  id: { type: 'string', required: true },
-                  title: { type: 'string', required: true },
-                  updatedAt: { type: 'string', required: true },
-                },
-              },
-              description: 'Active entries not updated for a long time.',
-            },
-          },
-        },
-        render: (_args, value) => {
-          const lines = [
-            `Memory lint: ${value.totalCount} entries, ${value.activeCount} active.`,
-            `- broken relation links: ${value.brokenLinks.length}`,
-            `- overlapping active pairs: ${value.overlaps.length} (hidden by cap: ${value.overlapsHidden})`,
-            `- stale entries older than ${value.staleDays} days: ${value.stale.length}`,
-          ]
-          return [{ type: 'text', text: lines.join('\n') }]
-        },
-      },
-      execute: async () => {
-        const report = engine.lintReport()
-        return {
-          totalCount: report.totalCount,
-          activeCount: report.activeCount,
-          overlapsHidden: report.overlapsHidden,
-          staleDays: report.staleDays,
-          brokenLinks: report.brokenLinks.map((link) => ({
-            id: link.id,
-            title: link.title,
-            field: link.field,
-            missingId: link.missingId,
-          })),
-          overlaps: report.overlaps.map((overlap) => ({
-            a: overlap.a,
-            b: overlap.b,
-            aTitle: overlap.aTitle,
-            bTitle: overlap.bTitle,
-            common: overlap.common,
-            score: overlap.score,
-          })),
-          stale: report.stale.map((entry) => ({
-            id: entry.id,
-            title: entry.title,
-            updatedAt: entry.updatedAt,
-          })),
-        }
-      },
-    }),
-  )
-
-  register(
-    defineTool({
-      name: 'llm_memory_heal',
-      description:
-        'Repair long-term memory safely: remove relation links that point at missing entries and add ' +
-        'missing reverse links (`supersededBy` for `supersedes`, symmetric `related`), then rebuild the ' +
-        'search index. Non-destructive: it never deletes entries or changes their status. ' +
-        AUTONOMY_NOTE,
-      parameters: {},
-      output: {
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            removedLinks: { type: 'integer', required: true, description: 'Broken relation references removed.' },
-            addedBacklinks: { type: 'integer', required: true, description: 'Missing reverse links added.' },
-            reindexed: { type: 'integer', required: true, description: 'Entries rebuilt from markdown.' },
-            brokenBefore: { type: 'integer', required: true, description: 'Broken links before healing.' },
-            brokenAfter: { type: 'integer', required: true, description: 'Broken links after healing.' },
-          },
-        },
-        render: (_args, value) => {
-          const lines = [
-            `Memory heal: removed ${value.removedLinks} broken link(s), added ${value.addedBacklinks} backlink(s).`,
-            `- reindexed entries: ${value.reindexed}`,
-            `- broken links: ${value.brokenBefore} -> ${value.brokenAfter}`,
-          ]
-          return [{ type: 'text', text: lines.join('\n') }]
-        },
-      },
-      execute: async () => {
-        const report = engine.heal()
-        return {
-          removedLinks: report.removedLinks,
-          addedBacklinks: report.addedBacklinks,
-          reindexed: report.reindexed,
-          brokenBefore: report.brokenBefore,
-          brokenAfter: report.brokenAfter,
         }
       },
     }),

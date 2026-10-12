@@ -18,12 +18,7 @@ export const name = 'dsh-llm-memory-tool-restrict'
 /** Required host service. */
 export const inject = ['tools']
 
-const FULL_ONLY_TOOL_SCHEMA = z.union([
-  z.const('llm_memory_delete'),
-  z.const('llm_memory_status'),
-  z.const('llm_memory_lint'),
-  z.const('llm_memory_heal'),
-])
+const FULL_ONLY_TOOL_SCHEMA = z.const('llm_memory_status')
 
 /** Scoped restriction configuration. */
 export const Config = z.object({

@@ -130,11 +130,11 @@ function expectValidOutput(definition: ToolDefinition, value: unknown): void {
 }
 
 describe('registerMemoryTools', () => {
-  it('registers exactly the seven memory tools with valid schemas', () => {
+  it('registers exactly the model-facing memory tools with valid schemas', () => {
     const { ctx, tools } = makeHarness()
     registerMemoryTools(ctx, makeEngine() as unknown as MemoryEngine, mergeConfig({}))
 
-    expect(tools).toHaveLength(7)
+    expect(tools).toHaveLength(MEMORY_TOOL_NAMES.length)
     expect(tools.map((definition) => definition.name).sort()).toEqual([...MEMORY_TOOL_NAMES].sort())
 
     for (const definition of tools) {
@@ -153,7 +153,7 @@ describe('registerMemoryTools', () => {
       registerMemoryTools(ctx, makeEngine() as unknown as MemoryEngine, mergeConfig({})),
     ).not.toThrow()
 
-    expect(tools).toHaveLength(6)
+    expect(tools).toHaveLength(MEMORY_TOOL_NAMES.length - 1)
     expect(tools.map((definition) => definition.name)).not.toContain('llm_memory_recall')
     expect(warnings.join('\n')).toContain('llm_memory_recall')
   })
@@ -167,7 +167,6 @@ describe('registerMemoryTools', () => {
       ['llm_memory_recall', { query: 'missing' }, { text: '' }],
       ['llm_memory_save', { title: 'T', text: 'B' }, { id: ENTRY.id, title: 'T', kind: 'facts', scope: 'project' }],
       ['llm_memory_forget', { id: ENTRY.id }, { message: 'Memory entry marked as forgotten.' }],
-      ['llm_memory_delete', { id: ENTRY.id }, { id: ENTRY.id, deleted: true }],
       [
         'llm_memory_status',
         {},
@@ -181,30 +180,6 @@ describe('registerMemoryTools', () => {
           byScope: STATUS_REPORT.byScope,
           byKind: STATUS_REPORT.byKind,
           byProject: STATUS_REPORT.byProject,
-        },
-      ],
-      [
-        'llm_memory_lint',
-        {},
-        {
-          totalCount: 1,
-          activeCount: 1,
-          overlapsHidden: 0,
-          staleDays: 180,
-          brokenLinks: LINT_REPORT.brokenLinks,
-          overlaps: LINT_REPORT.overlaps,
-          stale: LINT_REPORT.stale,
-        },
-      ],
-      [
-        'llm_memory_heal',
-        {},
-        {
-          removedLinks: 1,
-          addedBacklinks: 2,
-          reindexed: 3,
-          brokenBefore: 1,
-          brokenAfter: 0,
         },
       ],
     ]
@@ -288,21 +263,6 @@ describe('registerMemoryTools', () => {
     )
   })
 
-  it('memory_delete calls engine.delete and throws when nothing was deleted', async () => {
-    const engine = makeEngine()
-    const { ctx, tools } = makeHarness()
-    registerMemoryTools(ctx, engine as unknown as MemoryEngine, mergeConfig({}))
-    const definition = tool(tools, 'llm_memory_delete')
-
-    const value = await definition.execute({ id: ENTRY.id }, {} as never)
-    expect(engine.delete).toHaveBeenCalledWith(ENTRY.id)
-    expect(value).toMatchObject({ id: ENTRY.id, deleted: true })
-    expectValidOutput(definition, value)
-
-    engine.delete.mockReturnValue(false as never)
-    await expect(definition.execute({ id: 'm_missing' }, {} as never)).rejects.toThrow('Memory entry not found: m_missing')
-  })
-
   it('memory_status returns schema-valid storage statistics', async () => {
     const engine = makeEngine()
     const { ctx, tools } = makeHarness()
@@ -313,32 +273,6 @@ describe('registerMemoryTools', () => {
 
     expect(engine.statusReport).toHaveBeenCalledTimes(1)
     expect(value).toMatchObject({ total: 1, active: 1, root: STATUS_REPORT.root })
-    expectValidOutput(definition, value)
-  })
-
-  it('memory_lint returns a schema-valid health report', async () => {
-    const engine = makeEngine()
-    const { ctx, tools } = makeHarness()
-    registerMemoryTools(ctx, engine as unknown as MemoryEngine, mergeConfig({}))
-    const definition = tool(tools, 'llm_memory_lint')
-
-    const value = await definition.execute({}, {} as never)
-
-    expect(engine.lintReport).toHaveBeenCalledTimes(1)
-    expect(value).toMatchObject({ totalCount: 1, activeCount: 1 })
-    expectValidOutput(definition, value)
-  })
-
-  it('memory_heal calls engine.heal and returns a schema-valid report', async () => {
-    const engine = makeEngine()
-    const { ctx, tools } = makeHarness()
-    registerMemoryTools(ctx, engine as unknown as MemoryEngine, mergeConfig({}))
-    const definition = tool(tools, 'llm_memory_heal')
-
-    const value = await definition.execute({}, {} as never)
-
-    expect(engine.heal).toHaveBeenCalledTimes(1)
-    expect(value).toMatchObject({ removedLinks: 1, addedBacklinks: 2, reindexed: 3, brokenAfter: 0 })
     expectValidOutput(definition, value)
   })
 

@@ -20,7 +20,7 @@ describe('dsh-llm-memory tool restriction', () => {
   })
 
   it('accepts an explicit deny list and rejects unknown tools', () => {
-    expect(Config({ deny: ['llm_memory_lint'] }).deny).toEqual(['llm_memory_lint'])
+    expect(Config({ deny: ['llm_memory_status'] }).deny).toEqual(['llm_memory_status'])
     expect(() => Config({ deny: ['llm_memory_recall'] })).toThrow()
   })
 
