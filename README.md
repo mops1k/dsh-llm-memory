@@ -94,6 +94,18 @@ The package ships a bundle patch (`cordis.patch.yml`) and a browser client
 (`lib/client.js`), so the reconciler adds it to `dsh.profile.bundles`
 automatically. Restart dsh after installing.
 
+The package declares two optional dependencies (`optionalDependencies`):
+`@huggingface/transformers` (the local embedding model) and `sqlite-vec` (the
+SQL vector index). If the package manager skipped them, add them by hand:
+
+```sh
+cd ~/.dsh/profiles/web && pnpm add @huggingface/transformers sqlite-vec
+```
+
+The first semantic query downloads `Xenova/multilingual-e5-small` (~120 MB) into
+`<storageRoot>/_models` (that is `~/.dsh/llm-memory/_models`). Without these
+dependencies the plugin keeps working as before, on FTS5.
+
 ## Configuration
 
 Open **Settings → LLM Memory**. Values are applied on the next plugin restart.
@@ -114,6 +126,19 @@ Open **Settings → LLM Memory**. Values are applied on the next plugin restart.
 | `lintMaxPairs` | `200` | Maximum pairs checked by lint (0 = unlimited). |
 | `webPath` | `/llm-memory` | Base HTTP path for the WebUI and the API. |
 | `rulesSource` | `bundled-en` | Rules export source: canonical bundled English AGENTS.md or `kilo-verbatim` (both source files). |
+| `embeddings.provider` | `local` | Embedding source: `off` (lexical FTS5 only), `local` (in-process multilingual model), `http` (reserved, not implemented yet). |
+| `embeddings.model` | `Xenova/multilingual-e5-small` | Embedding model id (a transformers.js model for `local`). |
+| `embeddings.dim` | `384` | Vector length; vectors of another length are rebuilt. |
+| `embeddings.backend` | `js` | Where neighbours are found: `js` (in-process scan), `sqlite-vec` (KNN in SQL, needs the `sqlite-vec` package) or `off`. |
+| `embeddings.quantization` | `float` | Storage precision of `sqlite-vec`: `float`, `int8` (4× smaller) or `bit` (32× smaller, but noticeably lossier). |
+| `embeddings.topK` | `50` | Chunk hits the vector leg contributes before rank fusion with FTS5. |
+| `embeddings.minScore` | `0` | Minimum cosine of a vector hit; e5 cosine is compressed, so keeping 0 and relying on ranking is safer. |
+| `embeddings.batchSize` | `16` | Texts embedded per model call while indexing. |
+| `embeddings.chunkChars` | `800` | Target characters per chunk. |
+| `embeddings.chunkOverlap` | `120` | Overlap between neighbouring chunks (capped at half the chunk size). |
+| `embeddings.semanticEdgesPerEntry` | `3` | Semantic neighbours per entry kept in the Wiki graph. |
+| `embeddings.semanticMaxEdges` | `300` | Overall cap on those edges. |
+| `embeddings.prewarm` | `true` | Load the model in the background at startup rather than on the first query. |
 
 ### Startup-only profile option
 
@@ -189,25 +214,67 @@ tests/             vitest suites
   process. After a hard stop, remove a stale `~/.dsh/.credentials.yaml.lock` if
   the next start fails to boot.
 
-## Vector search (RAG v2): baseline measurements
+## Semantic search (vector RAG)
 
-Measured on 2026-10-15 (WSL2, Linux x64, Node v24.20.0, CPU, no Ollama) as the
-baseline for vector RAG; the numbers stay as a reference after it lands.
+Recall fuses three legs through Reciprocal Rank Fusion: FTS5 (BM25), entry
+metadata and cosine similarity over chunk vectors. Metadata carries a much lower
+weight (0.1): it is query-independent and only breaks ties — on a real store, at
+weight 1.0 it pushed relevant hits out of the top of the ranking.
 
-- SQLite has no vectors of its own: `sqlite-vec` (0.1.9) is required. In
-  `node:sqlite` it loads only when the database is opened as `new
-  DatabaseSync(path, { allowExtension: true })`; a default connection blocks
-  extension loading.
-- Latency over 1050 vectors × 384 dimensions: 33 ms to insert; KNN `k=10` with a
-  partition/metadata filter — 0.15 ms (sqlite-vec); a cosine scan in JS — 1.47 ms.
-- Local embeddings (`@huggingface/transformers` + `Xenova/multilingual-e5-small`,
-  q8, 384 dimensions, offline): 12.1 s to load the model, 19 ms per short query,
-  218 ms per page to backfill (~229 s for 1050 pages).
-- e5 cosine is compressed (relevant 0.914, partly relevant 0.816, unrelated
-  0.742), so neighbours are chosen by relative ranking rather than an absolute
-  threshold.
-- 90 % of the memory pages (943 of 1050) contain Cyrillic, so the model must be
-  multilingual; the DeepSeek API has no embeddings endpoint.
-- Both dependencies are optional (`optionalDependencies`): without them, or when
-  the extension fails to load, search runs on FTS5. The install adds about 430 MB
-  (`onnxruntime-node` 288 MB + `@huggingface/transformers` 143 MB).
+How it works:
+
+- Embeddings come from the local `Xenova/multilingual-e5-small` model (384
+  dimensions, q8) through `@huggingface/transformers`; the model is cached in
+  `<storageRoot>/_models`, and no API key or network is needed after the first
+  download.
+- ONNX inference does not yield the event loop (measured: a 64-text batch took
+  3.4 s with a single timer tick), so indexing runs in a worker thread and never
+  blocks dsh; a query is embedded in process (~19 ms).
+- Pages are split into sentence-aligned chunks (`chunkChars`/`chunkOverlap`); the
+  embedded text is the title plus the chunk body, and a chunk's identity hashes
+  its text and the model, so unchanged chunks are never re-embedded and a model
+  change invalidates the vectors by itself.
+- Vectors live in `memory_vectors` (the canonical float32 cache). The
+  `sqlite-vec` backend also mirrors them into a `vec0` table: KNN in SQL, filters
+  by project/scope/kind/tier/status and optional quantization.
+- Switching backends re-embeds nothing — the derived table is rebuilt from the
+  cache. Switching the model re-embeds the entries.
+
+Measurements from 2026-10-15 (WSL2, Linux x64, Node v24.20.0, CPU) on a copy of
+the live store — 1059 entries, 3217 chunks × 384 dimensions:
+
+| What | Value |
+| --- | --- |
+| In-process scan (`js`) | 24.0 ms average, p95 49.4 ms |
+| `sqlite-vec` float | 11.6 ms, p95 22.1 ms, 100 % agreement with `js`, 4.71 MB |
+| `sqlite-vec` int8 | 5.0 ms, p95 8.8 ms, 94.3 % agreement, 1.18 MB |
+| `sqlite-vec` bit | 1.8 ms, 39.6 % agreement, 0.15 MB (expert mode) |
+| Backfill of an existing store | 1056 entries → 3210 chunks, 4.70 MB, about 9 minutes on CPU |
+| Recall self-retrieval hit@1 / hit@5 (40 samples, k=5) | lexical 70 % / 100 %, hybrid 92.5 % / 100 % |
+
+Helper scripts (they need `pnpm build`):
+
+```sh
+# fill vectors of a store created before RAG (working on a copy)
+node scripts/backfill-vectors.mjs --copy --keep
+# compare the backends and the quantization levels
+node scripts/bench-vector.mjs --root /tmp/llm-memory-backfill-XXXX
+# compare lexical and semantic retrieval
+node scripts/bench-recall.mjs --root /tmp/llm-memory-backfill-XXXX --samples 40
+```
+
+What semantics adds beyond recall:
+
+- `detail: "excerpt"` in `llm_memory_recall` returns the passage the vector leg
+  matched instead of the head of the body, inside the same character budget.
+- The Wiki graph gains `related` edges from cosine similarity (a relative cut:
+  top-N neighbours per entry), and lint gains merge candidates plus the size of
+  the prompt digest.
+- e5 cosine is compressed (related ~0.91, unrelated ~0.74), so every threshold in
+  this plugin is a relative rule rather than an absolute value.
+
+Degradation: with `provider: off`, a missing `@huggingface/transformers`, a
+failing worker or an extension that cannot load, the plugin falls back to FTS5;
+`llm_memory_status`, `/api/status` and the Health panel show indexing progress
+and the last error. Switching the backend to `sqlite-vec` needs a plugin
+restart: extension loading is only allowed when the connection is created.

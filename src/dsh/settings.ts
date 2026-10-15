@@ -117,7 +117,7 @@ export const MemorySettingsSchema = z.object({
         // the plugin enables the local provider out of the box.
         .default('local')
         .description(
-          'Embedding source for semantic search: off (lexical FTS5 only), local (in-process multilingual ONNX model) or http (OpenAI-compatible endpoint).',
+          'Embedding source for semantic search: off (lexical FTS5 only), local (in-process multilingual ONNX model) or http (reserved; not implemented yet, falls back to lexical search).',
         ),
       model: z
         .string()
