@@ -1312,15 +1312,28 @@ window.__ModuleLoader__.load({
         };
       }, [props.base]);
 
+      // The wrapper only exists once the map is drawn, so the observer is created
+      // after that. Measuring once at mount left `width` at its 900 default while
+      // CSS stretched the canvas across the panel: the picture came out stretched
+      // and every hit test missed (the 16.10.2026 "skewed map" report).
       React.useEffect(() => {
         const element = wrapRef.current;
+        if (!element) return undefined;
         const measure = () => {
-          if (element && element.clientWidth > 0) setWidth(element.clientWidth);
+          if (element.clientWidth > 0) setWidth(element.clientWidth);
         };
         measure();
+        let observer = null;
+        if (typeof ResizeObserver === "function") {
+          observer = new ResizeObserver(measure);
+          observer.observe(element);
+        }
         window.addEventListener("resize", measure);
-        return () => window.removeEventListener("resize", measure);
-      }, []);
+        return () => {
+          window.removeEventListener("resize", measure);
+          if (observer) observer.disconnect();
+        };
+      }, [map]);
 
       const projects = React.useMemo(
         () => Array.from(new Set(points.map((point) => point.project))).sort(),
@@ -1425,22 +1438,29 @@ window.__ModuleLoader__.load({
           const px = event.clientX - box.left;
           const py = event.clientY - box.top;
           let best = null;
-          let bestDistance = 14;
+          let bestDistance = Infinity;
+          const zoom = viewRef.current.scale;
           for (const item of visibleLayout.items) {
             const spot = toScreen(item.wx, item.wy);
             const distance = Math.hypot(spot[0] - px, spot[1] - py);
-            if (distance < bestDistance) {
+            // Generous hit area: the drawn radius grows with the zoom, and a point
+            // has to stay reachable while it is still only a few pixels wide.
+            const reach = Math.max(16, mapRadius(item.point.chunks, layout.maxChunks) * Math.min(2, zoom) + 8);
+            if (distance < reach && distance < bestDistance) {
               bestDistance = distance;
               best = { item, px, py };
             }
           }
           return best;
         },
-        [visibleLayout, toScreen],
+        [visibleLayout, toScreen, layout],
       );
 
       React.useEffect(() => {
         const canvas = canvasRef.current;
+        // `map` is in the dependencies so the listener is attached once the canvas
+        // exists: on the first run the map has not loaded yet and there was no
+        // element to attach to (the 16.10.2026 "zoom does nothing" report).
         if (!canvas) return undefined;
         // Passive React onWheel handlers cannot preventDefault, so zoom is native.
         const onWheel = (event) => {
@@ -1459,10 +1479,24 @@ window.__ModuleLoader__.load({
         };
         canvas.addEventListener("wheel", onWheel, { passive: false });
         return () => canvas.removeEventListener("wheel", onWheel);
-      }, [width]);
+      }, [width, map]);
+
+      /** Cursor feedback; set straight on the element to avoid a re-render. */
+      const setCursor = (value) => {
+        if (canvasRef.current) canvasRef.current.style.cursor = value;
+      };
+
+      /** Zoom without the wheel: touchpads and shells that swallow wheel events. */
+      const zoomBy = (factor) => {
+        const view = viewRef.current;
+        view.scale = Math.min(6, Math.max(0.4, view.scale * factor));
+        setHover(null);
+        setViewTick((value) => value + 1);
+      };
 
       const onPointerDown = (event) => {
         dragRef.current = { x: event.clientX, y: event.clientY, moved: 0 };
+        setCursor("grabbing");
         if (canvasRef.current && canvasRef.current.setPointerCapture) {
           try {
             canvasRef.current.setPointerCapture(event.pointerId);
@@ -1501,6 +1535,7 @@ window.__ModuleLoader__.load({
       const onPointerUp = (event) => {
         const drag = dragRef.current;
         dragRef.current = null;
+        setCursor("grab");
         if (drag && drag.moved <= 3) {
           const picked = pick(event);
           if (picked) props.onOpen(picked.item.point.id);
@@ -1613,6 +1648,8 @@ window.__ModuleLoader__.load({
             { type: "button", style: S.button, disabled: busy, onClick: () => load(true) },
             busy ? "Rebuilding\u2026" : "Refresh",
           ),
+          h("button", { type: "button", style: S.button, onClick: () => zoomBy(1.25) }, "Zoom +"),
+          h("button", { type: "button", style: S.button, onClick: () => zoomBy(0.8) }, "Zoom \u2212"),
           h("button", { type: "button", style: S.button, onClick: resetView }, "Reset view"),
         ),
         map
@@ -1689,6 +1726,7 @@ window.__ModuleLoader__.load({
                   onPointerUp,
                   onPointerLeave: () => {
                     dragRef.current = null;
+                    setCursor("grab");
                     setHover(null);
                   },
                   onDoubleClick: resetView,
