@@ -30,6 +30,10 @@ export const DEFAULT_RANKING: RankingOptions = {
   confidenceMin: 0.3,
   confidenceDecayHalfLifeDays: 180,
   rrfK: 60,
+  // Metadata scoring is query-independent: it orders entries by importance,
+  // recency and tier, which is useful when nothing else ranks them, but it
+  // should not outvote the lexical and semantic legs on a real query.
+  fusion: { bm25: 1, metadata: 0.1, vector: 1 },
 }
 
 /** Lowercase tokens used for FTS matching and overlap scoring. */
@@ -136,24 +140,81 @@ export function rankItemsHybrid(
   const posBm25 = new Map(byBm25.map((item, index) => [item.id, index]))
   const posMeta = new Map(byMeta.map((item, index) => [item.id, index]))
   const posVector = new Map(byVector.map((item, index) => [item.id, index]))
+  const fusion = options.fusion ?? { bm25: 1, metadata: 1, vector: 1 }
   const rrf = (item: MemoryEntry): number => {
     let score = 0
     const a = posBm25.get(item.id)
-    if (a !== undefined) score += 1 / (options.rrfK + a + 1)
+    if (a !== undefined && bm25Ranks.has(item.id)) score += (fusion.bm25 ?? 1) / (options.rrfK + a + 1)
     const b = posMeta.get(item.id)
-    if (b !== undefined) score += 1 / (options.rrfK + b + 1)
+    if (b !== undefined) score += (fusion.metadata ?? 1) / (options.rrfK + b + 1)
     const c = posVector.get(item.id)
-    if (c !== undefined && vectorRanks?.has(item.id)) score += 1 / (options.rrfK + c + 1)
+    if (c !== undefined && vectorRanks?.has(item.id)) score += (fusion.vector ?? 1) / (options.rrfK + c + 1)
     return score
   }
   return [...items].sort((a, b) => rrf(b) - rrf(a))
 }
 
+/** Two entries linked by vector similarity. */
+export interface SemanticPair {
+  left: string
+  right: string
+  /** Cosine similarity of the entry vectors (0..1 for e5-style embeddings). */
+  score: number
+}
+
+/**
+ * Neighbours from entry vectors: every entry keeps its `perEntry` closest
+ * others, and the strongest `maxPairs` pairs survive overall.
+ *
+ * The cut is relative on purpose. e5 cosine is compressed — two unrelated
+ * memories still score around 0.7 while a related pair scores around 0.9 — so an
+ * absolute threshold would either link every entry or none, and a top-N rule
+ * adapts to the store instead. Cost is O(n²·dim); at ~1000 entries that is a
+ * fraction of a second, and the graph is built on demand only.
+ */
+export function semanticPairs(
+  vectors: ReadonlyMap<string, Float32Array>,
+  options: { perEntry?: number; maxPairs?: number; minScore?: number } = {},
+): SemanticPair[] {
+  const perEntry = Math.max(1, Math.floor(options.perEntry ?? 3))
+  const maxPairs = Math.max(1, Math.floor(options.maxPairs ?? 300))
+  const minScore = options.minScore ?? 0
+  const ids = [...vectors.keys()].sort()
+  if (ids.length < 2) return []
+
+  const pairs = new Map<string, SemanticPair>()
+  const scored: Array<{ id: string; score: number }> = []
+  for (let i = 0; i < ids.length; i++) {
+    const left = ids[i]!
+    const leftVector = vectors.get(left)!
+    scored.length = 0
+    for (let j = 0; j < ids.length; j++) {
+      if (i === j) continue
+      const right = ids[j]!
+      const rightVector = vectors.get(right)!
+      if (rightVector.length !== leftVector.length) continue
+      let score = 0
+      for (let index = 0; index < leftVector.length; index++) score += leftVector[index]! * rightVector[index]!
+      if (score < minScore) continue
+      scored.push({ id: right, score })
+    }
+    scored.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
+    for (const candidate of scored.slice(0, perEntry)) {
+      const [first, second] = left < candidate.id ? [left, candidate.id] : [candidate.id, left]
+      const key = `${first}|${second}`
+      const previous = pairs.get(key)
+      if (!previous || previous.score < candidate.score) {
+        pairs.set(key, { left: first, right: second, score: candidate.score })
+      }
+    }
+  }
+  return [...pairs.values()].sort((a, b) => b.score - a.score || a.left.localeCompare(b.left)).slice(0, maxPairs)
+}
+
 /**
  * Base ranking for injection: active rules/preferences ordered by tier,
  * importance and recency (no query relevance involved).
- */
-export function rankRulesBase(items: MemoryEntry[], options: RankingOptions = DEFAULT_RANKING): MemoryEntry[] {
+ */export function rankRulesBase(items: MemoryEntry[], options: RankingOptions = DEFAULT_RANKING): MemoryEntry[] {
   const weights = options.weights
   const score = (entry: MemoryEntry): number =>
     weights.age * recencyFactor(entry.updatedAt, options.recencyHalfLifeDays) +

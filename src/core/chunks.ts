@@ -30,6 +30,8 @@ export interface ChunkOptions {
 export interface EntryChunk {
   /** Zero-based position inside the entry. */
   chunkIndex: number
+  /** Chunk body without the title, as the excerpt mode returns it. */
+  body: string
   /** Text handed to the embedding model (title plus chunk body). */
   text: string
   /** Identity of that text under one model; used to skip unchanged chunks. */
@@ -134,7 +136,7 @@ export function entryChunks(entry: ChunkableEntry, config: EmbeddingConfig): Ent
   return chunkText(body, { chunkChars: config.chunkChars, chunkOverlap: config.chunkOverlap }).map(
     (chunk, chunkIndex) => {
       const text = title.length > 0 ? `${title}\n${chunk}` : chunk
-      return { chunkIndex, text, hash: hashText(`${config.model}|${config.dim}|${text}`) }
+      return { chunkIndex, body: chunk, text, hash: hashText(`${config.model}|${config.dim}|${text}`) }
     },
   )
 }

@@ -14,11 +14,13 @@ import { statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { mergeConfig, type MemoryConfig, type RecallScope, type RulesPromptScope } from './config.js'
+import { entryChunks } from './chunks.js'
 import { EmbeddingQueue, type EmbeddingQueueStatus } from './embed-queue.js'
 import { createEmbeddingProvider } from './embeddings.js'
 import { appendLog, debug } from './log.js'
 import { sanitizeProjectKey } from './paths.js'
-import { DEFAULT_RANKING, rankItems, rankItemsHybrid, rankRulesBase, significantOverlapPairs } from './ranking.js'
+import { DEFAULT_RANKING, rankItems, rankItemsHybrid, rankRulesBase, semanticPairs, significantOverlapPairs } from './ranking.js'
+import type { SemanticPair } from './ranking.js'
 import { MemoryStore, genMemoryId, newMemoryEntry } from './store.js'
 import { buildGraph } from './wiki.js'
 import {
@@ -47,16 +49,23 @@ export type RecallFormat = 'markdown' | 'table' | 'timeline' | 'json'
 
 /**
  * Body detail of `recall`: `digest` (default) returns a short excerpt of every
- * entry, `full` returns complete bodies. Recall output becomes part of the
- * request history for the rest of the session, so the digest stays the default.
+ * entry, `full` returns complete bodies, `excerpt` returns the passage that the
+ * vector leg actually matched. Recall output becomes part of the request history
+ * for the rest of the session, so the digest stays the default.
  */
-export type RecallDetail = 'digest' | 'full'
+export type RecallDetail = 'digest' | 'full' | 'excerpt'
 
 /** Number of significant common words required for a lint overlap pair. */
 const LINT_OVERLAP_MIN_SCORE = 0.45
 
 /** Age in days after which an active entry is reported as stale by lint. */
 const LINT_STALE_DAYS = 180
+
+/** Share of semantic pairs reported as near-duplicate candidates by lint. */
+const DUPLICATE_QUANTILE = 0.02
+
+/** Hard cap on the duplicate candidates one lint report returns. */
+const LINT_MAX_DUPLICATES = 25
 
 /** Construction options of {@link MemoryEngine}. */
 export interface MemoryEngineOptions {
@@ -207,6 +216,23 @@ export interface LintReport {
   overlapsHidden: number
   stale: LintStale[]
   staleDays: number
+  /**
+   * Near-duplicate candidates from vector similarity: the strongest semantic
+   * pairs of active entries, cut relatively (the top few percent of pairs).
+   */
+  duplicates: LintDuplicate[]
+  /** Characters the rules/preferences digest injects into every request. */
+  promptDigestChars: number
+}
+
+/** A pair of active entries that look like near duplicates. */
+export interface LintDuplicate {
+  id: string
+  title: string
+  duplicateId: string
+  duplicateTitle: string
+  /** Cosine similarity of the entry vectors. */
+  score: number
 }
 
 /** One entry accepted by {@link MemoryEngine.importEntries}. */
@@ -287,18 +313,20 @@ function cutText(text: string, maxChars: number): string {
 /**
  * Render a single entry as a markdown section (English).
  *
- * `textChars` (> = 0) caps the body: recall output stays in the request history
+ * `textChars` (>= 0) caps the body: recall output stays in the request history
  * for the whole session, so the default rendering shows an excerpt and the
- * model asks for `detail: "full"` when it needs the rest.
+ * model asks for `detail: "full"` when it needs the rest. `bodyOverride` replaces
+ * the entry body — the excerpt mode passes the passage the vector leg matched.
  */
-export function renderMemoryEntry(entry: MemoryEntry, textChars?: number): string {
+export function renderMemoryEntry(entry: MemoryEntry, textChars?: number, bodyOverride?: string): string {
   const lines = [
     `### ${entry.title}${statusMarkers(entry)}`,
     `- id: \`${entry.id}\` · scope: ${entry.scope} · kind: ${entry.kind} · importance: ${entry.importance}/5 · updated: ${entry.updatedAt.slice(0, 10)}`,
     `- tags: ${entry.tags.length > 0 ? entry.tags.join(', ') : '—'}`,
   ]
   if (entry.supersedes.length > 0) lines.push(`- supersedes: ${entry.supersedes.join(', ')}`)
-  const body = textChars === undefined ? entry.text : cutText(entry.text, textChars)
+  const source = bodyOverride !== undefined && bodyOverride.length > 0 ? bodyOverride : entry.text
+  const body = textChars === undefined ? source : cutText(source, textChars)
   lines.push('', body)
   return lines.join('\n')
 }
@@ -311,6 +339,11 @@ export interface RecallRenderOptions {
   textChars?: number
   /** Hard character budget of the whole rendering. */
   totalChars?: number
+  /**
+   * Bodies to use instead of `entry.text`, keyed by entry id. The excerpt mode
+   * fills it with the passage the vector leg matched.
+   */
+  excerpts?: ReadonlyMap<string, string>
 }
 
 /**
@@ -383,8 +416,14 @@ export function renderRecall(
     )
   } else {
     const bodyBudget = detail === 'full' ? -1 : textChars
-    cutEntries = bodyBudget < 0 ? 0 : items.filter((entry) => entry.text.length > bodyBudget).length
-    rendered = items.map((entry) => renderMemoryEntry(entry, bodyBudget < 0 ? undefined : bodyBudget)).join('\n\n')
+    const bodies = items.map((entry) => options.excerpts?.get(entry.id) ?? entry.text)
+    cutEntries = bodyBudget < 0 ? 0 : bodies.filter((body) => body.length > bodyBudget).length
+    rendered = items
+      .map((entry) => renderMemoryEntry(entry, bodyBudget < 0 ? undefined : bodyBudget, options.excerpts?.get(entry.id)))
+      .join('\n\n')
+    if (options.excerpts !== undefined && options.excerpts.size > 0) {
+      rendered += '\n\n_[Entries above show the passage that matched the query; call llm_memory_recall with detail: "full" for complete bodies.]_'
+    }
   }
   const total = options.totalChars ?? 0
   const bounded = withTruncationNotice(rendered, detail, textChars, cutEntries)
@@ -512,17 +551,24 @@ export class MemoryEngine {
     await vectors.queue.processAll(ids)
   }
 
-  /** Cosine similarity of the query against the indexed chunks, per entry. */
-  private async semanticRanks(query: string, filter: MemoryFilter): Promise<Map<string, number>> {
+  /**
+   * Cosine similarity of the query against the indexed chunks, per entry, with
+   * the chunk that produced the best score (used by the excerpt mode).
+   */
+  private async semanticRanks(
+    query: string,
+    filter: MemoryFilter,
+  ): Promise<{ scores: Map<string, number>; chunks: Map<string, number> }> {
     const scores = new Map<string, number>()
+    const chunks = new Map<string, number>()
     const text = (query ?? '').trim()
-    if (text.length === 0) return scores
+    if (text.length === 0) return { scores, chunks }
     const vectors = this.ensureVectors()
-    if (!vectors) return scores
+    if (!vectors) return { scores, chunks }
     try {
       const batch = await vectors.provider.embed([text], 'query')
       const vector = batch.vectors[0]
-      if (!vector) return scores
+      if (!vector) return { scores, chunks }
       const matches = vectors.index.search({
         vector,
         limit: this.config.embeddings.topK,
@@ -531,7 +577,10 @@ export class MemoryEngine {
       })
       for (const match of matches) {
         const previous = scores.get(match.entryId)
-        if (previous === undefined || previous < match.score) scores.set(match.entryId, match.score)
+        if (previous === undefined || previous < match.score) {
+          scores.set(match.entryId, match.score)
+          chunks.set(match.entryId, match.chunkIndex)
+        }
       }
       this.vectorFailures = 0
     } catch (error) {
@@ -542,7 +591,7 @@ export class MemoryEngine {
         debug('vectors: disabled after 3 consecutive query failures; lexical search stays active')
       }
     }
-    return scores
+    return { scores, chunks }
   }
 
   /**
@@ -776,14 +825,21 @@ export class MemoryEngine {
     const items = new Map<string, MemoryEntry>()
     const bm25 = new Map<string, number>()
     const semantic = new Map<string, number>()
+    const semanticChunks = new Map<string, number>()
     for (const filter of filters) {
       const lexical = this.store.searchRanked(text, filter)
       for (const item of lexical.items) items.set(item.id, item)
       for (const [id, score] of lexical.ranks) {
         bm25.set(id, Math.max(bm25.get(id) ?? Number.NEGATIVE_INFINITY, score))
       }
-      for (const [id, score] of await this.semanticRanks(text, filter)) {
-        semantic.set(id, Math.max(semantic.get(id) ?? Number.NEGATIVE_INFINITY, score))
+      const vector = await this.semanticRanks(text, filter)
+      for (const [id, score] of vector.scores) {
+        const previous = semantic.get(id)
+        if (previous === undefined || previous < score) {
+          semantic.set(id, score)
+          const chunkIndex = vector.chunks.get(id)
+          if (chunkIndex !== undefined) semanticChunks.set(id, chunkIndex)
+        }
       }
     }
     // A semantic hit outside the lexical result set still has to be fetched.
@@ -799,12 +855,27 @@ export class MemoryEngine {
         ? rankItems(candidates, query, DEFAULT_RANKING, scope)
         : rankItemsHybrid(candidates, query, DEFAULT_RANKING, scope, bm25, semantic)
     const rankedItems = ranked.slice(0, limit)
+
+    // The excerpt mode returns the passage the vector leg matched rather than
+    // the head of the body; it stays inside the same per-entry character budget.
+    let excerpts: Map<string, string> | undefined
+    if (detail === 'excerpt') {
+      excerpts = new Map()
+      for (const entry of rankedItems) {
+        const chunkIndex = semanticChunks.get(entry.id)
+        if (chunkIndex === undefined) continue
+        const chunk = entryChunks(entry, this.config.embeddings).find((item) => item.chunkIndex === chunkIndex)
+        if (chunk) excerpts.set(entry.id, chunk.body)
+      }
+    }
+
     return {
       items: rankedItems,
       text: renderRecall(rankedItems, format, {
         detail,
         textChars: this.config.recallTextChars,
         totalChars: this.config.recallTotalChars,
+        ...(excerpts ? { excerpts } : {}),
       }),
       format,
     }
@@ -886,13 +957,66 @@ export class MemoryEngine {
       overlapsHidden: Math.max(0, pairs.length - limited.length),
       stale,
       staleDays: LINT_STALE_DAYS,
+      duplicates: this.duplicateCandidates(active),
+      promptDigestChars: this.rulesForPrompt().length,
     }
+  }
+
+  /**
+   * Near-duplicate candidates: the strongest semantic pairs of the given
+   * entries. The cut is relative — the top {@link DUPLICATE_QUANTILE} of pairs —
+   * so it adapts to the store instead of relying on an absolute cosine value.
+   */
+  private duplicateCandidates(entries: readonly MemoryEntry[]): LintDuplicate[] {
+    const pairs = this.semanticNeighbours(entries)
+    if (pairs.length === 0) return []
+    const cut = pairs[Math.max(0, Math.floor(pairs.length * DUPLICATE_QUANTILE))]?.score ?? pairs[0]!.score
+    const byId = new Map(entries.map((entry) => [entry.id, entry]))
+    const duplicates: LintDuplicate[] = []
+    for (const pair of pairs) {
+      if (pair.score < cut) break
+      const left = byId.get(pair.left)
+      const right = byId.get(pair.right)
+      if (!left || !right) continue
+      duplicates.push({
+        id: left.id,
+        title: left.title,
+        duplicateId: right.id,
+        duplicateTitle: right.title,
+        score: Math.round(pair.score * 1000) / 1000,
+      })
+      if (duplicates.length >= LINT_MAX_DUPLICATES) break
+    }
+    return duplicates
+  }
+
+  /**
+   * Semantic neighbours of the given entries, or an empty list when the vector
+   * leg is off. The cut is relative (see `semanticPairs`), which is why the
+   * caller passes the candidate set rather than a score threshold.
+   */
+  private semanticNeighbours(entries: readonly MemoryEntry[]): SemanticPair[] {
+    const vectors = this.ensureVectors()
+    if (!vectors) return []
+    const ids = new Set(entries.map((entry) => entry.id))
+    const entryVectors = new Map<string, Float32Array>()
+    for (const [id, vector] of vectors.index.entryVectors()) {
+      if (ids.has(id)) entryVectors.set(id, vector)
+    }
+    if (entryVectors.size < 2) return []
+    return semanticPairs(entryVectors, {
+      perEntry: this.config.embeddings.semanticEdgesPerEntry,
+      maxPairs: this.config.embeddings.semanticMaxEdges,
+    })
   }
 
   /** Heuristic knowledge graph over all entries (nodes) and their relations. */
   graph(): MemoryGraph {
     const entries = this.store.list({ status: 'all' }).items
-    return buildGraph(entries, { overlapMinCommonWords: this.config.lintOverlapMinCommonWords })
+    return buildGraph(entries, {
+      overlapMinCommonWords: this.config.lintOverlapMinCommonWords,
+      semanticPairs: this.semanticNeighbours(entries),
+    })
   }
 
   /**

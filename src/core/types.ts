@@ -197,6 +197,21 @@ export interface RankingOptions {
   confidenceDecayHalfLifeDays: number
   /** Smoothing constant for Reciprocal Rank Fusion. */
   rrfK: number
+  /**
+   * Relative contribution of each rank-fusion leg.
+   *
+   * Metadata is query-independent, so it carries much less weight than the two
+   * relevance legs and acts as a tie-breaker. Measured on a real store
+   * (2026-10-15, 40 entries × two query sets, k=5, self-retrieval): at weight
+   * 1.0 the metadata leg dominated the ordering — lexical hit@1 was 20 %/12.5 %
+   * and hit@5 40 %/35 %; at 0.1 lexical reached 70 % hit@1 and 100 % hit@5, and
+   * the hybrid (with vectors) 92.5 % hit@1 at 100 % hit@5.
+   */
+  fusion: {
+    bm25: number
+    metadata: number
+    vector: number
+  }
 }
 
 /**
@@ -331,6 +346,12 @@ export interface VectorIndex {
    * them with freshly computed hashes to skip unchanged chunks.
    */
   storedHashes(entryId: string): Map<number, string>
+  /**
+   * Mean vector of every entry's chunks, normalized — the entry-level embedding
+   * used by the knowledge graph and the duplicate report, where there is no
+   * query to search with.
+   */
+  entryVectors(filter?: MemoryFilter): Map<string, Float32Array>
   /** Nearest chunks for a query, best first. */
   search(query: VectorQuery): VectorMatch[]
   /** Counters for the settings UI and logs. */

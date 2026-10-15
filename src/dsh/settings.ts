@@ -178,6 +178,22 @@ export const MemorySettingsSchema = z.object({
         .step(10)
         .default(DEFAULT_EMBEDDINGS.chunkOverlap)
         .description('Characters shared by neighbouring chunks (capped at half the chunk size).'),
+      semanticEdgesPerEntry: z
+        .number()
+        .min(1)
+        .max(20)
+        .step(1)
+        .default(DEFAULT_EMBEDDINGS.semanticEdgesPerEntry)
+        .description(
+          'Semantic neighbours kept per entry in the knowledge graph. The cut is relative (top-N per entry) because e5 cosine scores are compressed.',
+        ),
+      semanticMaxEdges: z
+        .number()
+        .min(10)
+        .max(10000)
+        .step(10)
+        .default(DEFAULT_EMBEDDINGS.semanticMaxEdges)
+        .description('Overall cap on semantic related edges in the graph.'),
       prewarm: z
         .boolean()
         .default(DEFAULT_EMBEDDINGS.prewarm)

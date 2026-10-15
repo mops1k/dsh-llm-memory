@@ -280,6 +280,38 @@ class VectorCache {
     return hashes
   }
 
+  /** Mean of the chunk vectors per entry, normalized. */
+  entryVectors(filter?: MemoryFilter): Map<string, Float32Array> {
+    const where = vectorWhere(filter)
+    const params: SqlParam[] = [this.model, ...where.params]
+    let sql = 'SELECT entry_id, vector FROM memory_vectors WHERE model = ?'
+    if (where.sql.length > 0) sql += ` AND ${where.sql}`
+    const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>
+    const sums = new Map<string, { sum: Float32Array; count: number }>()
+    for (const row of rows) {
+      const vector = toFloat32(row['vector'])
+      if (vector.length !== this.dim) continue
+      const entryId = asString(row['entry_id'])
+      let slot = sums.get(entryId)
+      if (!slot) {
+        slot = { sum: new Float32Array(this.dim), count: 0 }
+        sums.set(entryId, slot)
+      }
+      for (let index = 0; index < this.dim; index++) {
+        slot.sum[index] = (slot.sum[index] ?? 0) + vector[index]!
+      }
+      slot.count++
+    }
+    const vectors = new Map<string, Float32Array>()
+    for (const [entryId, slot] of sums) {
+      let norm = 0
+      for (const value of slot.sum) norm += value * value
+      norm = Math.sqrt(norm) || 1
+      vectors.set(entryId, Float32Array.from(slot.sum, (value) => value / norm))
+    }
+    return vectors
+  }
+
   stats(backend: VectorBackend): VectorIndexStats {
     const row = this.db
       .prepare(
@@ -380,6 +412,10 @@ export class JsVectorIndex implements VectorIndex {
 
   storedHashes(entryId: string): Map<number, string> {
     return this.cache.storedHashes(entryId)
+  }
+
+  entryVectors(filter?: MemoryFilter): Map<string, Float32Array> {
+    return this.cache.entryVectors(filter)
   }
 
   search(query: VectorQuery): VectorMatch[] {
@@ -554,6 +590,10 @@ export class SqliteVecIndex implements VectorIndex {
 
   storedHashes(entryId: string): Map<number, string> {
     return this.cache.storedHashes(entryId)
+  }
+
+  entryVectors(filter?: MemoryFilter): Map<string, Float32Array> {
+    return this.cache.entryVectors(filter)
   }
 
   search(query: VectorQuery): VectorMatch[] {

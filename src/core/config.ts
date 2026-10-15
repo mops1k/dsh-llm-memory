@@ -63,11 +63,18 @@ export interface EmbeddingConfig {
   chunkOverlap: number
   /** Storage of the vectors: in-process scan, sqlite-vec or off. */
   backend: VectorBackend
-  /**
-   * Storage precision of the sqlite-vec table; ignored by the in-process
+  /** Storage precision of the sqlite-vec table; ignored by the in-process
    * backend, which always keeps float32 vectors in `memory_vectors`.
    */
   quantization: VectorQuantization
+  /**
+   * Semantic neighbours kept per entry in the knowledge graph. The cut is
+   * relative (top-N per entry) because e5 cosine is compressed; see
+   * `semanticPairs`.
+   */
+  semanticEdgesPerEntry: number
+  /** Overall cap on semantic `related` edges, so the graph stays readable. */
+  semanticMaxEdges: number
   /** Load the model in the background at startup instead of on first query. */
   prewarm: boolean
 }
@@ -86,6 +93,8 @@ export const DEFAULT_EMBEDDINGS: EmbeddingConfig = {
   chunkOverlap: 120,
   backend: 'js',
   quantization: 'float',
+  semanticEdgesPerEntry: 3,
+  semanticMaxEdges: 300,
   prewarm: true,
 }
 
@@ -312,6 +321,8 @@ function asEmbeddings(value: unknown, fallback: EmbeddingConfig): EmbeddingConfi
     chunkOverlap,
     backend: asVectorBackend(src['backend'], fallback.backend),
     quantization: asQuantization(src['quantization'], fallback.quantization),
+    semanticEdgesPerEntry: asNumber(src['semanticEdgesPerEntry'], fallback.semanticEdgesPerEntry, 1, 20),
+    semanticMaxEdges: asNumber(src['semanticMaxEdges'], fallback.semanticMaxEdges, 10, 10000),
     prewarm: typeof src['prewarm'] === 'boolean' ? src['prewarm'] : fallback.prewarm,
   }
 }

@@ -33,8 +33,10 @@ const RECALL_FORMATS = ['markdown', 'table', 'timeline', 'json'] as const
  *
  * `digest` keeps the tool result small on purpose: it becomes part of the
  * request history and is re-sent in every later request of the session.
+ * `excerpt` returns the passage the semantic search actually matched, which is
+ * usually more informative than the head of the body at the same budget.
  */
-const RECALL_DETAILS = ['digest', 'full'] as const
+const RECALL_DETAILS = ['digest', 'full', 'excerpt'] as const
 
 /** Structural view of `ctx.sessions` limited to what a memory tool needs. */
 export interface SessionStoreLike {
@@ -269,7 +271,7 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
         'Search long-term memory and return the most relevant entries, ranked for the current query. ' +
         'Call it before answering questions about user preferences, past decisions, project facts or earlier work. ' +
         'Every result stays in the request history for the rest of the session, so the default `digest` detail returns a short excerpt per entry; ' +
-        'pass `detail: "full"` only when the excerpt is not enough. ' +
+        'pass `detail: "excerpt"` to get the passage semantic search matched, or `detail: "full"` only when that is not enough. ' +
         'The default `markdown` rendering is human-readable; `table`, `timeline` and `json` are available for structured consumption. ' +
         AUTONOMY_NOTE,
       parameters: {
@@ -295,8 +297,9 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
           type: 'string',
           enum: [...RECALL_DETAILS],
           description:
-            'Body detail: digest (default) returns a short excerpt of every entry, full returns complete bodies. ' +
-            'Use full only for the one or two entries you actually need.',
+            'Body detail: digest (default) returns a short excerpt of every entry, excerpt returns the passage the ' +
+            'semantic search matched (same character budget, usually the more useful part), full returns complete ' +
+            'bodies. Use full only for the one or two entries you actually need.',
         },
         format: {
           type: 'string',

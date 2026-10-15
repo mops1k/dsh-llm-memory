@@ -27,7 +27,7 @@ import {
   sanitizeProjectKey,
   writeFileAtomic,
 } from './paths.js'
-import { significantOverlapPairs, type OverlapOptions } from './ranking.js'
+import { significantOverlapPairs, type OverlapOptions, type SemanticPair } from './ranking.js'
 import type {
   MemoryEdgeType,
   MemoryEntry,
@@ -277,6 +277,12 @@ export interface BuildGraphOptions {
   minCommonTags?: number
   /** Maximum number of tag-based `related` edges per entry. */
   maxTagLinksPerEntry?: number
+  /**
+   * Vector-similarity neighbours, already selected by the caller with a
+   * relative rule (see `semanticPairs`). They become `related` edges with the
+   * similarity as their weight.
+   */
+  semanticPairs?: SemanticPair[]
 }
 
 /**
@@ -404,6 +410,17 @@ export function buildGraph(entries: MemoryEntry[], options: BuildGraphOptions = 
   }
   for (const pair of significantOverlapPairs(active, overlapOptions)) {
     pushEdge(pair.a.id, pair.b.id, 'contradicts', Math.round(pair.score * 100))
+  }
+
+  // Semantic neighbours last: they fill the topical gaps the tag pass misses
+  // (an entry without tags, or a relation nobody wrote down). The caller
+  // already applied the relative cut, so a pair only has to be new here.
+  for (const pair of options.semanticPairs ?? []) {
+    if (!ids.has(pair.left) || !ids.has(pair.right)) continue
+    const key = `${pair.left}|${pair.right}`
+    if (relatedPairs.has(key)) continue
+    relatedPairs.add(key)
+    pushEdge(pair.left, pair.right, 'related', Math.round(pair.score * 100))
   }
 
   return { entities, edges }
