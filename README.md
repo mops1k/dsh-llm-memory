@@ -110,15 +110,17 @@ dependencies the plugin keeps working as before, on FTS5.
 
 Open **Settings → LLM Memory**. Values are applied on the next plugin restart.
 
-Schema fields are declared `volatile()` because that is dsh's condition for
-appearing on a settings page: non-volatile fields live only in the profile patch.
-Cordis hands volatile values over as reactive wrappers, so the plugin unwraps
-them (`unwrapSettings`) when `apply` starts and works with plain data afterwards.
+The page is drawn by the plugin's own client bundle (`client/client.js` →
+`lib/client.js`), so its field list lives there: a new schema setting needs a form
+entry, a save call through `scope.set` and markup. Schema fields are declared
+`volatile()` because dsh's settings service accepts edits only along volatile
+paths (`Config field … is not volatile` otherwise). Cordis hands volatile values
+over as reactive wrappers, so the plugin unwraps them (`unwrapSettings`) when
+`apply` starts and works with plain data afterwards.
 
-The embedding settings are **flat** (`embeddingsProvider`, `embeddingsDim`, …)
-rather than a nested group: the editor renders schema leaves only and never draws
-a nested object (verified in the live panel on 2026-10-15). `toMemoryConfig`
-folds them back into the core shape (`embeddings: { provider, dim, … }`).
+The embedding settings are **flat** in the schema and in the profile patch
+(`embeddingsProvider`, `embeddingsDim`, …); `toMemoryConfig` folds them back into
+the core shape (`embeddings: { provider, dim, … }`).
 
 | Option | Default | Description |
 | --- | --- | --- |
