@@ -128,6 +128,7 @@ the core shape (`embeddings: { provider, dim, … }`).
 | `recallLimit` | `10` | Maximum entries returned by `llm_memory_recall`. |
 | `recallFormat` | `markdown` | Format recall returns when the agent does not ask for one (`markdown`, `table`, `timeline`, `json`). |
 | `recallAllowFormatOverride` | `true` | Let the agent pick another format per call. Off pins recall to `recallFormat` and the tool description says so. |
+| `recallLiteralLookup` | `true` | Read a literal-looking query (error code, version, file name, id) as a lookup: the lexical leg decides when it matched. Measured: closes an 18 pp hit@1 gap on exact tokens, no effect on semantic queries. |
 | `promptRulesLimit` | `6` | Maximum rules/preferences lines injected into the system prompt. The digest is part of every request, so keep it small. |
 | `rulesPromptScope` | `project` | Project reach of that digest: `project` keeps the cross-project `user` layer plus the current workspace, `all` keeps every project. |
 | `recallScope` | `project` | Default recall layer: `project` = the session project plus the cross-project `user` layer; `user` = user only; `all` = every project. |

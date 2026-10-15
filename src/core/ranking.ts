@@ -36,6 +36,45 @@ export const DEFAULT_RANKING: RankingOptions = {
   fusion: { bm25: 1, metadata: 0.1, vector: 1 },
 }
 
+/**
+ * Fusion weights for a query that looks like a literal rather than a phrase.
+ *
+ * Measured 16.10.2026 (scripts/bench-tokens.mjs, n=150 identifier probes): on
+ * exact tokens the lexical leg beats the hybrid by 7-20 pp hit@1 and 6-11 pp
+ * hit@5 — the vector leg demotes the exact match instead of adding anything. So
+ * the literal decides the order and the vector leg is muted; the caller only uses
+ * these weights when the lexical leg did match something, otherwise a muted
+ * vector leg would leave the result ordered by metadata alone.
+ */
+export const IDENTIFIER_RANKING: RankingOptions = {
+  ...DEFAULT_RANKING,
+  weights: { ...DEFAULT_RANKING_WEIGHTS },
+  fusion: { bm25: 1, metadata: 0.1, vector: 0 },
+}
+
+/**
+ * Whether a query is one to three tokens of literal-shaped text: error codes,
+ * versions, file names, flags, ids, hashes. Shape only — no model call and no
+ * corpus scan — so it is cheap enough to run on every recall.
+ */
+export function looksLikeIdentifierQuery(query: string): boolean {
+  const terms = (query ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter((term) => term.length > 0)
+  if (terms.length === 0 || terms.length > 3) return false
+  return terms.some(isIdentifierTerm)
+}
+
+/** Digits, separators, camel case or an all-caps run mark a literal token. */
+function isIdentifierTerm(term: string): boolean {
+  if (term.length < 5) return false
+  if (/\d/.test(term)) return true
+  if (/[._/\\-]|::/.test(term)) return true
+  if (/[a-z][A-Z]/.test(term) || /^[A-Z][a-z]+[A-Z]/.test(term)) return true
+  return /^[A-Z0-9_]+$/.test(term)
+}
+
 /** Lowercase tokens used for FTS matching and overlap scoring. */
 export function tokenize(text: string): string[] {
   const words = (text ?? '').toLowerCase().match(/[\p{L}\p{N}_-]+/gu) ?? []

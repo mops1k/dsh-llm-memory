@@ -4,13 +4,66 @@ import { newMemoryEntry } from '../src/core/store'
 import { renderRecall } from '../src/core/engine'
 import {
   DEFAULT_RANKING,
+  IDENTIFIER_RANKING,
   computeScore,
-  rankItemsHybrid,
+  looksLikeIdentifierQuery,
   rankItemsHybridDetailed,
+  rankItemsHybrid,
   rankRulesBase,
   significantOverlapPairs,
   tokenize,
 } from '../src/core/ranking'
+
+describe('identifier queries', () => {
+  it('recognises literals and leaves phrases alone', () => {
+    for (const query of [
+      'ERR_PNPM_IGNORED_BUILDS',
+      '0.2.0-rc.2',
+      'm_97f3c2deac12',
+      'Xenova/multilingual-e5-small',
+      '48f21c948536a0257dbb508a8c88a6a8',
+      'sqlite-vec',
+      'looksLikeIdentifierQuery',
+    ]) {
+      expect(looksLikeIdentifierQuery(query)).toBe(true)
+    }
+    for (const query of [
+      'почему зависал интерфейс',
+      'memory map visualization',
+      'как работает память',
+      'векторы',
+      'recall',
+      '',
+    ]) {
+      expect(looksLikeIdentifierQuery(query)).toBe(false)
+    }
+    // A sentence containing a literal is still a phrase, not a lookup.
+    expect(looksLikeIdentifierQuery('ошибка ERR_PNPM_IGNORED_BUILDS при удалении плагина')).toBe(false)
+  })
+
+  it('gives the lexical leg a heavier vote without touching the default ranking', () => {
+    const exact = newMemoryEntry({ id: 'm_i1', kind: 'facts', title: 'err_pnpm_ignored_builds', text: 'text' })
+    const semantic = newMemoryEntry({ id: 'm_i2', kind: 'facts', title: 'Semantic', text: 'text' })
+    const items = [semantic, exact]
+    // The lexical leg knows the literal; the vector leg prefers the other entry.
+    const bm25 = new Map([['m_i1', 12]])
+    const vectors = new Map([
+      ['m_i2', 0.93],
+      ['m_i1', 0.7],
+    ])
+
+    const byDefault = rankItemsHybridDetailed(items, 'err_pnpm_ignored_builds', DEFAULT_RANKING, 'all', bm25, vectors)
+    const boosted = rankItemsHybridDetailed(items, 'err_pnpm_ignored_builds', IDENTIFIER_RANKING, 'all', bm25, vectors)
+    expect(boosted.items[0]?.id).toBe('m_i1')
+    // Provenance is unchanged by the weights: it reports the legs, not the score.
+    expect(boosted.provenance.get('m_i1')).toMatchObject({ bm25: 0, vector: 1 })
+    // The default ranking must keep its own (unweighted) order for other queries.
+    expect(rankItemsHybridDetailed(items, 'текст', DEFAULT_RANKING, 'all', bm25, vectors).items.length).toBe(
+      byDefault.items.length,
+    )
+    expect(IDENTIFIER_RANKING.rrfK).toBe(DEFAULT_RANKING.rrfK)
+  })
+})
 
 describe('recall provenance', () => {
   it('reports the legs that pulled each entry in, without changing the order', () => {

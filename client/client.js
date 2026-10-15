@@ -161,6 +161,7 @@ window.__ModuleLoader__.load({
             ? v.recallFormat
             : "markdown",
         recallAllowFormatOverride: v.recallAllowFormatOverride !== false,
+        recallLiteralLookup: v.recallLiteralLookup !== false,
         promptRulesLimit: String(typeof v.promptRulesLimit === "number" ? v.promptRulesLimit : 6),
         rulesPromptScope: v.rulesPromptScope === "all" ? "all" : "project",
         projectScanBudgetMs: String(typeof v.projectScanBudgetMs === "number" ? v.projectScanBudgetMs : 0),
@@ -2786,6 +2787,7 @@ window.__ModuleLoader__.load({
               oneOf(form.recallFormat, ["markdown", "table", "timeline", "json"], "markdown"),
             );
             await scope.set("recallAllowFormatOverride", form.recallAllowFormatOverride !== false);
+            await scope.set("recallLiteralLookup", form.recallLiteralLookup !== false);
             await scope.set("promptRulesLimit", intValue(form.promptRulesLimit, 6, 1, 100));
             await scope.set("rulesPromptScope", oneOf(form.rulesPromptScope, ["project", "all"], "project"));
             await scope.set("projectScanBudgetMs", intValue(form.projectScanBudgetMs, 0, 0, 600000));
@@ -2965,6 +2967,12 @@ window.__ModuleLoader__.load({
             update,
             "recallAllowFormatOverride",
             "Let the agent choose another format per call (off pins the format above)",
+          ),
+          checkboxField(
+            form,
+            update,
+            "recallLiteralLookup",
+            "Read a literal-looking query (error code, version, file name, id) as an exact lookup",
           ),
           numberField(
             form,

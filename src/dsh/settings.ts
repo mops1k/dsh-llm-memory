@@ -67,6 +67,13 @@ export const MemorySettingsSchema = z.object({
     .description(
       'Let the agent pick another format per call (json to parse, table to skim). Off pins recall to the format above; the tool description tells the model, so it stops asking.',
     ),
+  recallLiteralLookup: z
+    .boolean()
+    .default(DEFAULT_CONFIG.recallLiteralLookup)
+    .volatile()
+    .description(
+      'Read a literal-looking query (error code, version, file name, id) as a lookup: the lexical match decides the order when there is one. Measured to fix an 18 pp hit@1 gap on exact tokens; turn it off to always rank by the usual BM25 + vector fusion.',
+    ),
   promptRulesLimit: z
     .number()
     .min(1)

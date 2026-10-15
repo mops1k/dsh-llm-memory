@@ -63,3 +63,25 @@ describe('recall format setting', () => {
     expect(merged.recallAllowFormatOverride).toBe(true)
   })
 })
+
+/**
+ * The literal-lookup rule itself (identifier query → lexical leg decides) is
+ * covered in tests/ranking.test.ts, where both leg orders can be set by hand.
+ * Here we only pin the switch: default on, honoured when the config says off.
+ */
+describe('literal lookup switch', () => {
+  it('is on by default and reads the stored value', () => {
+    expect(DEFAULT_CONFIG.recallLiteralLookup).toBe(true)
+    expect(mergeConfig({ recallLiteralLookup: false }).recallLiteralLookup).toBe(false)
+    expect(mergeConfig({ recallLiteralLookup: 'nope' } as never).recallLiteralLookup).toBe(true)
+  })
+
+  it('keeps recall working with the switch in either position', async () => {
+    for (const config of [{}, { recallLiteralLookup: false }]) {
+      const engine = makeEngine(config)
+      const result = await engine.recall('needle')
+      expect(result.items.length).toBeGreaterThan(0)
+      expect(result.sources.size).toBeGreaterThan(0)
+    }
+  })
+})

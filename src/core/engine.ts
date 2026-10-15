@@ -32,7 +32,16 @@ import {
 } from './model-cache.js'
 import { appendLog, debug } from './log.js'
 import { sanitizeProjectKey } from './paths.js'
-import { DEFAULT_RANKING, rankItems, rankItemsHybridDetailed, rankRulesBase, semanticPairs, significantOverlapPairs } from './ranking.js'
+import {
+  DEFAULT_RANKING,
+  IDENTIFIER_RANKING,
+  looksLikeIdentifierQuery,
+  rankItems,
+  rankItemsHybridDetailed,
+  rankRulesBase,
+  semanticPairs,
+  significantOverlapPairs,
+} from './ranking.js'
 import type { RankProvenance } from './ranking.js'
 import type { SemanticPair } from './ranking.js'
 import { MemoryStore, genMemoryId, newMemoryEntry } from './store.js'
@@ -1193,11 +1202,19 @@ export class MemoryEngine {
 
     const candidates = [...items.values()]
     // Hybrid ranking also reports which leg pulled an entry in; the plain
-    // lexical path has nothing to report beyond its own order.
+    // lexical path has nothing to report beyond its own order. A literal-looking
+    // query is ranked by the lexical leg when it matched, because on exact tokens
+    // the vector leg demotes the match it should keep (see IDENTIFIER_RANKING);
+    // when nothing matched lexically the usual hybrid ranking stays in charge, so
+    // a mistyped literal still finds something.
+    const ranking =
+      text.length > 0 && bm25.size > 0 && this.config.recallLiteralLookup && looksLikeIdentifierQuery(text)
+        ? IDENTIFIER_RANKING
+        : DEFAULT_RANKING
     const ranked: { items: MemoryEntry[]; provenance: Map<string, RankProvenance> } =
       text.length === 0
         ? { items: rankItems(candidates, query, DEFAULT_RANKING, scope), provenance: new Map() }
-        : rankItemsHybridDetailed(candidates, query, DEFAULT_RANKING, scope, bm25, semantic)
+        : rankItemsHybridDetailed(candidates, query, ranking, scope, bm25, semantic)
     const rankedItems = ranked.items.slice(0, limit)
     const sources = new Map<string, string[]>(
       rankedItems.map((entry) => {
