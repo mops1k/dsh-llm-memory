@@ -44,6 +44,42 @@ describe('ranking', () => {
     expect(ranked[0]?.id).toBe('m_h2')
   })
 
+  it('lets the relevance legs outvote query-independent metadata', () => {
+    const metadataOnly = newMemoryEntry({
+      id: 'm_f1',
+      kind: 'rules',
+      tier: 'immutable',
+      title: 'Old important rule',
+      text: 'unrelated',
+      importance: 5,
+    })
+    const lexicalHit = newMemoryEntry({ id: 'm_f2', kind: 'facts', title: 'Plain fact', text: 'needle' })
+    const semanticHit = newMemoryEntry({ id: 'm_f3', kind: 'facts', title: 'Semantic fact', text: 'other' })
+
+    const lexical = rankItemsHybrid(
+      [metadataOnly, lexicalHit, semanticHit],
+      'needle',
+      DEFAULT_RANKING,
+      'all',
+      new Map([['m_f2', -1]]),
+    )
+    expect(lexical[0]?.id).toBe('m_f2')
+
+    const semantic = rankItemsHybrid(
+      [metadataOnly, lexicalHit, semanticHit],
+      'needle',
+      DEFAULT_RANKING,
+      'all',
+      new Map(),
+      new Map([['m_f3', 0.9]]),
+    )
+    expect(semantic[0]?.id).toBe('m_f3')
+
+    // With no relevance signal at all, metadata still decides.
+    const metadataWins = rankItemsHybrid([metadataOnly, lexicalHit], 'nothing', DEFAULT_RANKING, 'all', new Map())
+    expect(metadataWins[0]?.id).toBe('m_f1')
+  })
+
   it('finds significant lexical overlap pairs', () => {
     const a = newMemoryEntry({ id: 'm_o1', title: 'Alpha', text: 'tabs indentation default' })
     const b = newMemoryEntry({ id: 'm_o2', title: 'Beta', text: 'tabs indentation settings' })

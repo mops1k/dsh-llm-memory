@@ -64,11 +64,13 @@ function makeContextHarness(): ContextHarness {
  * Announce one created agent, the way the agent registry does.
  *
  * The memory section is registered per agent (`agent.ctx`), so a test must emit
- * the event before the section exists.
+ * the event before the section exists. `cwd` is the session's absolute working
+ * directory; it scopes the rule digest of that agent's prompt.
  */
-function emitAgentCreated(harness: ContextHarness): void {
+function emitAgentCreated(harness: ContextHarness, cwd = '/tmp/memory-project'): void {
   const agent = {
     inject: (): void => {},
+    session: { header: { cwd } },
     ctx: {
       systemPrompt: {
         section(section: PromptSection): () => void {
@@ -154,6 +156,28 @@ describe('system prompt section', () => {
     expect(sectionText(section)).toContain('Custom guidance.')
     expect(sectionText(section)).not.toContain('Updated guidance.')
     expect(engine.rulesForPrompt).toHaveBeenCalledTimes(1)
+  })
+
+  it('scopes the rule digest to the project of the created agent', () => {
+    const harness = makeContextHarness()
+    const engine = makeEngine('/tmp/memory')
+    registerMemoryContext(harness.ctx, engine, mergeConfig({}))
+
+    emitAgentCreated(harness, '/home/mops1k/Development/no-theme')
+
+    expect(engine.rulesForPrompt).toHaveBeenCalledWith(undefined, { project: 'no-theme' })
+    expect(sectionText(harness.sections[0] as PromptSection)).toContain('rules and preferences')
+  })
+
+  it('asks for the cross-project digest when the session has no working directory', () => {
+    const harness = makeContextHarness()
+    const engine = makeEngine('/tmp/memory')
+    registerMemoryContext(harness.ctx, engine, mergeConfig({}))
+
+    emitAgentCreated(harness, '')
+
+    expect(engine.rulesForPrompt).toHaveBeenCalledWith()
+    expect(harness.sections).toHaveLength(1)
   })
 
   it('ships autonomy and forget rules in the default prompt', () => {
@@ -324,6 +348,7 @@ describe('memory human command', () => {
     const injected: unknown[] = []
     const agent = {
       inject: (message: unknown) => injected.push(message),
+      session: { header: { cwd: '/tmp/memory-project' } },
       ctx: { systemPrompt: { section: () => () => {} } },
     }
     for (const entry of created) entry.callback({ agent, source: 'fresh' } as never)

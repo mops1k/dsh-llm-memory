@@ -5,6 +5,7 @@
  * as a derived cache. Entries are partitioned into a per-project layer
  * (`scope: 'project'`) and a cross-project user layer (`scope: 'user'`).
  */
+import type { ModelDownloadProgress } from './model-cache.js'
 
 /** Category of a memory entry. */
 export type MemoryKind =
@@ -139,6 +140,19 @@ export interface MemoryStoreOptions {
   storageRoot?: string
   /** Overrides the SQLite index path. */
   dbPath?: string
+  /**
+   * Default per-base-directory time budget for index passes in milliseconds
+   * (0 = no budget). Callers can override it per pass.
+   */
+  scanBudgetMs?: number
+  /**
+   * Open the connection with SQLite extension loading enabled.
+   *
+   * node:sqlite refuses to enable it after the connection exists (measured:
+   * "Cannot enable extension loading because it was disabled at database
+   * creation"), so the sqlite-vec backend requires this at construction time.
+   */
+  allowExtension?: boolean
 }
 
 /** Edge types of the heuristic knowledge graph. */
@@ -184,4 +198,178 @@ export interface RankingOptions {
   confidenceDecayHalfLifeDays: number
   /** Smoothing constant for Reciprocal Rank Fusion. */
   rrfK: number
+  /**
+   * Relative contribution of each rank-fusion leg.
+   *
+   * Metadata is query-independent, so it carries much less weight than the two
+   * relevance legs and acts as a tie-breaker. Measured on a real store
+   * (2026-10-15, 40 entries × two query sets, k=5, self-retrieval): at weight
+   * 1.0 the metadata leg dominated the ordering — lexical hit@1 was 20 %/12.5 %
+   * and hit@5 40 %/35 %; at 0.1 lexical reached 70 % hit@1 and 100 % hit@5, and
+   * the hybrid (with vectors) 92.5 % hit@1 at 100 % hit@5.
+   */
+  fusion: {
+    bm25: number
+    metadata: number
+    vector: number
+  }
+}
+
+/**
+ * Which source produces embeddings for semantic retrieval.
+ *
+ * `off` disables the vector leg entirely (lexical FTS5 only), `local` runs a
+ * multilingual ONNX model in-process and `http` calls an OpenAI-compatible
+ * embeddings endpoint.
+ */
+export type EmbeddingProviderMode = 'off' | 'local' | 'http'
+
+/**
+ * Where the chunk vectors live.
+ *
+ * `js` keeps them in a plain SQLite table and scans them in-process, `sqlite-vec`
+ * uses the `vec0` virtual table of the sqlite-vec extension (KNN in SQL).
+ */
+export type VectorBackend = 'off' | 'js' | 'sqlite-vec'
+
+/**
+ * Storage precision of the vectors.
+ *
+ * `float` keeps full 32-bit precision, `int8` stores one byte per dimension and
+ * `bit` one bit per dimension (binary quantization, distances are Hamming-based
+ * and need a dimension divisible by 8). Quantization trades recall fidelity for
+ * size; only the sqlite-vec backend supports it.
+ */
+export type VectorQuantization = 'float' | 'int8' | 'bit'
+
+/**
+ * Role of a text handed to an embedding model.
+ *
+ * Asymmetric models (the e5 family) prefix queries and stored passages
+ * differently, and mixing the roles up degrades recall.
+ */
+export type EmbeddingRole = 'query' | 'passage'
+
+/** One batch of embeddings, row-aligned with the texts that produced it. */
+export interface EmbeddingBatch {
+  /** `vectors[i]` embeds `texts[i]`. */
+  vectors: Float32Array[]
+  /** Model identifier the vectors were produced with. */
+  model: string
+  /** Vector length of every returned vector. */
+  dim: number
+}
+
+/** Produces embeddings for queries and stored passages. */
+export interface EmbeddingProvider {
+  /** Stable provider id (`local`, `http`, ...) used in logs and stats. */
+  readonly id: string
+  /** Model identifier stored next to every vector. */
+  readonly model: string
+  /** Vector length the model produces. */
+  readonly dim: number
+  /** Whether the model is loaded; `prewarm` makes it true. */
+  readonly ready: boolean
+  /** Load the model ahead of the first embedding call, best effort. */
+  prewarm(): Promise<void>
+  /**
+   * Drop the loaded model so the next `prewarm`/`embed` reads it from disk
+   * again. Needed when the cache is missing or was deleted: an in-memory model
+   * makes `prewarm` return without downloading anything.
+   */
+  reload?(): void
+  /**
+   * Route model download progress to `listener`, or stop routing with `null`.
+   *
+   * Only an explicit download turns this on: transformers.js fetches file
+   * metadata from the Hub whenever a progress callback is attached, and doing
+   * that on every ordinary model load costs a network round trip (or a timeout)
+   * even when the model is already cached.
+   */
+  watchProgress?(listener: ((progress: ModelDownloadProgress) => void) | null): void
+  /** Embed a batch of texts in the given role. */
+  embed(texts: string[], role: EmbeddingRole): Promise<EmbeddingBatch>
+  /** Release resources (a worker thread, for example). */
+  close?(): void
+}
+
+/** One indexed chunk of a memory entry. */
+export interface VectorRecord {
+  entryId: string
+  /** Zero-based chunk position inside the entry. */
+  chunkIndex: number
+  /** Metadata copied from the entry so a backend can filter without a join. */
+  scope: MemoryScope
+  project: string
+  kind: MemoryKind
+  tier: MemoryTier
+  status: MemoryStatus
+  /** Hash of the embedded text plus model id; a change means re-embedding. */
+  hash: string
+  /** Normalized embedding of the chunk. */
+  vector: Float32Array
+}
+
+/** A vector search request. */
+export interface VectorQuery {
+  /** Normalized query embedding. */
+  vector: Float32Array
+  /** Maximum number of chunk hits to return. */
+  limit: number
+  /** Restricts hits by entry metadata; only scope/project/kind/tier/status are used. */
+  filter?: MemoryFilter
+  /** Restricts hits to chunks of these entries (entry-level retrieval path). */
+  entryIds?: readonly string[]
+  /** Minimum cosine similarity; lower-scoring hits are dropped. */
+  minScore?: number
+}
+
+/** One vector search hit. */
+export interface VectorMatch {
+  entryId: string
+  chunkIndex: number
+  /** Cosine similarity in -1..1, higher is closer. */
+  score: number
+}
+
+/** Counters reported by a vector index. */
+export interface VectorIndexStats {
+  backend: VectorBackend
+  /** Indexed chunks. */
+  chunks: number
+  /** Distinct entries with at least one chunk. */
+  entries: number
+  /** Model the stored vectors were produced with (empty when there are none). */
+  model: string
+  dim: number
+  /** Approximate size of the stored vectors in bytes. */
+  bytes: number
+}
+
+/** Nearest-neighbour index over entry chunks. */
+export interface VectorIndex {
+  readonly backend: VectorBackend
+  /** Number of indexed chunks. */
+  size(): number
+  /** Insert or replace chunks. */
+  upsert(records: readonly VectorRecord[]): void
+  /** Drop every chunk of one entry. */
+  remove(entryId: string): void
+  /** Drop every stored vector; with `model`, only the vectors of other models. */
+  clear(model?: string): void
+  /**
+   * Chunk hashes stored for one entry, keyed by chunk index. The queue compares
+   * them with freshly computed hashes to skip unchanged chunks.
+   */
+  storedHashes(entryId: string): Map<number, string>
+  /**
+   * Mean vector of every entry's chunks, normalized — the entry-level embedding
+   * used by the knowledge graph and the duplicate report, where there is no
+   * query to search with.
+   */
+  entryVectors(filter?: MemoryFilter): Map<string, Float32Array>
+  /** Nearest chunks for a query, best first. */
+  search(query: VectorQuery): VectorMatch[]
+  /** Counters for the settings UI and logs. */
+  stats(): VectorIndexStats
 }

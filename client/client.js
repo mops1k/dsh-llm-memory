@@ -107,6 +107,19 @@ window.__ModuleLoader__.load({
       return rounded;
     }
 
+    function floatValue(value, fallback, min, max) {
+      const parsed = typeof value === "number" ? value : Number(value);
+      if (!Number.isFinite(parsed)) return fallback;
+      if (parsed < min) return min;
+      if (parsed > max) return max;
+      return parsed;
+    }
+
+    function oneOf(value, allowed, fallback) {
+      const text = String(value);
+      return allowed.indexOf(text) >= 0 ? text : fallback;
+    }
+
     function truncatePreview(value) {
       const text = String(value == null ? "" : value);
       if (text.length <= PREVIEW_TEXT_LIMIT) return text;
@@ -139,6 +152,38 @@ window.__ModuleLoader__.load({
           typeof v.lintOverlapMinCommonWords === "number" ? v.lintOverlapMinCommonWords : 8,
         ),
         lintMaxPairs: String(typeof v.lintMaxPairs === "number" ? v.lintMaxPairs : 200),
+        recallTextChars: String(typeof v.recallTextChars === "number" ? v.recallTextChars : 400),
+        recallTotalChars: String(typeof v.recallTotalChars === "number" ? v.recallTotalChars : 12000),
+        promptRulesLimit: String(typeof v.promptRulesLimit === "number" ? v.promptRulesLimit : 6),
+        rulesPromptScope: v.rulesPromptScope === "all" ? "all" : "project",
+        projectScanBudgetMs: String(typeof v.projectScanBudgetMs === "number" ? v.projectScanBudgetMs : 0),
+        embeddingsProvider:
+          v.embeddingsProvider === "off" || v.embeddingsProvider === "http" ? v.embeddingsProvider : "local",
+        embeddingsModel:
+          typeof v.embeddingsModel === "string" && v.embeddingsModel.length > 0
+            ? v.embeddingsModel
+            : "Xenova/multilingual-e5-small",
+        embeddingsDim: String(typeof v.embeddingsDim === "number" ? v.embeddingsDim : 384),
+        embeddingsBackend:
+          v.embeddingsBackend === "off" || v.embeddingsBackend === "sqlite-vec" ? v.embeddingsBackend : "js",
+        embeddingsQuantization:
+          v.embeddingsQuantization === "int8" || v.embeddingsQuantization === "bit"
+            ? v.embeddingsQuantization
+            : "float",
+        embeddingsTopK: String(typeof v.embeddingsTopK === "number" ? v.embeddingsTopK : 50),
+        embeddingsMinScore: String(typeof v.embeddingsMinScore === "number" ? v.embeddingsMinScore : 0),
+        embeddingsBatchSize: String(typeof v.embeddingsBatchSize === "number" ? v.embeddingsBatchSize : 16),
+        embeddingsChunkChars: String(typeof v.embeddingsChunkChars === "number" ? v.embeddingsChunkChars : 800),
+        embeddingsChunkOverlap: String(
+          typeof v.embeddingsChunkOverlap === "number" ? v.embeddingsChunkOverlap : 120,
+        ),
+        embeddingsSemanticEdgesPerEntry: String(
+          typeof v.embeddingsSemanticEdgesPerEntry === "number" ? v.embeddingsSemanticEdgesPerEntry : 3,
+        ),
+        embeddingsSemanticMaxEdges: String(
+          typeof v.embeddingsSemanticMaxEdges === "number" ? v.embeddingsSemanticMaxEdges : 300,
+        ),
+        embeddingsPrewarm: v.embeddingsPrewarm !== false,
         webPath: typeof v.webPath === "string" && v.webPath.length > 0 ? v.webPath : DEFAULT_WEB_PATH,
       };
     }
@@ -443,6 +488,51 @@ window.__ModuleLoader__.load({
         h("span", { style: S.label }, props.label),
         props.children,
         props.hint ? h("small", { style: S.hint }, props.hint) : null,
+      );
+    }
+
+    /** One Settings field holding a number. */
+    function numberField(form, update, key, label, hint, extra) {
+      const props = Object.assign(
+        {
+          type: "number",
+          style: S.input,
+          value: form[key],
+          onChange: (event) => update(key, event.target.value),
+        },
+        extra || {},
+      );
+      return h(Field, { label, hint }, h("input", props));
+    }
+
+    /** One Settings field holding a value picked from a fixed list. */
+    function selectField(form, update, key, label, hint, options) {
+      return h(
+        Field,
+        { label, hint },
+        h(
+          "select",
+          {
+            style: S.input,
+            value: form[key],
+            onChange: (event) => update(key, event.target.value),
+          },
+          options.map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
+        ),
+      );
+    }
+
+    /** One checkbox row in Settings. */
+    function checkboxField(form, update, key, label) {
+      return h(
+        "label",
+        { style: S.checkboxRow },
+        h("input", {
+          type: "checkbox",
+          checked: !!form[key],
+          onChange: (event) => update(key, event.target.checked),
+        }),
+        label,
       );
     }
 
@@ -1095,6 +1185,106 @@ window.__ModuleLoader__.load({
      * conversation.view — Status and Lint
      * ------------------------------------------------------------------ */
 
+    function formatByteSize(value) {
+      const bytes = typeof value === "number" ? value : 0;
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " kB";
+      return (bytes / 1024 / 1024).toFixed(2) + " MB";
+    }
+
+    /** One human line describing the embedding-model cache state. */
+    function modelStatusText(model) {
+      if (!model) return "Model status is unavailable: the plugin API did not answer.";
+      if (model.error) return "Download failed: " + model.error;
+      if (model.downloading) {
+        const progress = model.progress;
+        if (!progress) return "Downloading the model\u2026 (waiting for the first bytes)";
+        const loaded = formatByteSize(progress.loadedBytes);
+        const total = progress.totalBytes > 0 ? formatByteSize(progress.totalBytes) : "unknown size";
+        return (
+          "Downloading: " +
+          progress.percent +
+          "% (" +
+          loaded +
+          " of " +
+          total +
+          "), files: " +
+          progress.files
+        );
+      }
+      if (model.configured === false) {
+        return "Vector search is off (provider or backend). Turn it on, save, then download the model.";
+      }
+      if (model.cached) {
+        return (
+          "Cached: " +
+          formatByteSize(model.bytes) +
+          " in " +
+          model.files +
+          " files" +
+          (model.enabled === true ? " \u2014 search uses it now." : " \u2014 restart the plugin to switch search on.")
+        );
+      }
+      if (model.files > 0) {
+        return (
+          "Cache is incomplete: " +
+          formatByteSize(model.bytes) +
+          " in " +
+          model.files +
+          " files. Press Download model to replace it."
+        );
+      }
+      return (
+        "Not downloaded yet (\u2248130 MB). Lexical search works; semantic search starts after the download." +
+        (model.enabled === true ? "" : " Vector search is currently off because the model is missing.")
+      );
+    }
+
+    function VectorPanel(props) {
+      const vectors = props.vectors;
+      if (!vectors) {
+        return h(
+          "div",
+          null,
+          h("h3", { style: S.sectionTitle }, "Semantic index"),
+          h(
+            "p",
+            { style: S.hint },
+            "Vectors are off: recall uses lexical search (FTS5) only. Turn them on in Settings \u2192 LLM Memory \u2192 embeddings.",
+          ),
+        );
+      }
+      const meta =
+        "model: " +
+        vectors.model +
+        " \u00b7 backend: " +
+        vectors.backend +
+        "\nindexed: " +
+        vectors.entries +
+        " entries / " +
+        vectors.chunks +
+        " chunks \u00b7 " +
+        formatByteSize(vectors.bytes) +
+        " of vectors" +
+        (vectors.disabled ? "\nindexing disabled after repeated failures" : "") +
+        (vectors.running ? "\nindexing in progress" : "") +
+        (vectors.lastError ? "\nlast error: " + vectors.lastError : "");
+      return h(
+        "div",
+        null,
+        h("h3", { style: S.sectionTitle }, "Semantic index"),
+        h(
+          "div",
+          { style: S.kpis },
+          h(Kpi, { value: vectors.entries, label: "Embedded entries" }),
+          h(Kpi, { value: vectors.chunks, label: "Vectors" }),
+          h(Kpi, { value: vectors.pending, label: "Queue" }),
+          h(Kpi, { value: vectors.embedded, label: "Embedded this run" }),
+        ),
+        h("div", { style: S.meta }, meta),
+      );
+    }
+
     function StatusPanel(props) {
       const [report, setReport] = React.useState(null);
       const [error, setError] = React.useState("");
@@ -1134,6 +1324,7 @@ window.__ModuleLoader__.load({
         h(Bars, { title: "By scope", counts: report.byScope }),
         h(Bars, { title: "By status", counts: report.byStatus }),
         h(Bars, { title: "By project", counts: report.byProject }),
+        h(VectorPanel, { vectors: report.vectors }),
       );
     }
 
@@ -1242,6 +1433,15 @@ window.__ModuleLoader__.load({
           return "Heal finished.";
         });
 
+      const rebuildVectors = () =>
+        run("Rebuilding vectors\u2026", async () => {
+          const data = await apiPost(props.base, "/api/vectors/rebuild", {});
+          const vectors = data && data.vectors ? data.vectors : null;
+          setVersion((value) => value + 1);
+          if (!vectors) return "Vectors are off: enable the embeddings provider in Settings.";
+          return "Vector rebuild queued: " + vectors.pending + " entries waiting.";
+        });
+
       const syncWorkspaces = () =>
         run("Syncing workspaces\u2026", async () => {
           const data = await apiPost(props.base, "/api/workspaces/sync", {});
@@ -1285,6 +1485,7 @@ window.__ModuleLoader__.load({
             { style: S.row },
             h("button", { type: "button", style: S.primary, disabled: busy, onClick: () => setVersion((v) => v + 1) }, "Run lint"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: heal }, "Heal"),
+            h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildVectors }, "Rebuild vectors"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: props.onPreviewRules }, "Preview rules"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: syncWorkspaces }, "Sync workspaces"),
             h(
@@ -1757,6 +1958,61 @@ window.__ModuleLoader__.load({
         const [busy, setBusy] = React.useState(false);
         const [preview, setPreview] = React.useState(null);
         const [alreadyExported, setAlreadyExported] = React.useState(false);
+        const [model, setModel] = React.useState(null);
+        const [modelBusy, setModelBusy] = React.useState(false);
+
+        const loadModelStatus = React.useCallback(async () => {
+          try {
+            const data = await apiGet(webBase(scope), "/api/model/status");
+            setModel(data && typeof data === "object" ? data : null);
+          } catch (error) {
+            setModel(null);
+          }
+        }, []);
+
+        const downloading = model !== null && model.downloading === true;
+        React.useEffect(() => {
+          loadModelStatus();
+        }, []);
+        React.useEffect(() => {
+          if (!downloading) return undefined;
+          const timer = setInterval(() => {
+            loadModelStatus();
+          }, 1500);
+          return () => clearInterval(timer);
+        }, [downloading]);
+
+        const downloadModel = async () => {
+          setModelBusy(true);
+          setNotice("Starting the model download\u2026");
+          try {
+            const data = await apiPost(webBase(scope), "/api/model/download", {});
+            if (data && typeof data === "object") setModel(data);
+            setNotice("Model download started \u2014 progress is shown under the model field.");
+          } catch (error) {
+            setNotice("Model download failed: " + errorText(error));
+          } finally {
+            setModelBusy(false);
+          }
+        };
+
+        const removeModel = async () => {
+          if (
+            !window.confirm("Delete the cached embedding model? The next semantic search downloads it again.")
+          ) {
+            return;
+          }
+          setModelBusy(true);
+          try {
+            const data = await apiPost(webBase(scope), "/api/model/remove", {});
+            if (data && typeof data === "object") setModel(data);
+            setNotice("Cached model deleted.");
+          } catch (error) {
+            setNotice("Deleting the model failed: " + errorText(error));
+          } finally {
+            setModelBusy(false);
+          }
+        };
 
         const refreshRulesExportState = async () => {
           try {
@@ -1818,6 +2074,33 @@ window.__ModuleLoader__.load({
               intValue(form.lintOverlapMinCommonWords, 8, 1, 1000),
             );
             await scope.set("lintMaxPairs", intValue(form.lintMaxPairs, 200, 0, 100000));
+            await scope.set("recallTextChars", intValue(form.recallTextChars, 400, 0, 100000));
+            await scope.set("recallTotalChars", intValue(form.recallTotalChars, 12000, 500, 1000000));
+            await scope.set("promptRulesLimit", intValue(form.promptRulesLimit, 6, 1, 100));
+            await scope.set("rulesPromptScope", oneOf(form.rulesPromptScope, ["project", "all"], "project"));
+            await scope.set("projectScanBudgetMs", intValue(form.projectScanBudgetMs, 0, 0, 600000));
+            await scope.set("embeddingsProvider", oneOf(form.embeddingsProvider, ["off", "local", "http"], "local"));
+            await scope.set("embeddingsModel", String(form.embeddingsModel || "Xenova/multilingual-e5-small"));
+            await scope.set("embeddingsDim", intValue(form.embeddingsDim, 384, 64, 4096));
+            await scope.set("embeddingsBackend", oneOf(form.embeddingsBackend, ["off", "js", "sqlite-vec"], "js"));
+            await scope.set(
+              "embeddingsQuantization",
+              oneOf(form.embeddingsQuantization, ["float", "int8", "bit"], "float"),
+            );
+            await scope.set("embeddingsTopK", intValue(form.embeddingsTopK, 50, 5, 500));
+            await scope.set("embeddingsMinScore", floatValue(form.embeddingsMinScore, 0, 0, 1));
+            await scope.set("embeddingsBatchSize", intValue(form.embeddingsBatchSize, 16, 1, 256));
+            await scope.set("embeddingsChunkChars", intValue(form.embeddingsChunkChars, 800, 200, 8000));
+            await scope.set("embeddingsChunkOverlap", intValue(form.embeddingsChunkOverlap, 120, 0, 4000));
+            await scope.set(
+              "embeddingsSemanticEdgesPerEntry",
+              intValue(form.embeddingsSemanticEdgesPerEntry, 3, 1, 20),
+            );
+            await scope.set(
+              "embeddingsSemanticMaxEdges",
+              intValue(form.embeddingsSemanticMaxEdges, 300, 10, 10000),
+            );
+            await scope.set("embeddingsPrewarm", !!form.embeddingsPrewarm);
             await scope.set("webPath", String(form.webPath || DEFAULT_WEB_PATH));
             setNotice("Settings saved.");
           } catch (error) {
@@ -1937,6 +2220,42 @@ window.__ModuleLoader__.load({
               onChange: (event) => update("recallLimit", event.target.value),
             }),
           ),
+          h("h3", { style: S.sectionTitle }, "Recall digest"),
+          numberField(
+            form,
+            update,
+            "recallTextChars",
+            "Recall text chars per entry",
+            "Characters of one entry body in the default digest mode (0 keeps titles and metadata only).",
+            { min: 0, max: 100000, step: 50 },
+          ),
+          numberField(
+            form,
+            update,
+            "recallTotalChars",
+            "Recall total chars",
+            "Hard character budget of one llm_memory_recall rendering in digest mode.",
+            { min: 500, max: 1000000, step: 500 },
+          ),
+          numberField(
+            form,
+            update,
+            "promptRulesLimit",
+            "Prompt rules limit",
+            "Rules and preferences lines injected into the system prompt; the digest is part of every request.",
+            { min: 1, max: 100 },
+          ),
+          selectField(
+            form,
+            update,
+            "rulesPromptScope",
+            "Prompt rules scope",
+            "project keeps the user layer plus the current workspace, all keeps every project.",
+            [
+              ["project", "Current project + user layer"],
+              ["all", "Every project"],
+            ],
+          ),
           h(
             "label",
             { style: S.checkboxRow },
@@ -2032,6 +2351,159 @@ window.__ModuleLoader__.load({
               onChange: (event) => update("lintMaxPairs", event.target.value),
             }),
           ),
+          numberField(
+            form,
+            update,
+            "projectScanBudgetMs",
+            "Index time budget (ms)",
+            "Time budget per storage directory for one index pass (0 means no budget).",
+            { min: 0, max: 600000, step: 100 },
+          ),
+          h("h3", { style: S.sectionTitle }, "Vector search (semantic RAG)"),
+          selectField(
+            form,
+            update,
+            "embeddingsProvider",
+            "Embeddings provider",
+            "off keeps lexical FTS5 only, local runs the in-process multilingual model, http is reserved and not implemented.",
+            [
+              ["local", "local (in-process model)"],
+              ["off", "off (lexical FTS5 only)"],
+              ["http", "http (reserved)"],
+            ],
+          ),
+          h(
+            Field,
+            {
+              label: "Embedding model",
+              hint: "transformers.js model id for the local provider (Xenova/multilingual-e5-small by default).",
+            },
+            h("input", inputProps("embeddingsModel")),
+          ),
+          h(
+            "div",
+            { style: S.field },
+            h("span", { style: S.label }, "Model cache"),
+            h("div", { style: S.hint }, modelStatusText(model)),
+            h(
+              "div",
+              { style: S.actions },
+              h(
+                "button",
+                {
+                  type: "button",
+                  style: S.primary,
+                  disabled: modelBusy || downloading,
+                  onClick: downloadModel,
+                },
+                downloading ? "Downloading\u2026" : "Download model",
+              ),
+              h(
+                "button",
+                { type: "button", style: S.button, disabled: modelBusy, onClick: loadModelStatus },
+                "Check again",
+              ),
+              h(
+                "button",
+                {
+                  type: "button",
+                  style: S.button,
+                  disabled: modelBusy || !model || model.files === 0,
+                  onClick: removeModel,
+                },
+                "Delete cached model",
+              ),
+            ),
+          ),
+          numberField(
+            form,
+            update,
+            "embeddingsDim",
+            "Vector length",
+            "Vector length the model produces. Vectors of another length are re-embedded.",
+            { min: 64, max: 4096 },
+          ),
+          selectField(
+            form,
+            update,
+            "embeddingsBackend",
+            "Vector index backend",
+            "js scans vectors in process, sqlite-vec runs KNN in SQL, off disables vector search.",
+            [
+              ["js", "js (in-process scan)"],
+              ["sqlite-vec", "sqlite-vec (SQL KNN)"],
+              ["off", "off"],
+            ],
+          ),
+          selectField(
+            form,
+            update,
+            "embeddingsQuantization",
+            "sqlite-vec precision",
+            "float is full 32-bit, int8 is four times smaller, bit is 32 times smaller and needs a length divisible by 8.",
+            [
+              ["float", "float"],
+              ["int8", "int8"],
+              ["bit", "bit"],
+            ],
+          ),
+          numberField(
+            form,
+            update,
+            "embeddingsTopK",
+            "Vector hits (topK)",
+            "Chunk hits the vector leg contributes before rank fusion with the FTS5 leg.",
+            { min: 5, max: 500, step: 5 },
+          ),
+          numberField(
+            form,
+            update,
+            "embeddingsMinScore",
+            "Minimum cosine score",
+            "0 keeps every candidate; e5 cosine is compressed, so ranking matters more than an absolute threshold.",
+            { min: 0, max: 1, step: 0.01 },
+          ),
+          numberField(
+            form,
+            update,
+            "embeddingsBatchSize",
+            "Embedding batch size",
+            "Texts embedded per model call while indexing.",
+            { min: 1, max: 256 },
+          ),
+          numberField(
+            form,
+            update,
+            "embeddingsChunkChars",
+            "Chunk size (chars)",
+            "Target characters per chunk of an entry body.",
+            { min: 200, max: 8000, step: 50 },
+          ),
+          numberField(
+            form,
+            update,
+            "embeddingsChunkOverlap",
+            "Chunk overlap (chars)",
+            "Characters shared by neighbouring chunks (capped at half the chunk size).",
+            { min: 0, max: 4000, step: 10 },
+          ),
+          numberField(
+            form,
+            update,
+            "embeddingsSemanticEdgesPerEntry",
+            "Semantic neighbours per entry",
+            "Related edges kept per entry in the knowledge graph (a relative top-N cut).",
+            { min: 1, max: 20 },
+          ),
+          numberField(
+            form,
+            update,
+            "embeddingsSemanticMaxEdges",
+            "Semantic edges cap",
+            "Overall cap on semantic related edges in the graph.",
+            { min: 10, max: 10000, step: 10 },
+          ),
+          checkboxField(form, update, "embeddingsPrewarm", "Load the embedding model in the background at startup"),
           h(
             Field,
             { label: "WebUI base path", hint: "Base HTTP path of the WebUI and API. Takes effect after the plugin restarts." },

@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { chmodSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
@@ -8,6 +8,8 @@ import {
   USER_DIR,
   entryFileName,
   entryFilePath,
+  fileMtimeMs,
+  fileStatInfo,
   isPathInside,
   projectKeyFromCwd,
   readFileIfExists,
@@ -92,6 +94,42 @@ describe('paths', () => {
       expect(removeFileIfExists(file)).toBe(true)
       expect(removeFileIfExists(file)).toBe(false)
       expect(readFileIfExists(file)).toBeNull()
+    } finally {
+      cleanupRoot(root)
+    }
+  })
+
+  it('treats a missing file, a directory and an unreadable file as absent', () => {
+    const root = makeTempRoot()
+    try {
+      expect(readFileIfExists(join(root, 'nope.md'))).toBeNull()
+      expect(readFileIfExists(root)).toBeNull()
+
+      const locked = join(root, 'locked.md')
+      writeFileAtomic(locked, 'secret')
+      chmodSync(locked, 0o000)
+      try {
+        expect(readFileIfExists(locked)).toBeNull()
+      } finally {
+        chmodSync(locked, 0o600)
+      }
+    } finally {
+      cleanupRoot(root)
+    }
+  })
+
+  it('stats size and mtime in one call and reports missing files as null', () => {
+    const root = makeTempRoot()
+    try {
+      const file = join(root, 'page.md')
+      writeFileAtomic(file, 'héllo')
+      const info = fileStatInfo(file)
+      expect(info).not.toBeNull()
+      expect(info?.size).toBe(Buffer.byteLength('héllo', 'utf8'))
+      expect(info?.mtimeMs).toBeGreaterThan(0)
+      expect(fileMtimeMs(file)).toBe(info?.mtimeMs)
+      expect(fileStatInfo(join(root, 'missing.md'))).toBeNull()
+      expect(fileMtimeMs(join(root, 'missing.md'))).toBe(0)
     } finally {
       cleanupRoot(root)
     }

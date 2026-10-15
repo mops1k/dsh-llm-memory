@@ -18,7 +18,12 @@ export const name = 'dsh-llm-memory-tool-restrict'
 /** Required host service. */
 export const inject = ['tools']
 
-const FULL_ONLY_TOOL_SCHEMA = z.const('llm_memory_status')
+const FULL_ONLY_TOOL_SCHEMA = z.union([
+  z.const('llm_memory_status'),
+  // Permanent deletion has zero recorded usage; a preset may deny it explicitly
+  // while recall, save and forget stay available.
+  z.const('llm_memory_delete'),
+])
 
 /** Scoped restriction configuration. */
 export const Config = z.object({

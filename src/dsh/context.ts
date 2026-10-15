@@ -31,7 +31,7 @@ declare module '@deepseek-ai/dsh-llm' {
 import type { MemoryConfig } from '../core/config.js'
 import type { MemoryEngine } from '../core/engine.js'
 import { detectImportProjects, mergeImportedProjects, runImport } from '../core/import/index.js'
-import { DIGEST_DIR } from '../core/paths.js'
+import { DIGEST_DIR, projectKeyFromCwd } from '../core/paths.js'
 import { exportRulesToDshAgents } from './rules-export.js'
 import { registerProjectRoots } from './workspaces.js'
 
@@ -183,13 +183,21 @@ export class MemoryDigest {
  * to the rendered system prompt rewrites its head and invalidates the provider's
  * prefix cache, so the whole session history is resent as uncached input. The
  * live digest stays reachable through `llm_memory_recall` and the WebUI.
+ *
+ * `project` scopes the rule digest to the project of the agent whose prompt is
+ * being rendered; without it the digest stays cross-project.
  */
-function sectionText(engine: MemoryEngine, config: MemoryConfig, warn: (message: string) => void): string {
+function sectionText(
+  engine: MemoryEngine,
+  config: MemoryConfig,
+  project: string | undefined,
+  warn: (message: string) => void,
+): string {
   const parts: string[] = []
   const base = (config.systemPrompt ?? '').trim()
   if (base.length > 0) parts.push(base)
   try {
-    const rules = engine.rulesForPrompt().trim()
+    const rules = (project === undefined ? engine.rulesForPrompt() : engine.rulesForPrompt(undefined, { project })).trim()
     if (rules.length > 0) parts.push(rules)
   } catch (error) {
     warn(`rulesForPrompt() failed: ${errorMessage(error)}`)
@@ -209,10 +217,14 @@ function sectionText(engine: MemoryEngine, config: MemoryConfig, warn: (message:
 function registerSystemPrompt(ctx: Context, engine: MemoryEngine, config: MemoryConfig): void {
   ctx.on('agent/created', ({ agent }) => {
     try {
+      // The agent being created names the project whose digest belongs in its
+      // prompt. The section is rendered here, once, and stays frozen after that.
+      const cwd = agent.session.header.cwd
+      const project = typeof cwd === 'string' && cwd.trim().length > 0 ? projectKeyFromCwd(cwd) : undefined
       const section: PromptSection = {
         name: PROMPT_SECTION_NAME,
         order: PROMPT_SECTION_ORDER,
-        text: sectionText(engine, config, (message) => warnContext(ctx, message)),
+        text: sectionText(engine, config, project, (message) => warnContext(ctx, message)),
       }
       agent.ctx.systemPrompt.section(section)
     } catch (error) {

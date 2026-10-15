@@ -16,7 +16,7 @@ import {
   USER_DIR,
   ensureDir,
   entryPathFor,
-  fileMtimeMs,
+  fileStatInfo,
   kindDir,
   listChildDirectories,
   listMarkdownFiles,
@@ -27,7 +27,7 @@ import {
   sanitizeProjectKey,
   writeFileAtomic,
 } from './paths.js'
-import { significantOverlapPairs, type OverlapOptions } from './ranking.js'
+import { significantOverlapPairs, type OverlapOptions, type SemanticPair } from './ranking.js'
 import type {
   MemoryEdgeType,
   MemoryEntry,
@@ -40,6 +40,8 @@ import { MEMORY_KINDS } from './types.js'
 
 export interface PageOnDisk {
   file: string
+  /** File size in bytes, taken from the same `stat` call as `mtimeMs`. */
+  size: number
   mtimeMs: number
   text: string
   scope: MemoryScope
@@ -131,8 +133,22 @@ export function migrateFlatPages(root: string, projects?: Record<string, string>
 }
 
 /**
- * Collect all markdown pages from the user layer, the registered project trees
- * and the legacy per-project directories under the storage root.
+ * A page path with the storage layer it belongs to, collected before any file
+ * content is read. `baseDir` groups pages by the root they live in, which the
+ * incremental reconcile uses to budget slow mounts.
+ */
+export interface PageRef {
+  file: string
+  scope: MemoryScope
+  project: string
+  /** Base directory (before `<kind>/`) this page was found in. */
+  baseDir: string
+}
+
+/**
+ * Collect every markdown page path from the user layer, the registered project
+ * trees and the legacy per-project directories under the storage root — without
+ * reading a single page.
  *
  * Each base directory is scanned one level deep, once per known category
  * (`<baseDir>/<kind>/*.md`); a flat `*.md` left in the base directory by a
@@ -147,16 +163,17 @@ export function migrateFlatPages(root: string, projects?: Record<string, string>
  *
  * `projects` can be provided to avoid re-reading the registry (the store keeps
  * a cache); duplicate absolute file paths are collapsed.
+ *
+ * Listing is the cheap half of an index pass (readdir only): a page found here
+ * is known to exist even when the caller decides not to read it.
  */
-export function readAllPages(root: string, projects?: Record<string, string>): PageOnDisk[] {
-  const out: PageOnDisk[] = []
+export function enumeratePages(root: string, projects?: Record<string, string>): PageRef[] {
+  const out: PageRef[] = []
   const seen = new Set<string>()
-  const pushFile = (file: string, scope: MemoryScope, project: string): void => {
+  const pushFile = (file: string, scope: MemoryScope, project: string, baseDir: string): void => {
     if (seen.has(file)) return
-    const text = readFileIfExists(file)
-    if (text === null) return
     seen.add(file)
-    out.push({ file, mtimeMs: fileMtimeMs(file), text, scope, project })
+    out.push({ file, scope, project, baseDir })
   }
 
   const registry = projects ?? readProjectsRegistry(root)
@@ -164,12 +181,38 @@ export function readAllPages(root: string, projects?: Record<string, string>): P
 
   for (const { dir, scope, project } of scopeBaseDirs(root, registry)) {
     for (const kind of MEMORY_KINDS) {
-      for (const file of listMarkdownFiles(kindDir(dir, kind))) pushFile(file, scope, project)
+      for (const file of listMarkdownFiles(kindDir(dir, kind))) pushFile(file, scope, project, dir)
     }
     for (const file of listMarkdownFiles(dir)) {
       if (basename(file) === 'log.md' || basename(file) === 'index.md') continue
-      pushFile(file, scope, project)
+      pushFile(file, scope, project, dir)
     }
+  }
+  return out
+}
+
+/**
+ * Read every page listed by {@link enumeratePages}, one read and one `stat` per
+ * page. This is the full-rebuild path (empty database, explicit reindex); the
+ * incremental path only reads pages whose size or mtime changed.
+ */
+export function readAllPages(root: string, projects?: Record<string, string>): PageOnDisk[] {
+  const out: PageOnDisk[] = []
+  for (const ref of enumeratePages(root, projects)) {
+    const text = readFileIfExists(ref.file)
+    if (text === null) continue
+    // One `stat` supplies both fields of the incremental index. When it fails
+    // after a successful read (a race), fall back to the byte length so the
+    // page still gets indexed.
+    const info = fileStatInfo(ref.file)
+    out.push({
+      file: ref.file,
+      size: info?.size ?? Buffer.byteLength(text, 'utf8'),
+      mtimeMs: info?.mtimeMs ?? 0,
+      text,
+      scope: ref.scope,
+      project: ref.project,
+    })
   }
   return out
 }
@@ -234,6 +277,12 @@ export interface BuildGraphOptions {
   minCommonTags?: number
   /** Maximum number of tag-based `related` edges per entry. */
   maxTagLinksPerEntry?: number
+  /**
+   * Vector-similarity neighbours, already selected by the caller with a
+   * relative rule (see `semanticPairs`). They become `related` edges with the
+   * similarity as their weight.
+   */
+  semanticPairs?: SemanticPair[]
 }
 
 /**
@@ -361,6 +410,17 @@ export function buildGraph(entries: MemoryEntry[], options: BuildGraphOptions = 
   }
   for (const pair of significantOverlapPairs(active, overlapOptions)) {
     pushEdge(pair.a.id, pair.b.id, 'contradicts', Math.round(pair.score * 100))
+  }
+
+  // Semantic neighbours last: they fill the topical gaps the tag pass misses
+  // (an entry without tags, or a relation nobody wrote down). The caller
+  // already applied the relative cut, so a pair only has to be new here.
+  for (const pair of options.semanticPairs ?? []) {
+    if (!ids.has(pair.left) || !ids.has(pair.right)) continue
+    const key = `${pair.left}|${pair.right}`
+    if (relatedPairs.has(key)) continue
+    relatedPairs.add(key)
+    pushEdge(pair.left, pair.right, 'related', Math.round(pair.score * 100))
   }
 
   return { entities, edges }

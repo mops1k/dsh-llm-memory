@@ -339,7 +339,9 @@ function importResponse(reports: ReturnType<typeof runImport>): Record<string, u
  * `GET /api/items?query=&kind=&scope=&project=&status=&limit=&offset=`,
  * `GET /api/item?id=`, `POST /api/save`, `POST /api/forget`,
  * `POST /api/delete`, `POST /api/import`, `POST /api/workspaces/sync`,
- * `POST /api/heal`, `GET|POST /api/rules/preview`, `POST /api/rules/export`.
+ * `POST /api/heal`, `POST /api/vectors/rebuild`, `GET /api/model/status`,
+ * `POST /api/model/download`, `POST /api/model/remove`,
+ * `GET|POST /api/rules/preview`, `POST /api/rules/export`.
  */
 export function createWebHandler(
   engine: MemoryEngine,
@@ -365,6 +367,10 @@ export function createWebHandler(
     }
     if (rel === '/api/status') {
       sendJson(res, 200, engine.statusReport())
+      return
+    }
+    if (rel === '/api/model/status') {
+      sendJson(res, 200, engine.modelStatus())
       return
     }
     if (rel === '/api/lint') {
@@ -503,6 +509,26 @@ export function createWebHandler(
     if (rel === '/api/heal') {
       await readJsonBody(req, MAX_BODY_BYTES)
       sendJson(res, 200, engine.heal())
+      return
+    }
+    if (rel === '/api/vectors/rebuild') {
+      await readJsonBody(req, MAX_BODY_BYTES)
+      engine.rebuildVectors()
+      sendJson(res, 200, { vectors: engine.vectorStatus() })
+      return
+    }
+    if (rel === '/api/model/download') {
+      await readJsonBody(req, MAX_BODY_BYTES)
+      try {
+        sendJson(res, 200, engine.downloadModel())
+      } catch (error) {
+        sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      }
+      return
+    }
+    if (rel === '/api/model/remove') {
+      await readJsonBody(req, MAX_BODY_BYTES)
+      sendJson(res, 200, engine.removeModel())
       return
     }
     if (rel === '/api/rules/preview') {

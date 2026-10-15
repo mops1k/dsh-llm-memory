@@ -46,6 +46,10 @@ export function createMemoryRuntime(config: MemoryConfig, options: MemoryRuntime
   // open and indexed before the model can call the memory tools.
   engine.list({ status: 'all' })
 
+  // The vector leg then fills up in the background (worker thread), so a store
+  // that predates it gains embeddings without blocking the first recall.
+  engine.startVectors()
+
   return {
     engine,
     close(): void {

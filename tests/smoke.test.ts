@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { Config, inject, name } from '../src/index'
 import { DEFAULT_SYSTEM_PROMPT } from '../src/core/config'
-import { MemorySettingsSchema } from '../src/dsh/settings'
+import { MemorySettingsSchema, unwrapSettings } from '../src/dsh/settings'
 
 describe('dsh-llm-memory plugin', () => {
   it('exposes stable plugin metadata', () => {
@@ -11,7 +11,9 @@ describe('dsh-llm-memory plugin', () => {
   })
 
   it('applies schema defaults to the configuration', () => {
-    const config = Config({})
+    // dsh resolves volatile settings into reactive wrappers; `apply` unwraps
+    // them once before the core sees the config.
+    const config = unwrapSettings(Config({}))
     expect(config.recallLimit).toBe(10)
     expect(config.autonomous).toBe(true)
     expect(config.requireConfirmation).toBe(false)
@@ -23,7 +25,7 @@ describe('dsh-llm-memory plugin', () => {
   })
 
   it('accepts a disabled session-start guide', () => {
-    expect(Config({ sessionStartGuide: false }).sessionStartGuide).toBe(false)
+    expect(unwrapSettings(Config({ sessionStartGuide: false })).sessionStartGuide).toBe(false)
   })
 
   it('keeps the startup-only field out of the native settings schema', () => {
@@ -31,7 +33,9 @@ describe('dsh-llm-memory plugin', () => {
   })
 
   it('keeps a custom system prompt and import roots', () => {
-    const config = Config({ systemPrompt: 'custom guidance', importRoots: ['/srv/kilo'] })
+    const config = unwrapSettings(
+      Config({ systemPrompt: 'custom guidance', importRoots: ['/srv/kilo'] }),
+    )
     expect(config.systemPrompt).toBe('custom guidance')
     expect(config.importRoots).toEqual(['/srv/kilo'])
   })

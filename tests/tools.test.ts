@@ -180,6 +180,18 @@ describe('registerMemoryTools', () => {
           byScope: STATUS_REPORT.byScope,
           byKind: STATUS_REPORT.byKind,
           byProject: STATUS_REPORT.byProject,
+          vectors: {
+            enabled: true,
+            model: 'Xenova/multilingual-e5-small',
+            backend: 'js',
+            entries: 1,
+            chunks: 2,
+            bytes: 3072,
+            pending: 0,
+            embedded: 1,
+            disabled: false,
+            lastError: '',
+          },
         },
       ],
     ]
@@ -204,6 +216,17 @@ describe('registerMemoryTools', () => {
     expect(engine.recall).toHaveBeenCalledWith('build', { kind: 'facts', limit: 3 })
     expect(value).toMatchObject({ format: 'markdown', count: 1, text: '### Build toolchain' })
     expectValidOutput(definition, value)
+  })
+
+  it('memory_recall forwards the detail parameter', async () => {
+    const engine = makeEngine()
+    const { ctx, tools } = makeHarness()
+    registerMemoryTools(ctx, engine as unknown as MemoryEngine, mergeConfig({}))
+    const definition = tool(tools, 'llm_memory_recall')
+
+    await definition.execute({ query: 'build', detail: 'full' }, {} as never)
+
+    expect(engine.recall).toHaveBeenCalledWith('build', { detail: 'full' })
   })
 
   it('memory_save calls engine.save and returns schema-valid output', async () => {
@@ -339,14 +362,14 @@ describe('createMemoryRuntime', () => {
     if (root) cleanupRoot(root)
   })
 
-  it('creates a store, supports save/recall and closes without throwing', () => {
+  it('creates a store, supports save/recall and closes without throwing', async () => {
     root = makeTempRoot()
     const runtime = createMemoryRuntime(mergeConfig({ storageRoot: root }))
 
     const saved = runtime.engine.save({ text: 'Runtime fact about queues.', title: 'Runtime fact' })
     expect(runtime.engine.get(saved.id)?.title).toBe('Runtime fact')
 
-    const recalled = runtime.engine.recall('runtime fact')
+    const recalled = await runtime.engine.recall('runtime fact')
     expect(recalled.items.map((item) => item.id)).toContain(saved.id)
     expect(runtime.engine.dbPath.startsWith(root)).toBe(true)
 

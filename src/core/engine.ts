@@ -11,11 +11,23 @@
  * cross-project layer.
  */
 import { statSync } from 'node:fs'
+import { join } from 'node:path'
 
-import { mergeConfig, type MemoryConfig, type RecallScope } from './config.js'
-import { appendLog } from './log.js'
+import { mergeConfig, type MemoryConfig, type RecallScope, type RulesPromptScope } from './config.js'
+import { entryChunks } from './chunks.js'
+import { EmbeddingQueue, type EmbeddingQueueStatus } from './embed-queue.js'
+import { createEmbeddingProvider } from './embeddings.js'
+import {
+  removeModelCache,
+  scanModelCache,
+  sweepModelTempFiles,
+  type ModelCacheStatus,
+  type ModelDownloadProgress,
+} from './model-cache.js'
+import { appendLog, debug } from './log.js'
 import { sanitizeProjectKey } from './paths.js'
-import { DEFAULT_RANKING, rankItems, rankRulesBase, significantOverlapPairs } from './ranking.js'
+import { DEFAULT_RANKING, rankItems, rankItemsHybrid, rankRulesBase, semanticPairs, significantOverlapPairs } from './ranking.js'
+import type { SemanticPair } from './ranking.js'
 import { MemoryStore, genMemoryId, newMemoryEntry } from './store.js'
 import { buildGraph } from './wiki.js'
 import {
@@ -25,6 +37,7 @@ import {
   type ExternalIdResolution,
 } from './import/common.js'
 import type {
+  EmbeddingProvider,
   MemoryEntry,
   MemoryFilter,
   MemoryGraph,
@@ -34,17 +47,32 @@ import type {
   MemoryScope,
   MemoryStatus,
   MemoryTier,
+  VectorIndex,
 } from './types.js'
 import { clampImportance } from './types.js'
 
 /** Output format of `recall`. */
 export type RecallFormat = 'markdown' | 'table' | 'timeline' | 'json'
 
+/**
+ * Body detail of `recall`: `digest` (default) returns a short excerpt of every
+ * entry, `full` returns complete bodies, `excerpt` returns the passage that the
+ * vector leg actually matched. Recall output becomes part of the request history
+ * for the rest of the session, so the digest stays the default.
+ */
+export type RecallDetail = 'digest' | 'full' | 'excerpt'
+
 /** Number of significant common words required for a lint overlap pair. */
 const LINT_OVERLAP_MIN_SCORE = 0.45
 
 /** Age in days after which an active entry is reported as stale by lint. */
 const LINT_STALE_DAYS = 180
+
+/** Share of semantic pairs reported as near-duplicate candidates by lint. */
+const DUPLICATE_QUANTILE = 0.02
+
+/** Hard cap on the duplicate candidates one lint report returns. */
+const LINT_MAX_DUPLICATES = 25
 
 /** Construction options of {@link MemoryEngine}. */
 export interface MemoryEngineOptions {
@@ -61,6 +89,24 @@ export interface MemoryEngineOptions {
   resolveProjectRoot?: (key: string) => string | null | undefined
   /** Partial configuration merged over the defaults. */
   config?: Partial<MemoryConfig>
+  /**
+   * Embedding provider to use instead of building one from the configuration
+   * (tests inject an in-process provider; the plugin uses the worker-backed one).
+   */
+  embeddingProvider?: EmbeddingProvider
+  /**
+   * Drive the embedding queue by hand instead of letting it run in the
+   * background; tests use it to make a pass deterministic.
+   */
+  manualEmbeddings?: boolean
+}
+
+/** Per-call overrides for the rules/preferences digest of the system prompt. */
+export interface RulesPromptOptions {
+  /** Project key of the calling session; `undefined` means unknown. */
+  project?: string
+  /** Explicit project reach, overriding `config.rulesPromptScope`. */
+  scope?: RulesPromptScope
 }
 
 /** Input accepted by {@link MemoryEngine.save}. */
@@ -117,6 +163,7 @@ export interface RecallOptions {
   tier?: MemoryTier | 'all'
   limit?: number
   format?: RecallFormat
+  detail?: RecallDetail
 }
 
 /** Result of {@link MemoryEngine.recall}. */
@@ -137,6 +184,26 @@ export interface StatusReport {
   byScope: Record<string, number>
   byKind: Record<string, number>
   byProject: Record<string, number>
+  /** Progress of the vector index; null while the vector leg is off. */
+  vectors: EmbeddingQueueStatus | null
+}
+
+/** State of the embedding model shown by the settings page. */
+export interface ModelStatus extends ModelCacheStatus {
+  /** Configured embedding provider (`off`, `local` or the reserved `http`). */
+  provider: string
+  /** Configured model id. */
+  model: string
+  /** Whether the settings ask for semantic search at all (provider and backend). */
+  configured: boolean
+  /** Whether the vector leg is active right now; false also when the model is absent. */
+  enabled: boolean
+  /** Whether a download is running right now. */
+  downloading: boolean
+  /** Live download progress, or null when nothing is downloading. */
+  progress: ModelDownloadProgress | null
+  /** Message of the last failed download, or null. */
+  error: string | null
 }
 
 /** A link pointing at an entry that does not exist. */
@@ -174,6 +241,23 @@ export interface LintReport {
   overlapsHidden: number
   stale: LintStale[]
   staleDays: number
+  /**
+   * Near-duplicate candidates from vector similarity: the strongest semantic
+   * pairs of active entries, cut relatively (the top few percent of pairs).
+   */
+  duplicates: LintDuplicate[]
+  /** Characters the rules/preferences digest injects into every request. */
+  promptDigestChars: number
+}
+
+/** A pair of active entries that look like near duplicates. */
+export interface LintDuplicate {
+  id: string
+  title: string
+  duplicateId: string
+  duplicateTitle: string
+  /** Cosine similarity of the entry vectors. */
+  score: number
 }
 
 /** One entry accepted by {@link MemoryEngine.importEntries}. */
@@ -218,7 +302,10 @@ export interface HealReport {
   removedLinks: number
   /** Missing reverse links (`supersededBy` / symmetric `related`) added. */
   addedBacklinks: number
-  /** Number of entries rebuilt from markdown during reindex. */
+  /**
+   * Number of entries read back from markdown during the incremental reindex
+   * (0 when no page changed on disk).
+   */
   reindexed: number
   /** Broken link count before healing. */
   brokenBefore: number
@@ -239,21 +326,74 @@ function statusMarkers(entry: MemoryEntry): string {
   return markers.length > 0 ? ` ${markers.join(' ')}` : ''
 }
 
-/** Render a single entry as a markdown section (English). */
-export function renderMemoryEntry(entry: MemoryEntry): string {
+/**
+ * Cut `text` to `maxChars` characters, appending an ellipsis when something was
+ * dropped. A negative budget means "no limit".
+ */
+function cutText(text: string, maxChars: number): string {
+  if (maxChars < 0 || text.length <= maxChars) return text
+  return `${text.slice(0, maxChars).trimEnd()}…`
+}
+
+/**
+ * Render a single entry as a markdown section (English).
+ *
+ * `textChars` (>= 0) caps the body: recall output stays in the request history
+ * for the whole session, so the default rendering shows an excerpt and the
+ * model asks for `detail: "full"` when it needs the rest. `bodyOverride` replaces
+ * the entry body — the excerpt mode passes the passage the vector leg matched.
+ */
+export function renderMemoryEntry(entry: MemoryEntry, textChars?: number, bodyOverride?: string): string {
   const lines = [
     `### ${entry.title}${statusMarkers(entry)}`,
     `- id: \`${entry.id}\` · scope: ${entry.scope} · kind: ${entry.kind} · importance: ${entry.importance}/5 · updated: ${entry.updatedAt.slice(0, 10)}`,
     `- tags: ${entry.tags.length > 0 ? entry.tags.join(', ') : '—'}`,
   ]
   if (entry.supersedes.length > 0) lines.push(`- supersedes: ${entry.supersedes.join(', ')}`)
-  lines.push('', entry.text)
+  const source = bodyOverride !== undefined && bodyOverride.length > 0 ? bodyOverride : entry.text
+  const body = textChars === undefined ? source : cutText(source, textChars)
+  lines.push('', body)
   return lines.join('\n')
 }
 
+/** How {@link renderRecall} should bound one rendering. */
+export interface RecallRenderOptions {
+  /** Body detail: `digest` (default) excerpts every body, `full` keeps it whole. */
+  detail?: RecallDetail
+  /** Character budget of one entry body in `digest` mode. */
+  textChars?: number
+  /** Hard character budget of the whole rendering. */
+  totalChars?: number
+  /**
+   * Bodies to use instead of `entry.text`, keyed by entry id. The excerpt mode
+   * fills it with the passage the vector leg matched.
+   */
+  excerpts?: ReadonlyMap<string, string>
+}
+
+/**
+ * Append the notice that tells the model how to recover cut content.
+ *
+ * The notice is one line at the end of the rendering instead of a marker per
+ * entry: every byte here is re-sent in each later request of the session.
+ */
+function withTruncationNotice(text: string, detail: RecallDetail, textChars: number, cutEntries: number): string {
+  if (cutEntries === 0) return text
+  const what = cutEntries === 1 ? '1 entry body was' : `${cutEntries} entry bodies were`
+  return `${text}\n\n_[${what} cut to ${textChars} characters. Call llm_memory_recall with detail: "full" to read complete bodies.]_`
+}
+
 /** Render a list of entries in the requested output format. */
-export function renderRecall(items: MemoryEntry[], format: RecallFormat = 'markdown'): string {
+export function renderRecall(
+  items: MemoryEntry[],
+  format: RecallFormat = 'markdown',
+  options: RecallRenderOptions = {},
+): string {
+  const detail: RecallDetail = options.detail ?? 'digest'
+  const textChars = options.textChars ?? 400
   const confidenceOf = (entry: MemoryEntry): number => Math.round((entry.confidence ?? 0.5) * 1000) / 1000
+  let rendered: string
+  let cutEntries = 0
   if (format === 'table') {
     const header = ['id', 'scope', 'kind', 'tier', 'importance', 'updated', 'title']
     const rows: string[][] = [header]
@@ -272,16 +412,14 @@ export function renderRecall(items: MemoryEntry[], format: RecallFormat = 'markd
     const renderRow = (row: string[]): string =>
       `| ${row.map((cell, index) => (cell ?? '').padEnd(widths[index] ?? 0)).join(' | ')} |`
     const separator = `|${widths.map((width) => '-'.repeat(width + 2)).join('|')}|`
-    return [renderRow(header), separator, ...rows.slice(1).map(renderRow)].join('\n')
-  }
-  if (format === 'timeline') {
-    return [...items]
+    rendered = [renderRow(header), separator, ...rows.slice(1).map(renderRow)].join('\n')
+  } else if (format === 'timeline') {
+    rendered = [...items]
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .map((entry) => `- ${entry.updatedAt.slice(0, 10)} [${entry.scope}/${entry.kind}] ${entry.title} (${entry.id})`)
       .join('\n')
-  }
-  if (format === 'json') {
-    return JSON.stringify(
+  } else if (format === 'json') {
+    rendered = JSON.stringify(
       items.map((entry) => ({
         id: entry.id,
         title: entry.title,
@@ -301,8 +439,23 @@ export function renderRecall(items: MemoryEntry[], format: RecallFormat = 'markd
       null,
       2,
     )
+  } else {
+    const bodyBudget = detail === 'full' ? -1 : textChars
+    const bodies = items.map((entry) => options.excerpts?.get(entry.id) ?? entry.text)
+    cutEntries = bodyBudget < 0 ? 0 : bodies.filter((body) => body.length > bodyBudget).length
+    rendered = items
+      .map((entry) => renderMemoryEntry(entry, bodyBudget < 0 ? undefined : bodyBudget, options.excerpts?.get(entry.id)))
+      .join('\n\n')
+    if (options.excerpts !== undefined && options.excerpts.size > 0) {
+      rendered += '\n\n_[Entries above show the passage that matched the query; call llm_memory_recall with detail: "full" for complete bodies.]_'
+    }
   }
-  return items.map(renderMemoryEntry).join('\n\n')
+  const total = options.totalChars ?? 0
+  const bounded = withTruncationNotice(rendered, detail, textChars, cutEntries)
+  if (total > 0 && bounded.length > total) {
+    return `${cutText(bounded, total)}\n\n_[Recall output cut to ${total} characters.]_`
+  }
+  return bounded
 }
 
 /**
@@ -316,6 +469,24 @@ export class MemoryEngine {
   readonly project: string
   private readonly store: MemoryStore
   private readonly externalResolver?: (key: string) => string | null | undefined
+  private readonly injectedProvider?: EmbeddingProvider
+  private readonly manualEmbeddings: boolean
+  /** Lazy vector stack: provider, index and the background embedding queue. */
+  private vectors: { provider: EmbeddingProvider; index: VectorIndex; queue: EmbeddingQueue } | null = null
+  /** Set when the vector leg cannot be built, so it is not retried per call. */
+  private vectorUnavailable = false
+  /** Provider kept for downloads even while the vector leg is off. */
+  private modelProvider: EmbeddingProvider | null = null
+  /** The model is configured but not in the cache: the settings page must fetch it. */
+  private modelMissing = false
+  /** Model cache and download state shown by the settings page. */
+  private modelState: {
+    downloading: boolean
+    progress: ModelDownloadProgress | null
+    error: string | null
+  } = { downloading: false, progress: null, error: null }
+  /** Consecutive failures of the query-embedding path. */
+  private vectorFailures = 0
 
   constructor(options: MemoryEngineOptions = {}) {
     this.config = mergeConfig({
@@ -324,8 +495,304 @@ export class MemoryEngine {
       ...(options.projectRoots !== undefined ? { projectRoots: options.projectRoots } : {}),
     })
     this.project = sanitizeProjectKey(options.project ?? '')
-    this.store = new MemoryStore({ storageRoot: this.config.storageRoot })
+    this.store = new MemoryStore({
+      storageRoot: this.config.storageRoot,
+      scanBudgetMs: this.config.projectScanBudgetMs,
+      // Loading the extension has to be allowed when the connection is created.
+      allowExtension: this.config.embeddings.backend === 'sqlite-vec',
+    })
     if (options.resolveProjectRoot) this.externalResolver = options.resolveProjectRoot
+    if (options.embeddingProvider) this.injectedProvider = options.embeddingProvider
+    this.manualEmbeddings = options.manualEmbeddings === true
+  }
+
+  /** Whether the settings (or an injected provider) ask for semantic search. */
+  private vectorsConfigured(): boolean {
+    if (this.injectedProvider) return true
+    const settings = this.config.embeddings
+    return settings.provider !== 'off' && settings.backend !== 'off'
+  }
+
+  /**
+   * Provider for the vector leg and for model downloads.
+   *
+   * Cached so a download that ran while the vector leg was off (no model in the
+   * cache) is reused once the model is there.
+   */
+  private resolveProvider(): EmbeddingProvider | null {
+    if (this.vectors) return this.vectors.provider
+    if (this.modelProvider) return this.modelProvider
+    const settings = this.config.embeddings
+    const provider =
+      this.injectedProvider ??
+      (settings.provider === 'off' || settings.provider === 'http'
+        ? null
+        : createEmbeddingProvider(settings, { cacheDir: this.modelCacheDir(), debug }))
+    if (provider) this.modelProvider = provider
+    return provider
+  }
+
+  /**
+   * Whether the local model is on disk; a missing one keeps the vector leg off.
+   *
+   * Downloading it implicitly would block every recall on a 130 MB transfer (and
+   * on a restart it would start over), so an explicit download from the settings
+   * page is the only path that fetches the model.
+   */
+  private modelAvailable(provider: EmbeddingProvider): boolean {
+    if (!provider.id.startsWith('local')) return true
+    return scanModelCache(this.modelCacheDir(), provider.model).cached
+  }
+
+  /**
+   * Build the vector stack on first use.
+   *
+   * Every failure path — the optional dependency is missing, the worker cannot
+   * start, the settings disable vectors, the model is not downloaded — leaves
+   * `vectors` null, so a broken embedding setup degrades to the lexical path
+   * instead of breaking recall.
+   */
+  private ensureVectors(): { provider: EmbeddingProvider; index: VectorIndex; queue: EmbeddingQueue } | null {
+    if (this.vectors) return this.vectors
+    if (this.vectorUnavailable) return null
+    const settings = this.config.embeddings
+    if (!this.injectedProvider && (settings.provider === 'off' || settings.backend === 'off')) {
+      this.vectorUnavailable = true
+      return null
+    }
+    try {
+      const provider = this.resolveProvider()
+      if (!provider) {
+        this.vectorUnavailable = true
+        return null
+      }
+      if (!this.modelAvailable(provider)) {
+        this.modelMissing = true
+        debug(
+          `embeddings: ${provider.model} is not in the cache; semantic search stays off until it is downloaded from the settings page`,
+        )
+        return null
+      }
+      const index = this.store.initVectorIndex({
+        model: provider.model,
+        dim: provider.dim,
+        backend: settings.backend,
+        quantization: settings.quantization,
+      })
+      if (!index) {
+        this.vectorUnavailable = true
+        return null
+      }
+      const queue = new EmbeddingQueue({
+        store: this.store,
+        index,
+        provider,
+        config: settings,
+        debug,
+        manual: this.manualEmbeddings,
+      })
+      this.store.onEntryChanged = (id) => queue.enqueue([id])
+      this.vectors = { provider, index, queue }
+      if (settings.prewarm && !this.manualEmbeddings) queue.start()
+      return this.vectors
+    } catch (error) {
+      this.vectorUnavailable = true
+      debug(`vectors: disabled (${error instanceof Error ? error.message : String(error)})`)
+      return null
+    }
+  }
+
+  /** Start the vector leg in the background (plugin startup); idempotent. */
+  startVectors(): void {
+    this.ensureVectors()
+  }
+
+  /** Progress of the vector index, or null when the vector leg is off. */
+  vectorStatus(): EmbeddingQueueStatus | null {
+    return this.vectors?.queue.status() ?? null
+  }
+
+  /** Directory the embedding model is cached in, inside the memory root. */
+  modelCacheDir(): string {
+    return join(this.store.root, '_models')
+  }
+
+  /**
+   * State of the embedding model: what is on disk and whether a download runs.
+   *
+   * Works even when the vector leg is off: the settings page still has to say
+   * what a click on "Download model" would do.
+   */
+  modelStatus(): ModelStatus {
+    const settings = this.config.embeddings
+    // Prefer the model the provider actually loads (an injected provider may
+    // differ from the configured one in tests).
+    const model = this.vectors?.provider.model ?? this.modelProvider?.model ?? settings.model
+    const cache = scanModelCache(this.modelCacheDir(), model)
+    return {
+      provider: settings.provider,
+      model,
+      configured: this.vectorsConfigured(),
+      enabled: this.vectors !== null,
+      dir: cache.dir,
+      cached: cache.cached,
+      files: cache.files,
+      bytes: cache.bytes,
+      downloading: this.modelState.downloading,
+      // Progress belongs to a running download; a plain prewarm of an already
+      // cached model would otherwise leave a stale 100 % behind.
+      progress: this.modelState.downloading ? this.modelState.progress : null,
+      error: this.modelState.error,
+    }
+  }
+
+  /**
+   * Download (and load) the embedding model in the background.
+   *
+   * `prewarm` runs inside the embedding worker, so the download neither blocks
+   * the host nor touches the vector index; progress streams through
+   * {@link modelStatus}. Calling it while a download runs is a no-op.
+   *
+   * @returns The state right after the download was started.
+   * @throws when the vector leg is disabled, because nothing would use the model.
+   */
+  downloadModel(): ModelStatus {
+    const settings = this.config.embeddings
+    if (!this.vectorsConfigured()) {
+      throw new Error(
+        'Vector search is disabled: switch the embeddings provider to "local" and the backend away from "off" first.',
+      )
+    }
+    const provider = this.resolveProvider()
+    if (!provider) {
+      throw new Error('No embedding provider is available; install @huggingface/transformers and retry.')
+    }
+    if (this.modelState.downloading) return this.modelStatus()
+
+    const model = provider.model
+    const cache = scanModelCache(this.modelCacheDir(), model)
+    if (!cache.cached) {
+      // A model already in memory would make `prewarm` return without fetching
+      // anything, and leftovers of a killed download are useless to the loader.
+      const swept = sweepModelTempFiles(this.modelCacheDir(), model)
+      if (swept.files > 0) {
+        debug(`embeddings: removed ${swept.files} partial downloads (${swept.bytes} bytes) of ${model}`)
+      }
+      provider.reload?.()
+      debug(`embeddings: reloading ${model}, the cache is incomplete`)
+    }
+
+    this.modelState = { downloading: true, progress: null, error: null }
+    provider.watchProgress?.((progress) => {
+      this.modelState.progress = progress
+    })
+    void provider
+      .prewarm()
+      .then(() => {
+        const after = scanModelCache(this.modelCacheDir(), model)
+        if (after.cached || !provider.id.startsWith('local')) {
+          this.modelState = { downloading: false, progress: null, error: null }
+          this.modelMissing = false
+          // The model arrived now: let the vector leg come up without a restart.
+          this.vectorUnavailable = false
+          this.startVectors()
+          debug(`embeddings: ${model} is cached and loaded`)
+        } else {
+          this.modelState = {
+            downloading: false,
+            progress: null,
+            error: `No model files were written to ${after.dir}; check the network and the plugin log.`,
+          }
+          debug(`embeddings: ${this.modelState.error}`)
+        }
+      })
+      .catch((error: unknown) => {
+        this.modelState = {
+          downloading: false,
+          progress: null,
+          error: error instanceof Error ? error.message : String(error),
+        }
+        debug(`embeddings: model download failed (${this.modelState.error})`)
+      })
+      .finally(() => {
+        provider.watchProgress?.(null)
+      })
+    return this.modelStatus()
+  }
+
+  /**
+   * Delete the cached model files (settings action).
+   *
+   * The next load downloads them again; the vector index itself is untouched.
+   *
+   * @returns The cache state after the removal.
+   */
+  removeModel(): ModelStatus {
+    const settings = this.config.embeddings
+    removeModelCache(this.modelCacheDir(), this.vectors?.provider.model ?? settings.model)
+    this.modelState = { downloading: false, progress: null, error: null }
+    return this.modelStatus()
+  }
+
+  /** Drop the vector cache and queue a full re-embed (settings action). */
+  rebuildVectors(): void {
+    const vectors = this.ensureVectors()
+    if (!vectors) return
+    vectors.index.clear()
+    vectors.queue.sweep()
+  }
+
+  /**
+   * Drive the embedding queue to completion (tests, maintenance and the
+   * backfill script, which passes one slice of ids at a time to report progress).
+   */
+  async embedPending(ids?: readonly string[]): Promise<void> {
+    const vectors = this.ensureVectors()
+    if (!vectors) return
+    await vectors.queue.processAll(ids)
+  }
+
+  /**
+   * Cosine similarity of the query against the indexed chunks, per entry, with
+   * the chunk that produced the best score (used by the excerpt mode).
+   */
+  private async semanticRanks(
+    query: string,
+    filter: MemoryFilter,
+  ): Promise<{ scores: Map<string, number>; chunks: Map<string, number> }> {
+    const scores = new Map<string, number>()
+    const chunks = new Map<string, number>()
+    const text = (query ?? '').trim()
+    if (text.length === 0) return { scores, chunks }
+    const vectors = this.ensureVectors()
+    if (!vectors) return { scores, chunks }
+    try {
+      const batch = await vectors.provider.embed([text], 'query')
+      const vector = batch.vectors[0]
+      if (!vector) return { scores, chunks }
+      const matches = vectors.index.search({
+        vector,
+        limit: this.config.embeddings.topK,
+        filter,
+        minScore: this.config.embeddings.minScore,
+      })
+      for (const match of matches) {
+        const previous = scores.get(match.entryId)
+        if (previous === undefined || previous < match.score) {
+          scores.set(match.entryId, match.score)
+          chunks.set(match.entryId, match.chunkIndex)
+        }
+      }
+      this.vectorFailures = 0
+    } catch (error) {
+      this.vectorFailures++
+      debug(`vectors: query embedding failed (${error instanceof Error ? error.message : String(error)})`)
+      if (this.vectorFailures >= 3) {
+        this.vectorUnavailable = true
+        debug('vectors: disabled after 3 consecutive query failures; lexical search stays active')
+      }
+    }
+    return { scores, chunks }
   }
 
   /**
@@ -523,10 +990,17 @@ export class MemoryEngine {
     return this.store.list(filter)
   }
 
-  /** Search active entries and rank them; returns the items and their rendering. */
-  recall(query = '', options: RecallOptions = {}): RecallResult {
+  /**
+   * Search active entries and rank them; returns the items and their rendering.
+   *
+   * Asynchronous because the vector leg embeds the query; the lexical and
+   * metadata parts stay synchronous behind it, and a missing or failing vector
+   * leg simply contributes nothing to the fusion.
+   */
+  async recall(query = '', options: RecallOptions = {}): Promise<RecallResult> {
     const scope: RecallScope = options.scope ?? this.config.recallScope
     const format: RecallFormat = options.format ?? 'markdown'
+    const detail: RecallDetail = options.detail ?? 'digest'
     const limit = Math.max(1, options.limit ?? this.config.recallLimit)
     const text = (query ?? '').trim()
 
@@ -534,27 +1008,78 @@ export class MemoryEngine {
     if (options.kind && options.kind !== 'all') base.kind = options.kind
     if (options.tier && options.tier !== 'all') base.tier = options.tier
 
-    let candidates: MemoryEntry[]
+    // The project layer means the calling session's project PLUS the
+    // cross-project user layer, so user-wide rules and preferences are always
+    // visible while entries of foreign projects stay hidden.
+    const filters: MemoryFilter[] = []
     if (scope === 'project') {
-      // The project layer means the calling session's project PLUS the
-      // cross-project user layer, so user-wide rules and preferences are always
-      // visible while entries of foreign projects stay hidden.
       const key =
         options.project && options.project !== 'all' ? sanitizeProjectKey(options.project) : this.project
-      candidates = [
-        ...this.store.search(text, { ...base, scope: 'project', project: key }),
-        ...this.store.search(text, { ...base, scope: 'user' }),
-      ]
+      filters.push({ ...base, scope: 'project', project: key }, { ...base, scope: 'user' })
     } else {
       const filter: MemoryFilter = { ...base }
       if (scope === 'user') filter.scope = 'user'
       if (options.project && options.project !== 'all') filter.project = options.project
-      candidates = this.store.search(text, filter)
+      filters.push(filter)
     }
 
-    const ranked = rankItems(candidates, query, DEFAULT_RANKING, scope)
-    const items = ranked.slice(0, limit)
-    return { items, text: renderRecall(items, format), format }
+    const items = new Map<string, MemoryEntry>()
+    const bm25 = new Map<string, number>()
+    const semantic = new Map<string, number>()
+    const semanticChunks = new Map<string, number>()
+    for (const filter of filters) {
+      const lexical = this.store.searchRanked(text, filter)
+      for (const item of lexical.items) items.set(item.id, item)
+      for (const [id, score] of lexical.ranks) {
+        bm25.set(id, Math.max(bm25.get(id) ?? Number.NEGATIVE_INFINITY, score))
+      }
+      const vector = await this.semanticRanks(text, filter)
+      for (const [id, score] of vector.scores) {
+        const previous = semantic.get(id)
+        if (previous === undefined || previous < score) {
+          semantic.set(id, score)
+          const chunkIndex = vector.chunks.get(id)
+          if (chunkIndex !== undefined) semanticChunks.set(id, chunkIndex)
+        }
+      }
+    }
+    // A semantic hit outside the lexical result set still has to be fetched.
+    for (const id of semantic.keys()) {
+      if (items.has(id)) continue
+      const entry = this.store.get(id)
+      if (entry) items.set(id, entry)
+    }
+
+    const candidates = [...items.values()]
+    const ranked =
+      text.length === 0
+        ? rankItems(candidates, query, DEFAULT_RANKING, scope)
+        : rankItemsHybrid(candidates, query, DEFAULT_RANKING, scope, bm25, semantic)
+    const rankedItems = ranked.slice(0, limit)
+
+    // The excerpt mode returns the passage the vector leg matched rather than
+    // the head of the body; it stays inside the same per-entry character budget.
+    let excerpts: Map<string, string> | undefined
+    if (detail === 'excerpt') {
+      excerpts = new Map()
+      for (const entry of rankedItems) {
+        const chunkIndex = semanticChunks.get(entry.id)
+        if (chunkIndex === undefined) continue
+        const chunk = entryChunks(entry, this.config.embeddings).find((item) => item.chunkIndex === chunkIndex)
+        if (chunk) excerpts.set(entry.id, chunk.body)
+      }
+    }
+
+    return {
+      items: rankedItems,
+      text: renderRecall(rankedItems, format, {
+        detail,
+        textChars: this.config.recallTextChars,
+        totalChars: this.config.recallTotalChars,
+        ...(excerpts ? { excerpts } : {}),
+      }),
+      format,
+    }
   }
 
   /** Counters by scope/kind/status plus storage paths and database size. */
@@ -580,6 +1105,7 @@ export class MemoryEngine {
       byScope,
       byKind,
       byProject,
+      vectors: this.vectorStatus(),
     }
   }
 
@@ -632,23 +1158,89 @@ export class MemoryEngine {
       overlapsHidden: Math.max(0, pairs.length - limited.length),
       stale,
       staleDays: LINT_STALE_DAYS,
+      duplicates: this.duplicateCandidates(active),
+      promptDigestChars: this.rulesForPrompt().length,
     }
+  }
+
+  /**
+   * Near-duplicate candidates: the strongest semantic pairs of the given
+   * entries. The cut is relative — the top {@link DUPLICATE_QUANTILE} of pairs —
+   * so it adapts to the store instead of relying on an absolute cosine value.
+   */
+  private duplicateCandidates(entries: readonly MemoryEntry[]): LintDuplicate[] {
+    const pairs = this.semanticNeighbours(entries)
+    if (pairs.length === 0) return []
+    const cut = pairs[Math.max(0, Math.floor(pairs.length * DUPLICATE_QUANTILE))]?.score ?? pairs[0]!.score
+    const byId = new Map(entries.map((entry) => [entry.id, entry]))
+    const duplicates: LintDuplicate[] = []
+    for (const pair of pairs) {
+      if (pair.score < cut) break
+      const left = byId.get(pair.left)
+      const right = byId.get(pair.right)
+      if (!left || !right) continue
+      duplicates.push({
+        id: left.id,
+        title: left.title,
+        duplicateId: right.id,
+        duplicateTitle: right.title,
+        score: Math.round(pair.score * 1000) / 1000,
+      })
+      if (duplicates.length >= LINT_MAX_DUPLICATES) break
+    }
+    return duplicates
+  }
+
+  /**
+   * Semantic neighbours of the given entries, or an empty list when the vector
+   * leg is off. The cut is relative (see `semanticPairs`), which is why the
+   * caller passes the candidate set rather than a score threshold.
+   */
+  private semanticNeighbours(entries: readonly MemoryEntry[]): SemanticPair[] {
+    const vectors = this.ensureVectors()
+    if (!vectors) return []
+    const ids = new Set(entries.map((entry) => entry.id))
+    const entryVectors = new Map<string, Float32Array>()
+    for (const [id, vector] of vectors.index.entryVectors()) {
+      if (ids.has(id)) entryVectors.set(id, vector)
+    }
+    if (entryVectors.size < 2) return []
+    return semanticPairs(entryVectors, {
+      perEntry: this.config.embeddings.semanticEdgesPerEntry,
+      maxPairs: this.config.embeddings.semanticMaxEdges,
+    })
   }
 
   /** Heuristic knowledge graph over all entries (nodes) and their relations. */
   graph(): MemoryGraph {
     const entries = this.store.list({ status: 'all' }).items
-    return buildGraph(entries, { overlapMinCommonWords: this.config.lintOverlapMinCommonWords })
+    return buildGraph(entries, {
+      overlapMinCommonWords: this.config.lintOverlapMinCommonWords,
+      semanticPairs: this.semanticNeighbours(entries),
+    })
   }
 
   /**
    * Compact English digest of active rules/preferences for the system prompt.
    * Returns an empty string when there is nothing to inject.
+   *
+   * The digest is rebuilt on every prompt assembly, so it stays deliberately
+   * small: `config.promptRulesLimit` bounds the number of lines and
+   * `config.rulesPromptScope` decides whether rules of other projects may
+   * appear. With the `project` scope the user layer is always kept, and the
+   * caller's project is kept when {@link RulesPromptOptions.project} is known;
+   * an unknown project falls back to every project (the pre-0.1.2 behaviour).
    */
-  rulesForPrompt(limit = this.config.recallLimit): string {
+  rulesForPrompt(limit = this.config.promptRulesLimit, options: RulesPromptOptions = {}): string {
+    const scope: RulesPromptScope = options.scope ?? this.config.rulesPromptScope
+    const project = options.project
     const items = this.store
       .list({ status: 'active' })
-      .items.filter((entry) => entry.kind === 'rules' || entry.kind === 'preferences')
+      .items.filter((entry) => {
+        if (entry.kind !== 'rules' && entry.kind !== 'preferences') return false
+        if (scope === 'all' || project === undefined) return true
+        return entry.scope === 'user' || entry.project === project
+      })
     if (items.length === 0) return ''
     const ranked = rankRulesBase(items, DEFAULT_RANKING).slice(0, Math.max(1, limit))
     const lines = ['Long-term memory: rules and preferences (respect these).']
@@ -741,8 +1333,9 @@ export class MemoryEngine {
 
   /**
    * Safe health repair: drop broken relation references, add missing reverse
-   * links (`supersededBy` for `supersedes`, symmetric `related`), then rebuild
-   * the derived index from the markdown pages.
+   * links (`supersededBy` for `supersedes`, symmetric `related`), then refresh
+   * the derived index incrementally — only pages whose size or mtime changed
+   * since the last pass are read again.
    *
    * Non-destructive: no entry is deleted and no status is changed.
    */
@@ -804,14 +1397,32 @@ export class MemoryEngine {
       this.store.upsert(entry)
     }
 
-    const reindexed = this.store.reindexFromDisk()
+    // Refresh the index incrementally: pages that did not change on disk are
+    // skipped by their stored size+mtime, so a heal with no external edits
+    // reads no page at all.
+    const reconciled = this.store.reconcileFromDisk()
     const brokenAfter = this.lintReport().brokenLinks.length
-    appendLog(this.root, 'heal', `removed=${removedLinks} added=${addedBacklinks} reindexed=${reindexed}`)
-    return { removedLinks, addedBacklinks, reindexed, brokenBefore, brokenAfter }
+    appendLog(
+      this.root,
+      'heal',
+      `removed=${removedLinks} added=${addedBacklinks} reindexed=${reconciled.read} (${reconciled.mode})`,
+    )
+    return { removedLinks, addedBacklinks, reindexed: reconciled.read, brokenBefore, brokenAfter }
   }
 
-  /** Close the underlying database connection. */
+  /** Stop the embedding queue and close the underlying database connection. */
   close(): void {
+    const vectors = this.vectors
+    const modelProvider = this.modelProvider
+    this.vectors = null
+    this.modelProvider = null
+    this.store.onEntryChanged = null
+    if (vectors) {
+      vectors.queue.stop()
+      vectors.provider.close?.()
+    }
+    // A provider kept for downloads (the vector leg was off) owns its own worker.
+    if (modelProvider && modelProvider !== vectors?.provider) modelProvider.close?.()
     this.store.close()
   }
 

@@ -28,6 +28,16 @@ const AUTONOMY_NOTE = 'Runs autonomously: never asks the user for confirmation.'
 /** Enum options for the `format` parameter of `memory_recall`. */
 const RECALL_FORMATS = ['markdown', 'table', 'timeline', 'json'] as const
 
+/**
+ * Enum options for the `detail` parameter of `memory_recall`.
+ *
+ * `digest` keeps the tool result small on purpose: it becomes part of the
+ * request history and is re-sent in every later request of the session.
+ * `excerpt` returns the passage the semantic search actually matched, which is
+ * usually more informative than the head of the body at the same budget.
+ */
+const RECALL_DETAILS = ['digest', 'full', 'excerpt'] as const
+
 /** Structural view of `ctx.sessions` limited to what a memory tool needs. */
 export interface SessionStoreLike {
   get(id: string): { header?: { cwd?: string } } | undefined
@@ -260,6 +270,8 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
       description:
         'Search long-term memory and return the most relevant entries, ranked for the current query. ' +
         'Call it before answering questions about user preferences, past decisions, project facts or earlier work. ' +
+        'Every result stays in the request history for the rest of the session, so the default `digest` detail returns a short excerpt per entry; ' +
+        'pass `detail: "excerpt"` to get the passage semantic search matched, or `detail: "full"` only when that is not enough. ' +
         'The default `markdown` rendering is human-readable; `table`, `timeline` and `json` are available for structured consumption. ' +
         AUTONOMY_NOTE,
       parameters: {
@@ -281,6 +293,14 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
           description: 'Restrict project entries to one project key (default: the current session project).',
         },
         limit: { type: 'integer', description: `Maximum number of entries to return (default ${defaultLimit}).` },
+        detail: {
+          type: 'string',
+          enum: [...RECALL_DETAILS],
+          description:
+            'Body detail: digest (default) returns a short excerpt of every entry, excerpt returns the passage the ' +
+            'semantic search matched (same character budget, usually the more useful part), full returns complete ' +
+            'bodies. Use full only for the one or two entries you actually need.',
+        },
         format: {
           type: 'string',
           enum: [...RECALL_FORMATS],
@@ -307,11 +327,12 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
         const projectKey = sessionProjectKey(ctx, exec)
         const project =
           args.project ?? (effectiveScope === 'project' && projectKey !== null ? projectKey : undefined)
-        const result = engine.recall(args.query, {
+        const result = await engine.recall(args.query, {
           ...(args.kind !== undefined ? { kind: args.kind } : {}),
           ...(args.scope !== undefined ? { scope: args.scope } : {}),
           ...(project !== undefined ? { project } : {}),
           ...(args.limit !== undefined ? { limit: args.limit } : {}),
+          ...(args.detail !== undefined ? { detail: args.detail } : {}),
           ...(args.format !== undefined ? { format: args.format } : {}),
         })
         return {
@@ -426,8 +447,8 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
     defineTool({
       name: 'llm_memory_status',
       description:
-        'Report memory storage statistics: storage root, database path and size, totals and ' +
-        'breakdowns by status, scope, kind and project. ' +
+        'Report memory storage statistics: storage root, database path and size, totals, ' +
+        'breakdowns by status, scope, kind and project, and the progress of the semantic vector index. ' +
         AUTONOMY_NOTE,
       parameters: {},
       output: {
@@ -464,9 +485,33 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
               required: true,
               description: 'Counts keyed by project.',
             },
+            vectors: {
+              type: 'object',
+              additionalProperties: false,
+              required: true,
+              description:
+                'Progress of the semantic index. `enabled: false` means recall works on lexical search (FTS5) only.',
+              properties: {
+                enabled: { type: 'boolean', required: true, description: 'Whether the vector leg is active.' },
+                model: { type: 'string', required: true, description: 'Embedding model identifier.' },
+                backend: { type: 'string', required: true, description: 'Vector backend (js, sqlite-vec or off).' },
+                entries: { type: 'integer', required: true, description: 'Entries with at least one indexed chunk.' },
+                chunks: { type: 'integer', required: true, description: 'Indexed chunks.' },
+                bytes: { type: 'integer', required: true, description: 'Approximate size of the stored vectors.' },
+                pending: { type: 'integer', required: true, description: 'Entries still waiting to be embedded.' },
+                embedded: { type: 'integer', required: true, description: 'Entries embedded in this process.' },
+                disabled: {
+                  type: 'boolean',
+                  required: true,
+                  description: 'Set when repeated embedding failures stopped indexing.',
+                },
+                lastError: { type: 'string', required: true, description: 'Last embedding error (empty when none).' },
+              },
+            },
           },
         },
         render: (_args, value) => {
+          const vectors = value.vectors
           const lines = [
             `Memory status: ${value.total} entries (${value.active} active).`,
             `- root: ${value.root}`,
@@ -475,12 +520,18 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
             `- by scope: ${formatCounts(value.byScope)}`,
             `- by kind: ${formatCounts(value.byKind)}`,
             `- by project: ${formatCounts(value.byProject)}`,
+            vectors.enabled
+              ? `- vectors: ${vectors.entries} entries / ${vectors.chunks} chunks ${vectors.model} (${vectors.backend}), ` +
+                `${vectors.pending} queued${vectors.disabled ? ', indexing disabled after failures' : ''}` +
+                `${vectors.lastError.length > 0 ? `, last error: ${vectors.lastError}` : ''}`
+              : '- vectors: off (lexical search only)',
           ]
           return [{ type: 'text', text: lines.join('\n') }]
         },
       },
       execute: async () => {
         const report = engine.statusReport()
+        const vectors = report.vectors
         return {
           root: report.root,
           dbPath: report.dbPath,
@@ -491,6 +542,18 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
           byScope: report.byScope,
           byKind: report.byKind,
           byProject: report.byProject,
+          vectors: {
+            enabled: vectors !== null,
+            model: vectors?.model ?? '',
+            backend: vectors?.backend ?? 'off',
+            entries: vectors?.entries ?? 0,
+            chunks: vectors?.chunks ?? 0,
+            bytes: vectors?.bytes ?? 0,
+            pending: vectors?.pending ?? 0,
+            embedded: vectors?.embedded ?? 0,
+            disabled: vectors?.disabled ?? false,
+            lastError: vectors?.lastError ?? '',
+          },
         }
       },
     }),

@@ -40,6 +40,12 @@ and can import existing memory from other plugins.
   absolute root through `projects.json` and the dsh workspace registry, so pages
   land inside the repository. A session without a working directory falls back to
   the `_no-cwd` placeholder.
+- **Incremental index refresh**: the FTS5 database stores each page's size and
+  mtime. A reindex (`llm_memory_heal`, startup after a legacy flat migration)
+  re-reads only pages that are new or changed — an unchanged page costs a single
+  `stat`, and a page edited outside the plugin is picked up by the next heal.
+  `scripts/bench-index.mjs` reports that cost per storage root, which matters on
+  slow mounts such as WSL `/mnt/c`.
 - **Scoped lite restrictions**: an agent preset can import
   `dsh-llm-memory/tool-restrict` to hide delete/status/lint/heal while the full
   preset and the WebUI/API keep all seven globally registered tools.
@@ -88,14 +94,40 @@ The package ships a bundle patch (`cordis.patch.yml`) and a browser client
 (`lib/client.js`), so the reconciler adds it to `dsh.profile.bundles`
 automatically. Restart dsh after installing.
 
+The package declares two optional dependencies (`optionalDependencies`):
+`@huggingface/transformers` (the local embedding model) and `sqlite-vec` (the
+SQL vector index). If the package manager skipped them, add them by hand:
+
+```sh
+cd ~/.dsh/profiles/web && pnpm add @huggingface/transformers sqlite-vec
+```
+
+The first semantic query downloads `Xenova/multilingual-e5-small` (~120 MB) into
+`<storageRoot>/_models` (that is `~/.dsh/llm-memory/_models`). Without these
+dependencies the plugin keeps working as before, on FTS5.
+
 ## Configuration
 
 Open **Settings → LLM Memory**. Values are applied on the next plugin restart.
+
+The page is drawn by the plugin's own client bundle (`client/client.js` →
+`lib/client.js`), so its field list lives there: a new schema setting needs a form
+entry, a save call through `scope.set` and markup. Schema fields are declared
+`volatile()` because dsh's settings service accepts edits only along volatile
+paths (`Config field … is not volatile` otherwise). Cordis hands volatile values
+over as reactive wrappers, so the plugin unwraps them (`unwrapSettings`) when
+`apply` starts and works with plain data afterwards.
+
+The embedding settings are **flat** in the schema and in the profile patch
+(`embeddingsProvider`, `embeddingsDim`, …); `toMemoryConfig` folds them back into
+the core shape (`embeddings: { provider, dim, … }`).
 
 | Option | Default | Description |
 | --- | --- | --- |
 | `storageRoot` | `$DSH_HOME/llm-memory` | Memory root (empty uses the default). |
 | `recallLimit` | `10` | Maximum entries returned by `llm_memory_recall`. |
+| `promptRulesLimit` | `6` | Maximum rules/preferences lines injected into the system prompt. The digest is part of every request, so keep it small. |
+| `rulesPromptScope` | `project` | Project reach of that digest: `project` keeps the cross-project `user` layer plus the current workspace, `all` keeps every project. |
 | `recallScope` | `project` | Default recall layer: `project` = the session project plus the cross-project `user` layer; `user` = user only; `all` = every project. |
 | `autonomous` | `true` | The agent manages memory without asking. |
 | `requireConfirmation` | `false` | Ask before irreversible operations. |
@@ -106,6 +138,19 @@ Open **Settings → LLM Memory**. Values are applied on the next plugin restart.
 | `lintMaxPairs` | `200` | Maximum pairs checked by lint (0 = unlimited). |
 | `webPath` | `/llm-memory` | Base HTTP path for the WebUI and the API. |
 | `rulesSource` | `bundled-en` | Rules export source: canonical bundled English AGENTS.md or `kilo-verbatim` (both source files). |
+| `embeddingsProvider` | `local` | Embedding source: `off` (lexical FTS5 only), `local` (in-process multilingual model), `http` (reserved, not implemented yet). |
+| `embeddingsModel` | `Xenova/multilingual-e5-small` | Embedding model id (a transformers.js model for `local`). |
+| `embeddingsDim` | `384` | Vector length; vectors of another length are rebuilt. |
+| `embeddingsBackend` | `js` | Where neighbours are found: `js` (in-process scan), `sqlite-vec` (KNN in SQL, needs the `sqlite-vec` package) or `off`. |
+| `embeddingsQuantization` | `float` | Storage precision of `sqlite-vec`: `float`, `int8` (4× smaller) or `bit` (32× smaller, but noticeably lossier). |
+| `embeddingsTopK` | `50` | Chunk hits the vector leg contributes before rank fusion with FTS5. |
+| `embeddingsMinScore` | `0` | Minimum cosine of a vector hit; e5 cosine is compressed, so keeping 0 and relying on ranking is safer. |
+| `embeddingsBatchSize` | `16` | Texts embedded per model call while indexing. |
+| `embeddingsChunkChars` | `800` | Target characters per chunk. |
+| `embeddingsChunkOverlap` | `120` | Overlap between neighbouring chunks (capped at half the chunk size). |
+| `embeddingsSemanticEdgesPerEntry` | `3` | Semantic neighbours per entry kept in the Wiki graph. |
+| `embeddingsSemanticMaxEdges` | `300` | Overall cap on those edges. |
+| `embeddingsPrewarm` | `true` | Load the model in the background at startup rather than on the first query. |
 
 ### Startup-only profile option
 
@@ -180,3 +225,73 @@ tests/             vitest suites
 - Running several dsh instances at once can rewrite the same state; keep one
   process. After a hard stop, remove a stale `~/.dsh/.credentials.yaml.lock` if
   the next start fails to boot.
+
+## Semantic search (vector RAG)
+
+Recall fuses three legs through Reciprocal Rank Fusion: FTS5 (BM25), entry
+metadata and cosine similarity over chunk vectors. Metadata carries a much lower
+weight (0.1): it is query-independent and only breaks ties — on a real store, at
+weight 1.0 it pushed relevant hits out of the top of the ranking.
+
+How it works:
+
+- Embeddings come from the local `Xenova/multilingual-e5-small` model (384
+  dimensions, q8) through `@huggingface/transformers`; the model is cached in
+  `<storageRoot>/_models`, and no API key or network is needed after the first
+  download. Press **Download model** on the **Settings → LLM Memory** page (about
+  130 MB, with a percentage, next to Check again and Delete cached model) instead
+  of fetching it by hand; the download runs in a worker thread, so dsh stays
+  responsive. The offline route still works: drop the same files into
+  `<storageRoot>/_models/Xenova/multilingual-e5-small`. Until the model is there,
+  search runs on FTS5.
+- ONNX inference does not yield the event loop (measured: a 64-text batch took
+  3.4 s with a single timer tick), so indexing runs in a worker thread and never
+  blocks dsh; a query is embedded in process (~19 ms).
+- Pages are split into sentence-aligned chunks (`chunkChars`/`chunkOverlap`); the
+  embedded text is the title plus the chunk body, and a chunk's identity hashes
+  its text and the model, so unchanged chunks are never re-embedded and a model
+  change invalidates the vectors by itself.
+- Vectors live in `memory_vectors` (the canonical float32 cache). The
+  `sqlite-vec` backend also mirrors them into a `vec0` table: KNN in SQL, filters
+  by project/scope/kind/tier/status and optional quantization.
+- Switching backends re-embeds nothing — the derived table is rebuilt from the
+  cache. Switching the model re-embeds the entries.
+
+Measurements from 2026-10-15 (WSL2, Linux x64, Node v24.20.0, CPU) on a copy of
+the live store — 1059 entries, 3217 chunks × 384 dimensions:
+
+| What | Value |
+| --- | --- |
+| In-process scan (`js`) | 24.0 ms average, p95 49.4 ms |
+| `sqlite-vec` float | 11.6 ms, p95 22.1 ms, 100 % agreement with `js`, 4.71 MB |
+| `sqlite-vec` int8 | 5.0 ms, p95 8.8 ms, 94.3 % agreement, 1.18 MB |
+| `sqlite-vec` bit | 1.8 ms, 39.6 % agreement, 0.15 MB (expert mode) |
+| Backfill of an existing store | 1056 entries → 3210 chunks, 4.70 MB, about 9 minutes on CPU |
+| Recall self-retrieval hit@1 / hit@5 (40 samples, k=5) | lexical 70 % / 100 %, hybrid 92.5 % / 100 % |
+
+Helper scripts (they need `pnpm build`):
+
+```sh
+# fill vectors of a store created before RAG (working on a copy)
+node scripts/backfill-vectors.mjs --copy --keep
+# compare the backends and the quantization levels
+node scripts/bench-vector.mjs --root /tmp/llm-memory-backfill-XXXX
+# compare lexical and semantic retrieval
+node scripts/bench-recall.mjs --root /tmp/llm-memory-backfill-XXXX --samples 40
+```
+
+What semantics adds beyond recall:
+
+- `detail: "excerpt"` in `llm_memory_recall` returns the passage the vector leg
+  matched instead of the head of the body, inside the same character budget.
+- The Wiki graph gains `related` edges from cosine similarity (a relative cut:
+  top-N neighbours per entry), and lint gains merge candidates plus the size of
+  the prompt digest.
+- e5 cosine is compressed (related ~0.91, unrelated ~0.74), so every threshold in
+  this plugin is a relative rule rather than an absolute value.
+
+Degradation: with `provider: off`, a missing `@huggingface/transformers`, a
+failing worker or an extension that cannot load, the plugin falls back to FTS5;
+`llm_memory_status`, `/api/status` and the Health panel show indexing progress
+and the last error. Switching the backend to `sqlite-vec` needs a plugin
+restart: extension loading is only allowed when the connection is created.

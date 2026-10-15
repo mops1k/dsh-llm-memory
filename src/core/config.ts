@@ -6,10 +6,17 @@
  * top of {@link MemoryConfig}; this module only provides defaults and a tolerant
  * merge helper.
  */
-import type { MemoryScope } from './types.js'
+import type { EmbeddingProviderMode, MemoryScope, VectorBackend, VectorQuantization } from './types.js'
 
 /** Recall scope accepted by the engine. */
 export type RecallScope = MemoryScope | 'all'
+
+/**
+ * Project reach of the rules/preferences digest injected into the system prompt:
+ * `project` keeps the cross-project user layer plus the calling session's
+ * project, `all` keeps every project (the pre-0.1.2 behaviour).
+ */
+export type RulesPromptScope = 'project' | 'all'
 
 /**
  * Source used by the "export rules to dsh AGENTS.md" action:
@@ -18,12 +25,104 @@ export type RecallScope = MemoryScope | 'all'
  */
 export type RulesSourceMode = 'bundled-en' | 'kilo-verbatim'
 
+/**
+ * Vector (semantic) retrieval settings: where embeddings come from, how entry
+ * bodies are chunked and which backend stores the vectors.
+ *
+ * The defaults target one local multilingual model (`Xenova/multilingual-e5-small`,
+ * 384 dimensions, quantized) so Russian and English pages of the same store are
+ * embedded by one model and no API is required. The e5 family expects the
+ * `query:` / `passage:` prefixes, which is why both are configurable.
+ */
+export interface EmbeddingConfig {
+  /**
+   * Embedding source; `off` keeps lexical FTS5 search only.
+   *
+   * The core default is `off`: a bare `MemoryEngine` (tests, embedders) must not
+   * download a model. The dsh settings schema defaults to `local`, so the plugin
+   * ships with semantic search enabled.
+   */
+  provider: EmbeddingProviderMode
+  /** Model identifier passed to the provider (and stored next to every vector). */
+  model: string
+  /** Vector length of that model. */
+  dim: number
+  /** Prefix added to a search query before embedding. */
+  queryPrefix: string
+  /** Prefix added to a stored chunk before embedding. */
+  passagePrefix: string
+  /** Texts embedded per provider call. */
+  batchSize: number
+  /** Chunk hits requested from the vector leg before rank fusion. */
+  topK: number
+  /** Minimum cosine similarity for a vector hit to count (0 = keep all). */
+  minScore: number
+  /** Target characters per chunk. */
+  chunkChars: number
+  /** Characters of overlap between neighbouring chunks. */
+  chunkOverlap: number
+  /** Storage of the vectors: in-process scan, sqlite-vec or off. */
+  backend: VectorBackend
+  /** Storage precision of the sqlite-vec table; ignored by the in-process
+   * backend, which always keeps float32 vectors in `memory_vectors`.
+   */
+  quantization: VectorQuantization
+  /**
+   * Semantic neighbours kept per entry in the knowledge graph. The cut is
+   * relative (top-N per entry) because e5 cosine is compressed; see
+   * `semanticPairs`.
+   */
+  semanticEdgesPerEntry: number
+  /** Overall cap on semantic `related` edges, so the graph stays readable. */
+  semanticMaxEdges: number
+  /** Load the model in the background at startup instead of on first query. */
+  prewarm: boolean
+}
+
+/** Built-in embedding defaults (the dsh layer enables the local provider). */
+export const DEFAULT_EMBEDDINGS: EmbeddingConfig = {
+  provider: 'off',
+  model: 'Xenova/multilingual-e5-small',
+  dim: 384,
+  queryPrefix: 'query: ',
+  passagePrefix: 'passage: ',
+  batchSize: 16,
+  topK: 50,
+  minScore: 0,
+  chunkChars: 800,
+  chunkOverlap: 120,
+  backend: 'js',
+  quantization: 'float',
+  semanticEdgesPerEntry: 3,
+  semanticMaxEdges: 300,
+  prewarm: true,
+}
+
 /** Resolved configuration of the memory engine. */
 export interface MemoryConfig {
   /** Explicit storage root; falls back to `$DSH_HOME/llm-memory` or `~/.dsh/llm-memory`. */
   storageRoot: string | undefined
   /** Default number of entries returned by `recall`. */
   recallLimit: number
+  /**
+   * Character budget of one entry body in the default `digest` recall
+   * rendering. A longer body is cut and marked; `detail: "full"` returns it
+   * whole.
+   */
+  recallTextChars: number
+  /**
+   * Hard character budget of a whole recall rendering, whatever the per-entry
+   * budget. A tool result is re-sent in every later request of the session, so
+   * an unbounded dump is paid for many times over.
+   */
+  recallTotalChars: number
+  /**
+   * Maximum number of rules/preferences lines injected into the system prompt
+   * by `rulesForPrompt` (the digest is rebuilt on every prompt assembly).
+   */
+  promptRulesLimit: number
+  /** Project reach of that digest. */
+  rulesPromptScope: RulesPromptScope
   /**
    * Default scope used by `recall`. `project` means the calling session's
    * project plus the cross-project user layer; `all` searches every project.
@@ -43,10 +142,22 @@ export interface MemoryConfig {
   projectRoots: Record<string, string>
   /** Explicit import root directories (Kilo / mnemon / dsh-memory stores). */
   importRoots: string[]
+  /**
+   * Per-base-directory time budget of an index pass, in milliseconds
+   * (0 = no budget).
+   *
+   * A directory that exceeds the budget is left with its previous index rows
+   * for this pass (its pages are listed but not re-read). This bounds the worst
+   * case on slow mounts: on a WSL host a single `/mnt/c` project root can cost
+   * seconds per pass, which would otherwise block the host thread.
+   */
+  projectScanBudgetMs: number
   /** Whether import roots are auto-detected (Windows / WSL / Linux). */
   importAutoDetect: boolean
   /** Source of the rules exported to `$DSH_HOME/AGENTS.md`. */
   rulesSource: RulesSourceMode
+  /** Vector (semantic) retrieval settings. */
+  embeddings: EmbeddingConfig
   /** HTTP path of the standalone memory web UI. */
   webPath: string
   /** Inject the short guide at session start when no richer system section is available. */
@@ -88,6 +199,10 @@ export const DEFAULT_SYSTEM_PROMPT = [
 export const DEFAULT_CONFIG: MemoryConfig = {
   storageRoot: undefined,
   recallLimit: 10,
+  recallTextChars: 400,
+  recallTotalChars: 12000,
+  promptRulesLimit: 6,
+  rulesPromptScope: 'project',
   recallScope: 'project',
   lintOverlapMinCommonWords: 8,
   lintMaxPairs: 200,
@@ -97,7 +212,9 @@ export const DEFAULT_CONFIG: MemoryConfig = {
   projectRoots: {},
   importRoots: [],
   importAutoDetect: true,
+  projectScanBudgetMs: 0,
   rulesSource: 'bundled-en',
+  embeddings: { ...DEFAULT_EMBEDDINGS },
   webPath: '/llm-memory',
   sessionStartGuide: true,
 }
@@ -157,6 +274,59 @@ function asRulesSource(value: unknown, fallback: RulesSourceMode): RulesSourceMo
   return value === 'bundled-en' || value === 'kilo-verbatim' ? value : fallback
 }
 
+function asRulesPromptScope(value: unknown, fallback: RulesPromptScope): RulesPromptScope {
+  return value === 'project' || value === 'all' ? value : fallback
+}
+
+function asEmbeddingProvider(value: unknown, fallback: EmbeddingProviderMode): EmbeddingProviderMode {
+  return value === 'off' || value === 'local' || value === 'http' ? value : fallback
+}
+
+function asVectorBackend(value: unknown, fallback: VectorBackend): VectorBackend {
+  return value === 'off' || value === 'js' || value === 'sqlite-vec' ? value : fallback
+}
+
+function asQuantization(value: unknown, fallback: VectorQuantization): VectorQuantization {
+  return value === 'float' || value === 'int8' || value === 'bit' ? value : fallback
+}
+
+function asFloat(value: unknown, fallback: number, min: number, max: number): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return fallback
+  if (n < min) return min
+  if (n > max) return max
+  return n
+}
+
+/**
+ * Validate the nested embedding section. A missing or malformed value falls
+ * back to the defaults field by field, so a partial profile patch stays usable.
+ */
+function asEmbeddings(value: unknown, fallback: EmbeddingConfig): EmbeddingConfig {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return { ...fallback }
+  const src = value as Record<string, unknown>
+  const chunkChars = asNumber(src['chunkChars'], fallback.chunkChars, 200, 8000)
+  // An overlap at or above the chunk size would never advance the chunker.
+  const chunkOverlap = Math.min(asNumber(src['chunkOverlap'], fallback.chunkOverlap, 0, 4000), Math.floor(chunkChars / 2))
+  return {
+    provider: asEmbeddingProvider(src['provider'], fallback.provider),
+    model: asOptionalString(src['model']) ?? fallback.model,
+    dim: asNumber(src['dim'], fallback.dim, 64, 4096),
+    queryPrefix: typeof src['queryPrefix'] === 'string' ? src['queryPrefix'] : fallback.queryPrefix,
+    passagePrefix: typeof src['passagePrefix'] === 'string' ? src['passagePrefix'] : fallback.passagePrefix,
+    batchSize: asNumber(src['batchSize'], fallback.batchSize, 1, 256),
+    topK: asNumber(src['topK'], fallback.topK, 1, 1000),
+    minScore: asFloat(src['minScore'], fallback.minScore, 0, 1),
+    chunkChars,
+    chunkOverlap,
+    backend: asVectorBackend(src['backend'], fallback.backend),
+    quantization: asQuantization(src['quantization'], fallback.quantization),
+    semanticEdgesPerEntry: asNumber(src['semanticEdgesPerEntry'], fallback.semanticEdgesPerEntry, 1, 20),
+    semanticMaxEdges: asNumber(src['semanticMaxEdges'], fallback.semanticMaxEdges, 10, 10000),
+    prewarm: typeof src['prewarm'] === 'boolean' ? src['prewarm'] : fallback.prewarm,
+  }
+}
+
 /**
  * Merge a partial configuration over {@link DEFAULT_CONFIG}, validating values
  * and falling back to the default whenever a value is missing or invalid.
@@ -166,6 +336,10 @@ export function mergeConfig(partial?: Partial<MemoryConfig> | null): MemoryConfi
   return {
     storageRoot: src.storageRoot === undefined ? DEFAULT_CONFIG.storageRoot : asOptionalString(src.storageRoot),
     recallLimit: asNumber(src.recallLimit, DEFAULT_CONFIG.recallLimit, 1, 1000),
+    recallTextChars: asNumber(src.recallTextChars, DEFAULT_CONFIG.recallTextChars, 0, 100000),
+    recallTotalChars: asNumber(src.recallTotalChars, DEFAULT_CONFIG.recallTotalChars, 500, 1000000),
+    promptRulesLimit: asNumber(src.promptRulesLimit, DEFAULT_CONFIG.promptRulesLimit, 1, 1000),
+    rulesPromptScope: asRulesPromptScope(src.rulesPromptScope, DEFAULT_CONFIG.rulesPromptScope),
     recallScope: asScope(src.recallScope, DEFAULT_CONFIG.recallScope),
     lintOverlapMinCommonWords: asNumber(
       src.lintOverlapMinCommonWords,
@@ -186,7 +360,14 @@ export function mergeConfig(partial?: Partial<MemoryConfig> | null): MemoryConfi
       src.importRoots === undefined ? [...DEFAULT_CONFIG.importRoots] : asStringArray(src.importRoots),
     importAutoDetect:
       typeof src.importAutoDetect === 'boolean' ? src.importAutoDetect : DEFAULT_CONFIG.importAutoDetect,
+    projectScanBudgetMs: asNumber(
+      src.projectScanBudgetMs,
+      DEFAULT_CONFIG.projectScanBudgetMs,
+      0,
+      600000,
+    ),
     rulesSource: asRulesSource(src.rulesSource, DEFAULT_CONFIG.rulesSource),
+    embeddings: asEmbeddings(src.embeddings, DEFAULT_CONFIG.embeddings),
     webPath: src.webPath === undefined ? DEFAULT_CONFIG.webPath : asWebPath(src.webPath, DEFAULT_CONFIG.webPath),
     sessionStartGuide:
       typeof src.sessionStartGuide === 'boolean' ? src.sessionStartGuide : DEFAULT_CONFIG.sessionStartGuide,

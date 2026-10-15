@@ -275,10 +275,17 @@ export function writeFileAtomic(file: string, content: string): void {
   }
 }
 
-/** Read a UTF-8 text file, returning null when it does not exist or is unreadable. */
+/**
+ * Read a UTF-8 text file, returning null when it does not exist or is
+ * unreadable.
+ *
+ * A missing file is detected from the read error itself: a preceding
+ * `existsSync` would double the syscall count, and on slow mounts (WSL
+ * `/mnt/c`) every extra call is another round-trip. A directory path fails the
+ * read and yields null, exactly as before.
+ */
 export function readFileIfExists(file: string): string | null {
   try {
-    if (!existsSync(file)) return null
     return readFileSync(file, 'utf8')
   } catch {
     return null
@@ -318,11 +325,32 @@ export function listMarkdownFiles(dir: string): string[] {
   }
 }
 
+/** Size and modification time of a file, read with a single `statSync`. */
+export interface FileStatInfo {
+  /** File size in bytes. */
+  size: number
+  /** Last modification time in milliseconds. */
+  mtimeMs: number
+}
+
+/**
+ * `statSync` a file once, returning its size and mtime, or null when it is
+ * missing or unreadable.
+ *
+ * The incremental index compares `size` + `mtimeMs` against the stored values
+ * to decide whether a page must be read at all, so this single call is the
+ * lower bound of a reconcile pass — hence one `stat` for both fields.
+ */
+export function fileStatInfo(file: string): FileStatInfo | null {
+  try {
+    const info = statSync(file)
+    return { size: info.size, mtimeMs: info.mtimeMs }
+  } catch {
+    return null
+  }
+}
+
 /** File mtime in milliseconds, or 0 when unavailable. */
 export function fileMtimeMs(file: string): number {
-  try {
-    return statSync(file).mtimeMs
-  } catch {
-    return 0
-  }
+  return fileStatInfo(file)?.mtimeMs ?? 0
 }
