@@ -350,6 +350,46 @@ export interface HealReport {
   brokenBefore: number
   /** Broken link count after healing. */
   brokenAfter: number
+  /** Vector-side repairs carried out in the same pass. */
+  vectors: HealVectorsReport
+}
+
+/** Differences between the vector table and the pages. */
+export interface VectorHealth {
+  /** Entries present in the vector table. */
+  checked: number
+  /** Vector rows whose page is gone. */
+  orphans: string[]
+  /** Entries whose stored metadata copy no longer matches the page. */
+  metadataStale: string[]
+  /** Pages with no vectors at all. */
+  missing: string[]
+  /** Pages whose stored chunk set differs from what the text chunks into. */
+  partial: string[]
+  /** Entries stored under another model (a model switch leaves these behind). */
+  foreign: string[]
+  /** Entries holding chunks of a wrong length for the configured dimension. */
+  badDim: string[]
+  /** Entries holding zero or non-finite vectors. */
+  broken: string[]
+}
+
+/** What the vector part of `heal` repaired. */
+export interface HealVectorsReport {
+  /** Entries found in the vector table. */
+  checked: number
+  /** Leftover rows deleted (page removed). */
+  orphansRemoved: number
+  /** Metadata copies rewritten from the page. */
+  metadataFixed: number
+  /** Rows deleted for a wrong vector length or a broken vector. */
+  badRemoved: number
+  /** Rows of another model deleted. */
+  foreignRemoved: number
+  /** Entries handed back to the embedding queue (missing, partial, deleted). */
+  queued: number
+  /** Leftover download files removed from the model cache. */
+  tempFilesSwept: number
 }
 
 function firstLine(text: string, maxLength = 120): string {
@@ -1575,12 +1615,148 @@ export class MemoryEngine {
     // reads no page at all.
     const reconciled = this.store.reconcileFromDisk()
     const brokenAfter = this.lintReport().brokenLinks.length
+    // Vectors are derived data: the same pass compares them with the pages and
+    // repairs what is cheap, so a heal leaves the two sides agreeing.
+    const vectors = this.repairVectors()
     appendLog(
       this.root,
       'heal',
-      `removed=${removedLinks} added=${addedBacklinks} reindexed=${reconciled.read} (${reconciled.mode})`,
+      `removed=${removedLinks} added=${addedBacklinks} reindexed=${reconciled.read} (${reconciled.mode}) ` +
+        `vectors=${vectors.orphansRemoved}o/${vectors.metadataFixed}m/${vectors.queued}q`,
     )
-    return { removedLinks, addedBacklinks, reindexed: reconciled.read, brokenBefore, brokenAfter }
+    return { removedLinks, addedBacklinks, reindexed: reconciled.read, brokenBefore, brokenAfter, vectors }
+  }
+
+  /**
+   * Compares the vector table with the pages. Cheap: it reads the table once and
+   * never touches the model, so it works with the vector leg off as well.
+   */
+  vectorHealth(): VectorHealth | null {
+    const vectors = this.vectors
+    if (!vectors) return null
+    const audit = vectors.index.audit()
+    const pages = this.store.list({ status: 'all' }).items
+    const byId = new Map(pages.map((entry) => [entry.id, entry]))
+    const health: VectorHealth = {
+      checked: audit.entries.size,
+      orphans: [],
+      metadataStale: [],
+      missing: [],
+      partial: [],
+      foreign: [],
+      badDim: [],
+      broken: [],
+    }
+    for (const [id, stored] of audit.entries) {
+      const entry = byId.get(id)
+      if (!entry) {
+        health.orphans.push(id)
+        continue
+      }
+      if (stored.model !== audit.model) {
+        // Another embedding space: the row is a leftover and is re-embedded
+        // rather than judged against this model's metadata.
+        health.foreign.push(id)
+        continue
+      }
+      if (stored.badDim > 0) health.badDim.push(id)
+      if (stored.broken > 0) health.broken.push(id)
+      // The buckets are independent on purpose: an entry with a damaged vector
+      // may also have a partial chunk set, and hiding one behind the other would
+      // make the report less useful than the repair that follows it.
+      const stale =
+        stored.scope !== entry.scope ||
+        stored.project !== entry.project ||
+        stored.kind !== entry.kind ||
+        stored.tier !== entry.tier ||
+        stored.status !== entry.status
+      if (stale) health.metadataStale.push(id)
+      const expected = entryChunks(entry, this.config.embeddings).map((chunk) => chunk.chunkIndex)
+      const storedIndexes = [...stored.chunkIndexes].sort((left, right) => left - right)
+      if (
+        expected.length !== storedIndexes.length ||
+        expected.some((value, index) => value !== storedIndexes[index])
+      ) {
+        health.partial.push(id)
+      }
+    }
+    for (const entry of pages) {
+      if (!audit.entries.has(entry.id)) health.missing.push(entry.id)
+    }
+    return health
+  }
+
+  /**
+   * Cheap vector repairs: leftovers and broken rows are dropped, metadata copies
+   * are rewritten from the pages, and everything that has to be embedded again
+   * goes to the background queue — heal itself stays fast, and the heavy work
+   * (re-embedding) happens where it always does.
+   */
+  repairVectors(): HealVectorsReport {
+    const report: HealVectorsReport = {
+      checked: 0,
+      orphansRemoved: 0,
+      metadataFixed: 0,
+      badRemoved: 0,
+      foreignRemoved: 0,
+      queued: 0,
+      tempFilesSwept: 0,
+    }
+    const vectors = this.vectors
+    if (!vectors) return report
+    const health = this.vectorHealth()
+    if (!health) return report
+    report.checked = health.checked
+
+    for (const id of health.orphans) {
+      vectors.index.remove(id)
+      report.orphansRemoved++
+    }
+    for (const id of health.foreign) {
+      vectors.index.remove(id)
+      report.foreignRemoved++
+    }
+    for (const id of [...health.badDim, ...health.broken]) {
+      vectors.index.remove(id)
+      report.badRemoved++
+    }
+    for (const id of health.metadataStale) {
+      const entry = this.store.get(id)
+      if (!entry) continue
+      const rows = vectors.index.records([id])
+      if (rows.length === 0) continue
+      vectors.index.upsert(
+        rows.map((row) => ({
+          ...row,
+          scope: entry.scope,
+          project: entry.project,
+          kind: entry.kind,
+          tier: entry.tier,
+          status: entry.status,
+        })),
+      )
+      report.metadataFixed++
+    }
+
+    const requeue = [
+      ...new Set([...health.missing, ...health.partial, ...health.badDim, ...health.broken, ...health.foreign]),
+    ]
+    if (requeue.length > 0) vectors.queue.enqueue(requeue)
+    report.queued = requeue.length
+
+    report.tempFilesSwept = sweepModelTempFiles(this.modelCacheDir(), vectors.provider.model).files
+    return report
+  }
+
+  /**
+   * Rebuilds the derived ANN table from `memory_vectors` (sqlite-vec only). The
+   * in-process scan reads the table itself, so there it is a no-op.
+   */
+  rebuildAnnIndex(): boolean {
+    const vectors = this.vectors
+    if (!vectors) return false
+    vectors.index.rebuildAnn()
+    return vectors.index.backend === 'sqlite-vec'
   }
 
   /** Stop the embedding queue and close the underlying database connection. */

@@ -28,6 +28,12 @@ import type { DatabaseSync } from 'node:sqlite'
 
 import type {
   MemoryFilter,
+  MemoryKind,
+  MemoryScope,
+  MemoryStatus,
+  MemoryTier,
+  VectorAudit,
+  VectorAuditEntry,
   VectorBackend,
   VectorIndex,
   VectorIndexStats,
@@ -128,6 +134,20 @@ function toFloat32(value: unknown): Float32Array {
 /** View over a vector that can be bound as a BLOB parameter. */
 function toBlob(vector: Float32Array): Uint8Array {
   return new Uint8Array(vector.buffer, vector.byteOffset, vector.byteLength)
+}
+
+/**
+ * Whether a stored vector can still be searched with. An all-zero vector has no
+ * direction (every cosine is 0) and a non-finite value poisons every comparison,
+ * so both count as damage rather than as data.
+ */
+function isUsableVector(vector: Float32Array): boolean {
+  let norm = 0
+  for (const value of vector) {
+    if (!Number.isFinite(value)) return false
+    norm += value * value
+  }
+  return norm > 0
 }
 
 /** Translate a memory filter into predicates over the vector table's own columns. */
@@ -371,6 +391,49 @@ class VectorCache {
     return records
   }
 
+  /**
+   * One pass over the whole table: per-entry chunk positions, the metadata copy
+   * and the health counters. Rows of a foreign model are reported but not judged
+   * against this index's dimension — they belong to another embedding space.
+   */
+  audit(): VectorAudit {
+    const rows = this.db
+      .prepare(
+        'SELECT entry_id, chunk_ix, model, scope, project, kind, tier, status, vector FROM memory_vectors',
+      )
+      .all() as Array<Record<string, unknown>>
+    const entries = new Map<string, VectorAuditEntry>()
+    const models = new Set<string>()
+    for (const row of rows) {
+      const model = asString(row['model'])
+      const entryId = asString(row['entry_id'])
+      models.add(model)
+      let slot = entries.get(entryId)
+      if (!slot) {
+        slot = {
+          model,
+          chunks: 0,
+          chunkIndexes: [],
+          scope: asString(row['scope']) as MemoryScope,
+          project: asString(row['project']),
+          kind: asString(row['kind']) as MemoryKind,
+          tier: asString(row['tier']) as MemoryTier,
+          status: asString(row['status']) as MemoryStatus,
+          badDim: 0,
+          broken: 0,
+        }
+        entries.set(entryId, slot)
+      }
+      slot.chunks++
+      slot.chunkIndexes.push(asNumber(row['chunk_ix']))
+      if (model !== this.model) continue
+      const vector = toFloat32(row['vector'])
+      if (vector.length !== this.dim) slot.badDim++
+      else if (!isUsableVector(vector)) slot.broken++
+    }
+    return { entries, models: [...models], model: this.model, dim: this.dim }
+  }
+
   /** In-process cosine scan over the cached rows. */
   scan(query: VectorQuery): VectorMatch[] {
     const matches: VectorMatch[] = []
@@ -437,6 +500,15 @@ export class JsVectorIndex implements VectorIndex {
 
   records(entryIds?: readonly string[]): VectorRecord[] {
     return this.cache.records(entryIds)
+  }
+
+  audit(): VectorAudit {
+    return this.cache.audit()
+  }
+
+  /** Nothing to rebuild: the in-process scan reads `memory_vectors` directly. */
+  rebuildAnn(): void {
+    // Intentionally empty — see the interface documentation.
   }
 
   search(query: VectorQuery): VectorMatch[] {
@@ -623,6 +695,21 @@ export class SqliteVecIndex implements VectorIndex {
 
   records(entryIds?: readonly string[]): VectorRecord[] {
     return this.cache.records(entryIds)
+  }
+
+  audit(): VectorAudit {
+    return this.cache.audit()
+  }
+
+  /** Drop the derived table and build it again from the stored vectors. */
+  rebuildAnn(): void {
+    try {
+      this.db.exec('DROP TABLE IF EXISTS memory_vec;')
+      this.db.exec('DELETE FROM memory_vec_meta;')
+    } catch (error) {
+      this.debug(`vectors: sqlite-vec rebuild could not clear the derived table: ${String(error)}`)
+    }
+    this.ensureTable()
   }
 
   search(query: VectorQuery): VectorMatch[] {

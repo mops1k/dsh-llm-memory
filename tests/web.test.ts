@@ -491,6 +491,58 @@ describe('semantic map routes', () => {
   })
 })
 
+describe('vector maintenance routes', () => {
+  it('reports vector health, repairs and rebuilds the ANN table', async () => {
+    // The engine of this suite has the vector leg off: health is then unknown
+    // (null) but both maintenance calls must still answer instead of throwing.
+    const health = json(await call('GET', '/llm-memory/api/vectors/health'))
+    expect(health.health).toBe(null)
+    expect(health.checked).toBe(0)
+
+    const repair = await call('POST', '/llm-memory/api/vectors/repair', {})
+    expect(repair.statusCode).toBe(200)
+    const report = json(repair).vectors as Record<string, unknown>
+    expect(report.checked).toBe(0)
+    expect(report.queued).toBe(0)
+
+    const ann = await call('POST', '/llm-memory/api/vectors/ann/rebuild', {})
+    expect(ann.statusCode).toBe(200)
+    expect(json(ann).rebuilt).toBe(false)
+  })
+
+  it('reports health for an engine with vectors and queues nothing when clean', async () => {
+    const provider = new FakeEmbeddingProvider()
+    const own = new MemoryEngine({
+      storageRoot: root,
+      project: 'demo',
+      embeddingProvider: provider,
+      config: { embeddings: { provider: 'local', chunkChars: 200, chunkOverlap: 0 } },
+    })
+    own.save({ title: 'Здоровая', text: 'Текст про индексацию и fingerprint.' })
+    await own.embedPending()
+    const ownHandler = createWebHandler(own, mergeConfig({ webPath: '/llm-memory' }))
+    const invoke = async (method: string, url: string, body?: unknown): Promise<MockResponse> => {
+      const res = makeResponse()
+      await ownHandler(
+        makeRequest(method, url, body) as unknown as IncomingMessage,
+        res as unknown as ServerResponse,
+      )
+      return res
+    }
+
+    const payload = json(await invoke('GET', '/llm-memory/api/vectors/health'))
+    const health = payload.health as Record<string, unknown>
+    expect(health.checked).toBe(1)
+    expect(health.orphans).toEqual([])
+    expect(health.missing).toEqual([])
+
+    const repaired = json(await invoke('POST', '/llm-memory/api/vectors/repair', {})).vectors as Record<string, unknown>
+    expect(repaired.orphansRemoved).toBe(0)
+    expect(repaired.queued).toBe(0)
+    own.close()
+  })
+})
+
 describe('recall route', () => {
   it('returns hits with the legs that produced them and the rendered text', async () => {
     engine.save({ title: 'Нужный факт', text: 'Здесь встречается слово needle и больше ничего.' })

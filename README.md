@@ -292,6 +292,18 @@ What semantics adds beyond recall:
   the prompt digest.
 - e5 cosine is compressed (related ~0.91, unrelated ~0.74), so every threshold in
   this plugin is a relative rule rather than an absolute value.
+- `heal` also compares the vector table with the pages and repairs what is
+  cheap: leftover rows of removed entries, metadata copies that went stale,
+  rows of another model, vectors of a wrong length or all-zero vectors, and
+  `*.tmp.*` files left by an interrupted model download. Entries that have to be
+  embedded again are handed to the background queue, so heal itself stays fast;
+  the Health panel shows the counters and offers **Repair vectors** and
+  **Rebuild ANN index** (the derived `sqlite-vec` table; the in-process backend
+  reads `memory_vectors` directly and has nothing to rebuild).
+- `recallLiteralLookup` aside, exact-token queries are worth a second look: the
+  lexical leg beats the hybrid by 7-20 pp hit@1 on rare literals (see
+  `scripts/bench-tokens.mjs`), which is why literal-looking queries are ranked by
+  the lexical leg.
 - The **Map** tab draws the embeddings themselves: every entry is a point on the
   plane of the two leading principal components (the PCA runs inside the plugin,
   with no new dependencies), coloured by project or kind, sized by chunk count,

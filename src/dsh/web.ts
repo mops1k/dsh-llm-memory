@@ -382,6 +382,13 @@ export function createWebHandler(
       sendJson(res, 200, engine.graph())
       return
     }
+    if (rel === '/api/vectors/health') {
+      // Compares the vector table with the pages: cheap, works with the vector
+      // leg off, and never downloads or embeds anything.
+      const health = engine.vectorHealth()
+      sendJson(res, 200, { health, checked: health ? health.checked : 0 })
+      return
+    }
     if (rel === '/api/vectors/map') {
       const map = engine.vectorsMap({ refresh: param(url, 'refresh') === '1' })
       sendJson(res, 200, { map, reason: map ? null : mapUnavailableReason(engine) })
@@ -523,6 +530,18 @@ export function createWebHandler(
       sendJson(res, 200, { vectors: engine.vectorStatus() })
       return
     }
+    if (rel === '/api/vectors/repair') {
+      await readJsonBody(req, MAX_BODY_BYTES)
+      // Cheap repairs only; whatever has to be embedded again goes to the queue.
+      sendJson(res, 200, { vectors: engine.repairVectors(), health: engine.vectorHealth() })
+      return
+    }
+    if (rel === '/api/vectors/ann/rebuild') {
+      await readJsonBody(req, MAX_BODY_BYTES)
+      const rebuilt = engine.rebuildAnnIndex()
+      sendJson(res, 200, { rebuilt, backend: engine.vectorStatus()?.backend ?? null })
+      return
+    }
     if (rel === '/api/vectors/map/query') {
       const body = await readJsonBody(req, MAX_BODY_BYTES)
       const text = typeof body.text === 'string' ? body.text.trim() : ''
@@ -599,7 +618,7 @@ export function createWebHandler(
       return
     }
     if (rel.startsWith('/api/')) {
-      const getOnly = ['/api/status', '/api/lint', '/api/graph', '/api/vectors/map', '/api/items', '/api/item']
+      const getOnly = ['/api/status', '/api/lint', '/api/graph', '/api/vectors/map', '/api/vectors/health', '/api/items', '/api/item']
       if (getOnly.includes(rel)) {
         res.setHeader('Allow', 'GET')
       }

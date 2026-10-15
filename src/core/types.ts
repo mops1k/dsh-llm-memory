@@ -381,8 +381,47 @@ export interface VectorIndex {
    * embedding its text again.
    */
   records(entryIds?: readonly string[]): VectorRecord[]
+  /**
+   * Reads the whole table once and reports what lies there, without comparing it
+   * to the pages — the engine owns that comparison. Used by the heal audit.
+   */
+  audit(): VectorAudit
+  /**
+   * Rebuilds the derived ANN table from the stored vectors. A no-op for
+   * backends that answer from `memory_vectors` directly (the in-process scan).
+   */
+  rebuildAnn(): void
   /** Counters for the settings UI and logs. */
   stats(): VectorIndexStats
+}
+
+/** Per-entry facts of the vector table, before any comparison with the pages. */
+export interface VectorAuditEntry {
+  /** Model this entry's rows were written with. */
+  model: string
+  /** Stored chunks of this entry. */
+  chunks: number
+  /** Chunk positions present; a gap means a partial write. */
+  chunkIndexes: number[]
+  scope: MemoryScope
+  project: string
+  kind: MemoryKind
+  tier: MemoryTier
+  status: MemoryStatus
+  /** Chunks of this index's model whose vector length differs from `dim`. */
+  badDim: number
+  /** Chunks whose vector is all zeros, NaN or infinite — unusable for search. */
+  broken: number
+}
+
+/** Raw state of the vector table. */
+export interface VectorAudit {
+  entries: Map<string, VectorAuditEntry>
+  /** Every model found in the table; anything but `model` is a leftover. */
+  models: string[]
+  /** Model this index works with. */
+  model: string
+  dim: number
 }
 
 /** One entry placed on the semantic map. */

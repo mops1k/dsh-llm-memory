@@ -2144,6 +2144,40 @@ window.__ModuleLoader__.load({
           return "Vector rebuild queued: " + vectors.pending + " entries waiting.";
         });
 
+      const repairVectors = () =>
+        run("Repairing vectors\u2026", async () => {
+          const data = await apiPost(props.base, "/api/vectors/repair", {});
+          const report = data && data.vectors ? data.vectors : null;
+          setVersion((value) => value + 1);
+          if (!report) return "Vectors are off: enable the embeddings provider in Settings.";
+          return (
+            "Vectors repaired \u2014 leftovers " +
+            report.orphansRemoved +
+            ", metadata " +
+            report.metadataFixed +
+            ", damaged " +
+            report.badRemoved +
+            ", other model " +
+            report.foreignRemoved +
+            ", queued " +
+            report.queued +
+            ", temp files " +
+            report.tempFilesSwept +
+            "."
+          );
+        });
+
+      const rebuildAnn = () =>
+        run("Rebuilding the ANN index\u2026", async () => {
+          const data = await apiPost(props.base, "/api/vectors/ann/rebuild", {});
+          setVersion((value) => value + 1);
+          return data && data.rebuilt
+            ? "ANN table rebuilt from memory_vectors."
+            : "Nothing to rebuild: the " +
+                ((data && data.backend) || "in-process") +
+                " backend reads memory_vectors directly.";
+        });
+
       const syncWorkspaces = () =>
         run("Syncing workspaces\u2026", async () => {
           const data = await apiPost(props.base, "/api/workspaces/sync", {});
@@ -2188,6 +2222,8 @@ window.__ModuleLoader__.load({
             h("button", { type: "button", style: S.primary, disabled: busy, onClick: () => setVersion((v) => v + 1) }, "Run lint"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: heal }, "Heal"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildVectors }, "Rebuild vectors"),
+            h("button", { type: "button", style: S.button, disabled: busy, onClick: repairVectors }, "Repair vectors"),
+            h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildAnn }, "Rebuild ANN index"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: props.onPreviewRules }, "Preview rules"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: syncWorkspaces }, "Sync workspaces"),
             h(
@@ -2217,7 +2253,23 @@ window.__ModuleLoader__.load({
                   "\nBroken links: " +
                   healReport.brokenBefore +
                   " -> " +
-                  healReport.brokenAfter,
+                  healReport.brokenAfter +
+                  (healReport.vectors
+                    ? "\nVectors checked: " +
+                      healReport.vectors.checked +
+                      "\n  leftovers removed: " +
+                      healReport.vectors.orphansRemoved +
+                      "\n  metadata refreshed: " +
+                      healReport.vectors.metadataFixed +
+                      "\n  damaged removed: " +
+                      healReport.vectors.badRemoved +
+                      "\n  other model removed: " +
+                      healReport.vectors.foreignRemoved +
+                      "\n  queued for embedding: " +
+                      healReport.vectors.queued +
+                      "\n  temp files swept: " +
+                      healReport.vectors.tempFilesSwept
+                    : ""),
               ),
             )
           : null,
