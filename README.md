@@ -110,6 +110,11 @@ dependencies the plugin keeps working as before, on FTS5.
 
 Open **Settings → LLM Memory**. Values are applied on the next plugin restart.
 
+Schema fields are declared `volatile()` because that is dsh's condition for
+appearing on a settings page: non-volatile fields live only in the profile patch.
+Cordis hands volatile values over as reactive wrappers, so the plugin unwraps
+them (`unwrapSettings`) when `apply` starts and works with plain data afterwards.
+
 | Option | Default | Description |
 | --- | --- | --- |
 | `storageRoot` | `$DSH_HOME/llm-memory` | Memory root (empty uses the default). |

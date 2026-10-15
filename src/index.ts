@@ -13,7 +13,11 @@ import type { Context } from '@deepseek-ai/cordis'
 import { mergeConfig } from './core/config.js'
 import { registerMemoryContext } from './dsh/context.js'
 import { createMemoryRuntime } from './dsh/engine.js'
-import { MemoryPluginConfigSchema, registerMemorySettings } from './dsh/settings.js'
+import {
+  MemoryPluginConfigSchema,
+  registerMemorySettings,
+  unwrapSettings,
+} from './dsh/settings.js'
 import { registerMemoryTools } from './dsh/tools.js'
 import { registerMemoryWeb, resolveWorkspaceProjectRoot } from './dsh/web.js'
 
@@ -38,7 +42,7 @@ export type Config = ReturnType<typeof Config>
  * also works in headless profiles.
  */
 export function apply(ctx: Context, config: Config): void {
-  const resolved = mergeConfig(config)
+  const resolved = mergeConfig(unwrapSettings(config))
   const runtime = createMemoryRuntime(resolved, {
     resolveProjectRoot: (key) => resolveWorkspaceProjectRoot(ctx, key),
   })
