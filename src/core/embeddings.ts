@@ -161,6 +161,18 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
     this.options.debug?.(`embeddings: ${this.model} ready (${this.dim} dimensions)`)
   }
 
+  /**
+   * Forget the loaded model, so the next `prewarm`/`embed` reads it from disk.
+   *
+   * Without this a download request would find the model already in memory and
+   * return without fetching anything.
+   */
+  reload(): void {
+    this.extractor = null
+    this.loading = null
+    this.failure = null
+  }
+
   async embed(texts: string[], role: EmbeddingRole): Promise<EmbeddingBatch> {
     const extractor = await this.load()
     const prefix = role === 'query' ? this.config.queryPrefix : this.config.passagePrefix
@@ -273,6 +285,20 @@ export class WorkerEmbeddingProvider implements EmbeddingProvider {
 
   async prewarm(): Promise<void> {
     await this.request({ type: 'prewarm' })
+  }
+
+  /**
+   * Terminate the worker so the next request loads the model from disk again.
+   *
+   * Requests still in flight are rejected; the embedding queue retries them.
+   */
+  reload(): void {
+    const worker = this.worker
+    this.worker = null
+    this.failure = null
+    for (const [, entry] of this.pending) entry.reject(new Error('embedding worker reloaded'))
+    this.pending.clear()
+    if (worker) void worker.terminate().catch(() => undefined)
   }
 
   async embed(texts: string[], role: EmbeddingRole): Promise<EmbeddingBatch> {

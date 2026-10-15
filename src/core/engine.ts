@@ -593,7 +593,9 @@ export class MemoryEngine {
       files: cache.files,
       bytes: cache.bytes,
       downloading: this.modelState.downloading,
-      progress: this.modelState.progress,
+      // Progress belongs to a running download; a plain prewarm of an already
+      // cached model would otherwise leave a stale 100 % behind.
+      progress: this.modelState.downloading ? this.modelState.progress : null,
       error: this.modelState.error,
     }
   }
@@ -616,12 +618,31 @@ export class MemoryEngine {
       )
     }
     if (this.modelState.downloading) return this.modelStatus()
+    // A model already in memory would make `prewarm` return without fetching
+    // anything, so an empty or incomplete cache forces a reload from disk.
+    const model = vectors.provider.model
+    if (!scanModelCache(this.modelCacheDir(), model).cached) {
+      vectors.provider.reload?.()
+      debug(`embeddings: reloading ${model}, the cache is incomplete`)
+    }
     this.modelState = { downloading: true, progress: null, error: null }
     void vectors.provider
       .prewarm()
       .then(() => {
-        this.modelState = { downloading: false, progress: null, error: null }
-        debug(`embeddings: ${this.config.embeddings.model} is cached and loaded`)
+        const cache = scanModelCache(this.modelCacheDir(), model)
+        this.modelState =
+          cache.cached || vectors.provider.id !== 'local'
+            ? { downloading: false, progress: null, error: null }
+            : {
+                downloading: false,
+                progress: null,
+                error: `No model files were written to ${cache.dir}; check the network and the plugin log.`,
+              }
+        debug(
+          this.modelState.error === null
+            ? `embeddings: ${model} is cached and loaded`
+            : `embeddings: ${this.modelState.error}`,
+        )
       })
       .catch((error: unknown) => {
         this.modelState = {

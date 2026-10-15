@@ -271,6 +271,12 @@ export interface EmbeddingProvider {
   readonly ready: boolean
   /** Load the model ahead of the first embedding call, best effort. */
   prewarm(): Promise<void>
+  /**
+   * Drop the loaded model so the next `prewarm`/`embed` reads it from disk
+   * again. Needed when the cache is missing or was deleted: an in-memory model
+   * makes `prewarm` return without downloading anything.
+   */
+  reload?(): void
   /** Embed a batch of texts in the given role. */
   embed(texts: string[], role: EmbeddingRole): Promise<EmbeddingBatch>
   /** Release resources (a worker thread, for example). */

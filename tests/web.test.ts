@@ -84,6 +84,38 @@ function json(res: MockResponse): Record<string, unknown> {
   return JSON.parse(res.body) as Record<string, unknown>
 }
 
+/** Write the weights file of the configured model, so the cache looks complete. */
+function writeStubWeights(storageRoot: string): void {
+  const dir = join(storageRoot, '_models', 'Xenova', 'multilingual-e5-small', 'onnx')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'model_quantized.onnx'), 'y'.repeat(8))
+}
+
+/**
+ * Local-looking provider: the "did anything land on disk" guard only applies to
+ * `id === 'local'`, and the tests need to observe the reload call.
+ */
+class StubLocalProvider extends FakeEmbeddingProvider {
+  readonly id = 'local'
+  readonly model = 'Xenova/multilingual-e5-small'
+  reloadCalls = 0
+  private readonly writeCache?: () => void
+
+  constructor(writeCache?: () => void) {
+    super()
+    this.writeCache = writeCache
+  }
+
+  reload(): void {
+    this.reloadCalls += 1
+  }
+
+  override async prewarm(): Promise<void> {
+    this.prewarmed = true
+    if (this.writeCache) this.writeCache()
+  }
+}
+
 describe('normalizeWebPath', () => {
   it('normalizes configured paths', () => {
     expect(normalizeWebPath(undefined)).toBe('/llm-memory')
@@ -267,7 +299,7 @@ describe('model cache routes', () => {
   })
 
   it('starts a download through an injected provider and clears the flag', async () => {
-    const provider = new FakeEmbeddingProvider()
+    const provider = new StubLocalProvider(() => writeStubWeights(root))
     const own = new MemoryEngine({ storageRoot: root, project: 'demo', embeddingProvider: provider })
     const ownHandler = createWebHandler(own, mergeConfig({ webPath: '/llm-memory' }))
     const invoke = async (method: string, url: string, body?: unknown): Promise<MockResponse> => {
@@ -287,7 +319,46 @@ describe('model cache routes', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     const settled = json(await invoke('GET', '/llm-memory/api/model/status'))
     expect(settled.downloading).toBe(false)
+    expect(settled.cached).toBe(true)
     expect(settled.error).toBe(null)
+    own.close()
+  })
+
+  it('skips the reload when the model is already cached', async () => {
+    writeStubWeights(root)
+    const provider = new StubLocalProvider()
+    const own = new MemoryEngine({ storageRoot: root, project: 'demo', embeddingProvider: provider })
+    const ownHandler = createWebHandler(own, mergeConfig({ webPath: '/llm-memory' }))
+
+    const res = makeResponse()
+    await ownHandler(
+      makeRequest('POST', '/llm-memory/api/model/download', {}) as unknown as IncomingMessage,
+      res as unknown as ServerResponse,
+    )
+    expect(res.statusCode).toBe(200)
+    expect(provider.reloadCalls).toBe(0)
+    own.close()
+  })
+
+  it('reloads the provider and reports an error when a local download writes nothing', async () => {
+    const provider = new StubLocalProvider()
+    const own = new MemoryEngine({ storageRoot: root, project: 'demo', embeddingProvider: provider })
+    const ownHandler = createWebHandler(own, mergeConfig({ webPath: '/llm-memory' }))
+
+    await ownHandler(
+      makeRequest('POST', '/llm-memory/api/model/download', {}) as unknown as IncomingMessage,
+      makeResponse() as unknown as ServerResponse,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const status = makeResponse()
+    await ownHandler(
+      makeRequest('GET', '/llm-memory/api/model/status') as unknown as IncomingMessage,
+      status as unknown as ServerResponse,
+    )
+    // An in-memory model must be dropped, otherwise nothing is fetched at all.
+    expect(provider.reloadCalls).toBe(1)
+    expect(json(status).cached).toBe(false)
+    expect(String(json(status).error)).toContain('No model files')
     own.close()
   })
 
