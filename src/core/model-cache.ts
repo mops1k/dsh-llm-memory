@@ -87,6 +87,49 @@ export function scanModelCache(cacheDir: string, model: string): ModelCacheStatu
 }
 
 /**
+ * Delete leftovers of interrupted downloads.
+ *
+ * transformers.js writes `…onnx.tmp.<pid>.<random>` and renames it only once the
+ * file is complete; a killed process (a harness restart, for example) leaves the
+ * partial file behind. Without this sweep every restart adds another hundred
+ * megabytes of junk that the next download ignores anyway.
+ *
+ * @param cacheDir - Root of the model cache.
+ * @param model - Model id whose directory is swept.
+ * @returns How many files were removed and how many bytes they held.
+ */
+export function sweepModelTempFiles(cacheDir: string, model: string): { files: number; bytes: number } {
+  let files = 0
+  let bytes = 0
+  const walk = (path: string): void => {
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(path, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      const child = join(path, entry.name)
+      if (entry.isDirectory()) {
+        walk(child)
+        continue
+      }
+      if (!entry.isFile() || !entry.name.includes('.tmp.')) continue
+      try {
+        const size = statSync(child).size
+        rmSync(child, { force: true })
+        files += 1
+        bytes += size
+      } catch {
+        // Already gone or not removable; the download path reports its own errors.
+      }
+    }
+  }
+  walk(modelCacheDir(cacheDir, model))
+  return { files, bytes }
+}
+
+/**
  * Delete the cached model of one model id.
  *
  * Destructive: the caller owns the user confirmation.

@@ -5,6 +5,7 @@
  * as a derived cache. Entries are partitioned into a per-project layer
  * (`scope: 'project'`) and a cross-project user layer (`scope: 'user'`).
  */
+import type { ModelDownloadProgress } from './model-cache.js'
 
 /** Category of a memory entry. */
 export type MemoryKind =
@@ -277,6 +278,15 @@ export interface EmbeddingProvider {
    * makes `prewarm` return without downloading anything.
    */
   reload?(): void
+  /**
+   * Route model download progress to `listener`, or stop routing with `null`.
+   *
+   * Only an explicit download turns this on: transformers.js fetches file
+   * metadata from the Hub whenever a progress callback is attached, and doing
+   * that on every ordinary model load costs a network round trip (or a timeout)
+   * even when the model is already cached.
+   */
+  watchProgress?(listener: ((progress: ModelDownloadProgress) => void) | null): void
   /** Embed a batch of texts in the given role. */
   embed(texts: string[], role: EmbeddingRole): Promise<EmbeddingBatch>
   /** Release resources (a worker thread, for example). */

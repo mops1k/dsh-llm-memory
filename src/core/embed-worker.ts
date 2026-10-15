@@ -26,11 +26,14 @@ const provider = new LocalEmbeddingProvider(data.config, {
   cacheDir: data.cacheDir,
   dtype: data.dtype,
   debug,
-  // Progress messages carry no request id and are filtered by type on the host.
-  onProgress: data.reportProgress
-    ? (progress) => port.postMessage({ id: 0, type: 'progress', progress })
-    : undefined,
 })
+
+// The download path creates the worker with progress reporting on; ordinary
+// loads stay silent so transformers.js never asks the Hub for file metadata.
+// Progress messages carry no request id and are filtered by type on the host.
+if (data.reportProgress) {
+  provider.watchProgress((progress) => port.postMessage({ id: 0, type: 'progress', progress }))
+}
 
 port.on('message', (message: EmbedWorkerRequest) => {
   void (async () => {

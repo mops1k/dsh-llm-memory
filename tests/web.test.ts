@@ -362,6 +362,27 @@ describe('model cache routes', () => {
     own.close()
   })
 
+  it('keeps the vector leg off while the model is missing', async () => {
+    const provider = new StubLocalProvider()
+    const own = new MemoryEngine({ storageRoot: root, project: 'demo', embeddingProvider: provider })
+    const ownHandler = createWebHandler(own, mergeConfig({ webPath: '/llm-memory' }))
+
+    // Building the vector leg must not start a download in the background: that
+    // is what made a restart fetch 130 MB behind the user's back.
+    own.startVectors()
+    const status = makeResponse()
+    await ownHandler(
+      makeRequest('GET', '/llm-memory/api/model/status') as unknown as IncomingMessage,
+      status as unknown as ServerResponse,
+    )
+    const state = json(status)
+    expect(state.configured).toBe(true)
+    expect(state.enabled).toBe(false)
+    expect(state.cached).toBe(false)
+    expect(provider.prewarmed).toBe(false)
+    own.close()
+  })
+
   it('deletes a cached model through the API', async () => {
     const dir = join(root, '_models', 'Xenova', 'multilingual-e5-small', 'onnx')
     mkdirSync(dir, { recursive: true })

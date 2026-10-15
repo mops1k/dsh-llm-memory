@@ -34,8 +34,6 @@ export interface EmbeddingProviderOptions {
   inline?: boolean
   /** Worker entry point; defaults to the compiled `./embed-worker.js` next to this module. */
   workerPath?: string | URL
-  /** Reports model download progress, so the settings page can show it. */
-  onProgress?: (progress: ModelDownloadProgress) => void
   debug?: (message: string) => void
 }
 
@@ -108,6 +106,8 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   private extractor: TextExtractor | null = null
   private loading: Promise<TextExtractor> | null = null
   private failure: Error | null = null
+  /** Set only while an explicit download runs; see {@link watchProgress}. */
+  private progressListener: ((progress: ModelDownloadProgress) => void) | null = null
 
   constructor(config: EmbeddingConfig, options: EmbeddingProviderOptions) {
     this.config = config
@@ -145,12 +145,13 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
     // inside node_modules and is wiped by a reinstall.
     if (module.env) module.env.cacheDir = this.options.cacheDir
     this.options.debug?.(`embeddings: loading ${this.model} (cache ${this.options.cacheDir})`)
-    const onProgress = this.options.onProgress
+    const listener = this.progressListener
     return (await module.pipeline('feature-extraction', this.model, {
       dtype: this.options.dtype ?? 'q8',
-      // Without the callback transformers.js downloads silently; the settings
-      // page wants a percentage, so the tracker is always wired when asked.
-      ...(onProgress ? { progress_callback: createProgressTracker(onProgress) } : {}),
+      // Only an explicit download attaches the callback: with it transformers.js
+      // asks the Hub for file metadata, which an offline host answers with a
+      // timeout even when the model is already cached.
+      ...(listener ? { progress_callback: createProgressTracker((progress) => listener(progress)) } : {}),
     })) as TextExtractor
   }
 
@@ -171,6 +172,16 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
     this.extractor = null
     this.loading = null
     this.failure = null
+  }
+
+  /**
+   * Enable or disable download progress for the *next* load.
+   *
+   * Attaching `progress_callback` makes transformers.js verify file metadata
+   * against the Hub, so it stays off for ordinary loads.
+   */
+  watchProgress(listener: ((progress: ModelDownloadProgress) => void) | null): void {
+    this.progressListener = listener
   }
 
   async embed(texts: string[], role: EmbeddingRole): Promise<EmbeddingBatch> {
@@ -205,6 +216,8 @@ export class WorkerEmbeddingProvider implements EmbeddingProvider {
   private worker: Worker | null = null
   private failure: Error | null = null
   private nextId = 1
+  /** Set only while an explicit download runs; see {@link watchProgress}. */
+  private progressListener: ((progress: ModelDownloadProgress) => void) | null = null
   private readonly pending = new Map<
     number,
     { resolve: (batch: EmbeddingBatch) => void; reject: (error: Error) => void; prewarm: boolean }
@@ -239,7 +252,7 @@ export class WorkerEmbeddingProvider implements EmbeddingProvider {
       config: this.config,
       cacheDir: this.options.cacheDir,
       dtype: this.options.dtype ?? 'q8',
-      reportProgress: this.options.onProgress !== undefined,
+      reportProgress: this.progressListener !== null,
     }
     const worker = new Worker(workerPath, { workerData })
     worker.on('message', (message: EmbedWorkerResponse) => this.onMessage(message))
@@ -255,7 +268,7 @@ export class WorkerEmbeddingProvider implements EmbeddingProvider {
     // Progress arrives while a prewarm request is still in flight and carries no
     // answer: it must never resolve that request.
     if (message.type === 'progress') {
-      if (message.progress) this.options.onProgress?.(message.progress)
+      if (message.progress) this.progressListener?.(message.progress)
       return
     }
     const entry = this.pending.get(message.id)
@@ -299,6 +312,17 @@ export class WorkerEmbeddingProvider implements EmbeddingProvider {
     for (const [, entry] of this.pending) entry.reject(new Error('embedding worker reloaded'))
     this.pending.clear()
     if (worker) void worker.terminate().catch(() => undefined)
+  }
+
+  /**
+   * Enable or disable download progress for the next worker.
+   *
+   * An explicit download calls {@link reload} first when the cache is missing,
+   * so the fresh worker picks the flag up from `workerData`; an ordinary load
+   * never attaches the callback and never asks the Hub for file metadata.
+   */
+  watchProgress(listener: ((progress: ModelDownloadProgress) => void) | null): void {
+    this.progressListener = listener
   }
 
   async embed(texts: string[], role: EmbeddingRole): Promise<EmbeddingBatch> {

@@ -15,6 +15,7 @@ import {
   modelCacheDir,
   removeModelCache,
   scanModelCache,
+  sweepModelTempFiles,
   type ModelDownloadProgress,
 } from '../src/core/model-cache'
 
@@ -81,6 +82,30 @@ describe('scanModelCache', () => {
     expect(status.cached).toBe(false)
     expect(status.files).toBe(0)
     expect(existsSync(other)).toBe(true)
+  })
+})
+
+describe('sweepModelTempFiles', () => {
+  it('removes leftovers of interrupted downloads and keeps the real files', () => {
+    const cache = tempCache()
+    const dir = modelCacheDir(cache, MODEL)
+    mkdirSync(join(dir, 'onnx'), { recursive: true })
+    writeFileSync(join(dir, 'config.json'), '{}')
+    writeFileSync(join(dir, 'onnx', 'model_quantized.onnx'), 'y'.repeat(32))
+    writeFileSync(join(dir, 'onnx', 'model_quantized.onnx.tmp.1056.z4l09u'), 'z'.repeat(4096))
+    writeFileSync(join(dir, 'onnx', 'model_quantized.onnx.tmp.1183.1448hsi'), 'z'.repeat(2048))
+
+    const swept = sweepModelTempFiles(cache, MODEL)
+    expect(swept.files).toBe(2)
+    expect(swept.bytes).toBe(4096 + 2048)
+    expect(existsSync(join(dir, 'onnx', 'model_quantized.onnx.tmp.1056.z4l09u'))).toBe(false)
+    expect(existsSync(join(dir, 'onnx', 'model_quantized.onnx'))).toBe(true)
+    expect(scanModelCache(cache, MODEL).cached).toBe(true)
+  })
+
+  it('reports nothing for a cache without leftovers', () => {
+    const cache = tempCache()
+    expect(sweepModelTempFiles(cache, MODEL)).toEqual({ files: 0, bytes: 0 })
   })
 })
 

@@ -1212,16 +1212,32 @@ window.__ModuleLoader__.load({
           progress.files
         );
       }
-      if (model.enabled !== true) {
+      if (model.configured === false) {
         return "Vector search is off (provider or backend). Turn it on, save, then download the model.";
       }
       if (model.cached) {
-        return "Cached: " + formatByteSize(model.bytes) + " in " + model.files + " files \u2014 search uses it now.";
+        return (
+          "Cached: " +
+          formatByteSize(model.bytes) +
+          " in " +
+          model.files +
+          " files" +
+          (model.enabled === true ? " \u2014 search uses it now." : " \u2014 restart the plugin to switch search on.")
+        );
       }
       if (model.files > 0) {
-        return "Cache is incomplete: " + formatByteSize(model.bytes) + " in " + model.files + " files. Download again.";
+        return (
+          "Cache is incomplete: " +
+          formatByteSize(model.bytes) +
+          " in " +
+          model.files +
+          " files. Press Download model to replace it."
+        );
       }
-      return "Not downloaded yet (\u2248130 MB). Lexical search works; semantic search starts after the download.";
+      return (
+        "Not downloaded yet (\u2248130 MB). Lexical search works; semantic search starts after the download." +
+        (model.enabled === true ? "" : " Vector search is currently off because the model is missing.")
+      );
     }
 
     function VectorPanel(props) {

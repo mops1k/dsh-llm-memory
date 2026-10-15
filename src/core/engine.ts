@@ -20,6 +20,7 @@ import { createEmbeddingProvider } from './embeddings.js'
 import {
   removeModelCache,
   scanModelCache,
+  sweepModelTempFiles,
   type ModelCacheStatus,
   type ModelDownloadProgress,
 } from './model-cache.js'
@@ -193,7 +194,9 @@ export interface ModelStatus extends ModelCacheStatus {
   provider: string
   /** Configured model id. */
   model: string
-  /** Whether the vector leg is active, that is a download would be usable. */
+  /** Whether the settings ask for semantic search at all (provider and backend). */
+  configured: boolean
+  /** Whether the vector leg is active right now; false also when the model is absent. */
   enabled: boolean
   /** Whether a download is running right now. */
   downloading: boolean
@@ -472,6 +475,10 @@ export class MemoryEngine {
   private vectors: { provider: EmbeddingProvider; index: VectorIndex; queue: EmbeddingQueue } | null = null
   /** Set when the vector leg cannot be built, so it is not retried per call. */
   private vectorUnavailable = false
+  /** Provider kept for downloads even while the vector leg is off. */
+  private modelProvider: EmbeddingProvider | null = null
+  /** The model is configured but not in the cache: the settings page must fetch it. */
+  private modelMissing = false
   /** Model cache and download state shown by the settings page. */
   private modelState: {
     downloading: boolean
@@ -499,12 +506,51 @@ export class MemoryEngine {
     this.manualEmbeddings = options.manualEmbeddings === true
   }
 
+  /** Whether the settings (or an injected provider) ask for semantic search. */
+  private vectorsConfigured(): boolean {
+    if (this.injectedProvider) return true
+    const settings = this.config.embeddings
+    return settings.provider !== 'off' && settings.backend !== 'off'
+  }
+
+  /**
+   * Provider for the vector leg and for model downloads.
+   *
+   * Cached so a download that ran while the vector leg was off (no model in the
+   * cache) is reused once the model is there.
+   */
+  private resolveProvider(): EmbeddingProvider | null {
+    if (this.vectors) return this.vectors.provider
+    if (this.modelProvider) return this.modelProvider
+    const settings = this.config.embeddings
+    const provider =
+      this.injectedProvider ??
+      (settings.provider === 'off' || settings.provider === 'http'
+        ? null
+        : createEmbeddingProvider(settings, { cacheDir: this.modelCacheDir(), debug }))
+    if (provider) this.modelProvider = provider
+    return provider
+  }
+
+  /**
+   * Whether the local model is on disk; a missing one keeps the vector leg off.
+   *
+   * Downloading it implicitly would block every recall on a 130 MB transfer (and
+   * on a restart it would start over), so an explicit download from the settings
+   * page is the only path that fetches the model.
+   */
+  private modelAvailable(provider: EmbeddingProvider): boolean {
+    if (!provider.id.startsWith('local')) return true
+    return scanModelCache(this.modelCacheDir(), provider.model).cached
+  }
+
   /**
    * Build the vector stack on first use.
    *
    * Every failure path — the optional dependency is missing, the worker cannot
-   * start, the settings disable vectors — leaves `vectors` null, so a broken
-   * embedding setup degrades to the lexical path instead of breaking recall.
+   * start, the settings disable vectors, the model is not downloaded — leaves
+   * `vectors` null, so a broken embedding setup degrades to the lexical path
+   * instead of breaking recall.
    */
   private ensureVectors(): { provider: EmbeddingProvider; index: VectorIndex; queue: EmbeddingQueue } | null {
     if (this.vectors) return this.vectors
@@ -515,17 +561,16 @@ export class MemoryEngine {
       return null
     }
     try {
-      const provider =
-        this.injectedProvider ??
-        createEmbeddingProvider(settings, {
-          cacheDir: this.modelCacheDir(),
-          debug,
-          onProgress: (progress) => {
-            this.modelState.progress = progress
-          },
-        })
+      const provider = this.resolveProvider()
       if (!provider) {
         this.vectorUnavailable = true
+        return null
+      }
+      if (!this.modelAvailable(provider)) {
+        this.modelMissing = true
+        debug(
+          `embeddings: ${provider.model} is not in the cache; semantic search stays off until it is downloaded from the settings page`,
+        )
         return null
       }
       const index = this.store.initVectorIndex({
@@ -582,12 +627,13 @@ export class MemoryEngine {
     const settings = this.config.embeddings
     // Prefer the model the provider actually loads (an injected provider may
     // differ from the configured one in tests).
-    const model = this.vectors?.provider.model ?? settings.model
+    const model = this.vectors?.provider.model ?? this.modelProvider?.model ?? settings.model
     const cache = scanModelCache(this.modelCacheDir(), model)
     return {
       provider: settings.provider,
       model,
-      enabled: this.vectors !== null || (settings.provider !== 'off' && settings.backend !== 'off'),
+      configured: this.vectorsConfigured(),
+      enabled: this.vectors !== null,
       dir: cache.dir,
       cached: cache.cached,
       files: cache.files,
@@ -611,38 +657,54 @@ export class MemoryEngine {
    * @throws when the vector leg is disabled, because nothing would use the model.
    */
   downloadModel(): ModelStatus {
-    const vectors = this.ensureVectors()
-    if (!vectors) {
+    const settings = this.config.embeddings
+    if (!this.vectorsConfigured()) {
       throw new Error(
         'Vector search is disabled: switch the embeddings provider to "local" and the backend away from "off" first.',
       )
     }
+    const provider = this.resolveProvider()
+    if (!provider) {
+      throw new Error('No embedding provider is available; install @huggingface/transformers and retry.')
+    }
     if (this.modelState.downloading) return this.modelStatus()
-    // A model already in memory would make `prewarm` return without fetching
-    // anything, so an empty or incomplete cache forces a reload from disk.
-    const model = vectors.provider.model
-    if (!scanModelCache(this.modelCacheDir(), model).cached) {
-      vectors.provider.reload?.()
+
+    const model = provider.model
+    const cache = scanModelCache(this.modelCacheDir(), model)
+    if (!cache.cached) {
+      // A model already in memory would make `prewarm` return without fetching
+      // anything, and leftovers of a killed download are useless to the loader.
+      const swept = sweepModelTempFiles(this.modelCacheDir(), model)
+      if (swept.files > 0) {
+        debug(`embeddings: removed ${swept.files} partial downloads (${swept.bytes} bytes) of ${model}`)
+      }
+      provider.reload?.()
       debug(`embeddings: reloading ${model}, the cache is incomplete`)
     }
+
     this.modelState = { downloading: true, progress: null, error: null }
-    void vectors.provider
+    provider.watchProgress?.((progress) => {
+      this.modelState.progress = progress
+    })
+    void provider
       .prewarm()
       .then(() => {
-        const cache = scanModelCache(this.modelCacheDir(), model)
-        this.modelState =
-          cache.cached || vectors.provider.id !== 'local'
-            ? { downloading: false, progress: null, error: null }
-            : {
-                downloading: false,
-                progress: null,
-                error: `No model files were written to ${cache.dir}; check the network and the plugin log.`,
-              }
-        debug(
-          this.modelState.error === null
-            ? `embeddings: ${model} is cached and loaded`
-            : `embeddings: ${this.modelState.error}`,
-        )
+        const after = scanModelCache(this.modelCacheDir(), model)
+        if (after.cached || !provider.id.startsWith('local')) {
+          this.modelState = { downloading: false, progress: null, error: null }
+          this.modelMissing = false
+          // The model arrived now: let the vector leg come up without a restart.
+          this.vectorUnavailable = false
+          this.startVectors()
+          debug(`embeddings: ${model} is cached and loaded`)
+        } else {
+          this.modelState = {
+            downloading: false,
+            progress: null,
+            error: `No model files were written to ${after.dir}; check the network and the plugin log.`,
+          }
+          debug(`embeddings: ${this.modelState.error}`)
+        }
       })
       .catch((error: unknown) => {
         this.modelState = {
@@ -651,6 +713,9 @@ export class MemoryEngine {
           error: error instanceof Error ? error.message : String(error),
         }
         debug(`embeddings: model download failed (${this.modelState.error})`)
+      })
+      .finally(() => {
+        provider.watchProgress?.(null)
       })
     return this.modelStatus()
   }
