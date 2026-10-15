@@ -381,6 +381,11 @@ export function createWebHandler(
       sendJson(res, 200, engine.graph())
       return
     }
+    if (rel === '/api/vectors/map') {
+      const map = engine.vectorsMap({ refresh: param(url, 'refresh') === '1' })
+      sendJson(res, 200, { map, reason: map ? null : mapUnavailableReason(engine) })
+      return
+    }
     if (rel === '/api/items') {
       const kind = param(url, 'kind')
       const scope = param(url, 'scope')
@@ -517,6 +522,24 @@ export function createWebHandler(
       sendJson(res, 200, { vectors: engine.vectorStatus() })
       return
     }
+    if (rel === '/api/vectors/map/query') {
+      const body = await readJsonBody(req, MAX_BODY_BYTES)
+      const text = typeof body.text === 'string' ? body.text.trim() : ''
+      if (text.length === 0) {
+        sendJson(res, 400, { error: 'text is required' })
+        return
+      }
+      const limit = typeof body.limit === 'number' && Number.isFinite(body.limit) ? body.limit : 5
+      const query = await engine.projectQuery(text, limit)
+      if (!query) {
+        sendJson(res, 400, {
+          error: 'Semantic search is unavailable — enable vector search and download the model in Settings → LLM Memory.',
+        })
+        return
+      }
+      sendJson(res, 200, query)
+      return
+    }
     if (rel === '/api/model/download') {
       await readJsonBody(req, MAX_BODY_BYTES)
       try {
@@ -542,7 +565,7 @@ export function createWebHandler(
       return
     }
     if (rel.startsWith('/api/')) {
-      const getOnly = ['/api/status', '/api/lint', '/api/graph', '/api/items', '/api/item']
+      const getOnly = ['/api/status', '/api/lint', '/api/graph', '/api/vectors/map', '/api/items', '/api/item']
       if (getOnly.includes(rel)) {
         res.setHeader('Allow', 'GET')
       }
@@ -591,6 +614,20 @@ function warnWeb(ctx: Context, message: string): void {
   } catch {
     console.warn(`[dsh-llm-memory] ${message}`)
   }
+}
+
+/**
+ * Why the semantic map is empty, in words the UI turns into a hint instead of an
+ * empty rectangle. `indexing` is the only transient case: everything is on, the
+ * queue just has not embedded the entries yet.
+ */
+function mapUnavailableReason(engine: MemoryEngine): 'not-configured' | 'model-missing' | 'indexing' | 'empty' {
+  const model = engine.modelStatus()
+  if (!model.configured || !model.enabled) return 'not-configured'
+  if (!model.cached) return 'model-missing'
+  const vectors = engine.vectorStatus()
+  if (vectors && vectors.pending > 0) return 'indexing'
+  return 'empty'
 }
 
 /**

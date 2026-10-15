@@ -48,8 +48,12 @@ import type {
   MemoryStatus,
   MemoryTier,
   VectorIndex,
+  VectorMap,
+  VectorMapPoint,
+  VectorMapQuery,
 } from './types.js'
 import { clampImportance } from './types.js'
+import { projectInto, projectVectors, type VectorProjection } from './projection.js'
 
 /** Output format of `recall`. */
 export type RecallFormat = 'markdown' | 'table' | 'timeline' | 'json'
@@ -73,6 +77,17 @@ const DUPLICATE_QUANTILE = 0.02
 
 /** Hard cap on the duplicate candidates one lint report returns. */
 const LINT_MAX_DUPLICATES = 25
+
+/**
+ * Rounds a number before it travels to the UI. Map coordinates and cosine
+ * scores are drawn, not computed with, and the map payload carries ~1000 points,
+ * so the digits saved here are paid for on every request.
+ */
+function round(value: number, digits = 4): number {
+  if (!Number.isFinite(value)) return 0
+  const factor = 10 ** digits
+  return Math.round(value * factor) / factor
+}
 
 /** Construction options of {@link MemoryEngine}. */
 export interface MemoryEngineOptions {
@@ -487,6 +502,12 @@ export class MemoryEngine {
   } = { downloading: false, progress: null, error: null }
   /** Consecutive failures of the query-embedding path. */
   private vectorFailures = 0
+  /**
+   * Cached semantic map and its basis. The key holds the index counters, so the
+   * coordinates are rebuilt as soon as an entry is embedded — the basis has to
+   * match the data it was computed from, otherwise the query marker drifts.
+   */
+  private mapCache: { key: string; projection: VectorProjection; map: VectorMap } | null = null
 
   constructor(options: MemoryEngineOptions = {}) {
     this.config = mergeConfig({
@@ -610,6 +631,99 @@ export class MemoryEngine {
   /** Progress of the vector index, or null when the vector leg is off. */
   vectorStatus(): EmbeddingQueueStatus | null {
     return this.vectors?.queue.status() ?? null
+  }
+
+  /**
+   * Coordinates of every indexed entry on the two leading principal directions.
+   *
+   * `null` means there is nothing to draw: the vector leg is off, the model is
+   * missing, or no entry has been embedded yet. The result is cached until the
+   * index counters change; `refresh` forces a rebuild (the button in the UI).
+   */
+  vectorsMap(options: { refresh?: boolean } = {}): VectorMap | null {
+    const vectors = this.ensureVectors()
+    if (!vectors) return null
+    const stats = vectors.index.stats()
+    const key = `${stats.model}:${stats.dim}:${stats.entries}:${stats.chunks}`
+    if (!options.refresh && this.mapCache && this.mapCache.key === key) {
+      return { ...this.mapCache.map, cached: true }
+    }
+
+    const entryVectors = vectors.index.entryVectors()
+    if (entryVectors.size === 0) return null
+
+    const ids = [...entryVectors.keys()]
+    const projection = projectVectors(ids.map((id) => entryVectors.get(id)!))
+    const chunkCounts = vectors.index.chunkCounts()
+    const entries = new Map(this.store.list({ status: 'all' }).items.map((entry) => [entry.id, entry]))
+    const points: VectorMapPoint[] = []
+    for (const [index, id] of ids.entries()) {
+      const entry = entries.get(id)
+      // A vector without a page (deleted entry, pending cleanup) cannot be opened
+      // in the UI, so it is left out of the map instead of drawn as a ghost.
+      if (!entry) continue
+      points.push({
+        id,
+        title: entry.title.slice(0, 120),
+        x: round(projection.points[index * 2] ?? 0, 4),
+        y: round(projection.points[index * 2 + 1] ?? 0, 4),
+        kind: entry.kind,
+        project: entry.project,
+        scope: entry.scope,
+        tier: entry.tier,
+        status: entry.status,
+        chunks: chunkCounts.get(id) ?? 0,
+      })
+    }
+    if (points.length === 0) return null
+
+    const map: VectorMap = {
+      model: stats.model,
+      dim: stats.dim,
+      backend: stats.backend,
+      entries: points.length,
+      chunks: stats.chunks,
+      explained: [round(projection.explained[0], 4), round(projection.explained[1], 4)],
+      points,
+      cached: false,
+    }
+    this.mapCache = { key, projection, map }
+    return map
+  }
+
+  /**
+   * Places a free-text query on the semantic map and returns the entries closest
+   * to it, so the UI can show *where* recall is looking.
+   */
+  async projectQuery(text: string, limit = 5): Promise<VectorMapQuery | null> {
+    const trimmed = text.trim()
+    if (trimmed.length === 0) return null
+    const vectors = this.ensureVectors()
+    if (!vectors) return null
+    // Build (or reuse) the map first: the query is projected with its basis.
+    if (!this.vectorsMap()) return null
+    const cache = this.mapCache
+    if (!cache) return null
+
+    const batch = await vectors.provider.embed([trimmed], 'query')
+    const vector = batch.vectors[0]
+    if (!vector) return null
+
+    const placed = projectInto(vector, cache.projection)
+    const matches = vectors.index.search({
+      vector,
+      limit: Math.max(1, Math.min(50, Math.floor(limit))),
+      filter: undefined,
+    })
+    const best = new Map<string, number>()
+    for (const match of matches) {
+      const previous = best.get(match.entryId)
+      if (previous === undefined || previous < match.score) best.set(match.entryId, match.score)
+    }
+    const hits = [...best]
+      .map(([id, score]) => ({ id, score: round(score, 4) }))
+      .sort((left, right) => right.score - left.score)
+    return { x: round(placed.x, 4), y: round(placed.y, 4), model: cache.map.model, hits }
   }
 
   /** Directory the embedding model is cached in, inside the memory root. */

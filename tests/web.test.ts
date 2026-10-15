@@ -395,3 +395,98 @@ describe('model cache routes', () => {
     expect(existsSync(join(root, '_models', 'Xenova', 'multilingual-e5-small'))).toBe(false)
   })
 })
+
+describe('semantic map routes', () => {
+  /** Engine with three embedded entries plus its own handler. */
+  async function vectorHandler(): Promise<{
+    engine: MemoryEngine
+    invoke: (method: string, url: string, body?: unknown) => Promise<MockResponse>
+  }> {
+    const own = new MemoryEngine({
+      storageRoot: root,
+      project: 'demo',
+      manualEmbeddings: true,
+      embeddingProvider: new FakeEmbeddingProvider(),
+      config: { embeddings: { chunkChars: 200, chunkOverlap: 0 } },
+    })
+    own.save({ title: 'Индексация памяти', text: 'Fingerprint и reconcileFromDisk вместо полного reindex.' })
+    own.save({ title: 'Язык общения', text: 'Ответы только на русском языке.' })
+    own.save({ title: 'Векторный поиск', text: 'sqlite-vec и js дают одинаковые результаты поиска.' })
+    await own.embedPending()
+    const ownHandler = createWebHandler(own, mergeConfig({ webPath: '/llm-memory' }))
+    const invoke = async (method: string, url: string, body?: unknown): Promise<MockResponse> => {
+      const res = makeResponse()
+      await ownHandler(
+        makeRequest(method, url, body) as unknown as IncomingMessage,
+        res as unknown as ServerResponse,
+      )
+      return res
+    }
+    return { engine: own, invoke }
+  }
+
+  it('returns coordinates for every embedded entry and caches them', async () => {
+    const { engine: own, invoke } = await vectorHandler()
+
+    const first = await invoke('GET', '/llm-memory/api/vectors/map')
+    expect(first.statusCode).toBe(200)
+    const payload = json(first)
+    expect(payload.reason).toBe(null)
+    const map = payload.map as Record<string, unknown>
+    const points = map.points as Array<Record<string, unknown>>
+    expect(points.length).toBe(3)
+    expect(map.cached).toBe(false)
+    expect(map.chunks).toBeGreaterThan(0)
+    for (const point of points) {
+      expect(Number.isFinite(point.x)).toBe(true)
+      expect(Number.isFinite(point.y)).toBe(true)
+      expect(point.chunks).toBeGreaterThan(0)
+      expect(String(point.id)).toMatch(/^m_/)
+    }
+    const explained = map.explained as number[]
+    expect(explained[0]).toBeGreaterThanOrEqual(explained[1]!)
+
+    // Same counters, same store: the second call may reuse the coordinates…
+    expect((json(await invoke('GET', '/llm-memory/api/vectors/map')).map as Record<string, unknown>).cached).toBe(true)
+    // …and ?refresh=1 rebuilds them, which is deterministic, so the numbers match.
+    const refreshed = json(await invoke('GET', '/llm-memory/api/vectors/map?refresh=1')).map as Record<string, unknown>
+    expect(refreshed.cached).toBe(false)
+    expect(refreshed.points).toEqual(map.points)
+    own.close()
+  })
+
+  it('places a query on the map and rejects an empty one', async () => {
+    const { engine: own, invoke } = await vectorHandler()
+
+    const placed = await invoke('POST', '/llm-memory/api/vectors/map/query', { text: 'Fingerprint и reindex', limit: 3 })
+    expect(placed.statusCode).toBe(200)
+    const query = json(placed)
+    expect(Number.isFinite(query.x)).toBe(true)
+    expect(Number.isFinite(query.y)).toBe(true)
+    const hits = query.hits as Array<Record<string, unknown>>
+    expect(hits.length).toBeGreaterThan(0)
+    expect(Number(hits[0]!.score)).toBeGreaterThan(0)
+    expect(typeof query.model).toBe('string')
+
+    for (const body of [{}, { text: '   ' }]) {
+      const empty = await invoke('POST', '/llm-memory/api/vectors/map/query', body)
+      expect(empty.statusCode).toBe(400)
+      expect(String(json(empty).error)).toContain('text is required')
+    }
+
+    // The map itself is a GET route.
+    const wrongMethod = await invoke('POST', '/llm-memory/api/vectors/map', {})
+    expect(wrongMethod.statusCode).toBe(405)
+    own.close()
+  })
+
+  it('explains an empty map when vector search is off', async () => {
+    const off = json(await call('GET', '/llm-memory/api/vectors/map'))
+    expect(off.map).toBe(null)
+    expect(off.reason).toBe('not-configured')
+
+    const query = await call('POST', '/llm-memory/api/vectors/map/query', { text: 'Fingerprint' })
+    expect(query.statusCode).toBe(400)
+    expect(String(json(query).error)).toContain('unavailable')
+  })
+})

@@ -312,6 +312,19 @@ class VectorCache {
     return vectors
   }
 
+  /** Number of stored chunks per entry, optionally restricted by metadata. */
+  chunkCounts(filter?: MemoryFilter): Map<string, number> {
+    const where = vectorWhere(filter)
+    const params: SqlParam[] = [this.model, ...where.params]
+    let sql = 'SELECT entry_id, COUNT(*) AS chunks FROM memory_vectors WHERE model = ?'
+    if (where.sql.length > 0) sql += ` AND ${where.sql}`
+    sql += ' GROUP BY entry_id'
+    const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>
+    const counts = new Map<string, number>()
+    for (const row of rows) counts.set(asString(row['entry_id']), asNumber(row['chunks']))
+    return counts
+  }
+
   stats(backend: VectorBackend): VectorIndexStats {
     const row = this.db
       .prepare(
@@ -416,6 +429,10 @@ export class JsVectorIndex implements VectorIndex {
 
   entryVectors(filter?: MemoryFilter): Map<string, Float32Array> {
     return this.cache.entryVectors(filter)
+  }
+
+  chunkCounts(filter?: MemoryFilter): Map<string, number> {
+    return this.cache.chunkCounts(filter)
   }
 
   search(query: VectorQuery): VectorMatch[] {
@@ -594,6 +611,10 @@ export class SqliteVecIndex implements VectorIndex {
 
   entryVectors(filter?: MemoryFilter): Map<string, Float32Array> {
     return this.cache.entryVectors(filter)
+  }
+
+  chunkCounts(filter?: MemoryFilter): Map<string, number> {
+    return this.cache.chunkCounts(filter)
   }
 
   search(query: VectorQuery): VectorMatch[] {

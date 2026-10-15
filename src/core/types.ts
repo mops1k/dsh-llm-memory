@@ -370,6 +370,53 @@ export interface VectorIndex {
   entryVectors(filter?: MemoryFilter): Map<string, Float32Array>
   /** Nearest chunks for a query, best first. */
   search(query: VectorQuery): VectorMatch[]
+  /**
+   * Number of stored chunks per entry. The semantic map draws it as the point
+   * size, and the duplicate report uses it as a weight.
+   */
+  chunkCounts(filter?: MemoryFilter): Map<string, number>
   /** Counters for the settings UI and logs. */
   stats(): VectorIndexStats
+}
+
+/** One entry placed on the semantic map. */
+export interface VectorMapPoint {
+  id: string
+  /** Short title, for the tooltip; the full entry is fetched on click. */
+  title: string
+  /** Coordinates on the two leading principal directions. */
+  x: number
+  y: number
+  kind: MemoryKind
+  project: string
+  scope: MemoryScope
+  tier: MemoryTier
+  status: MemoryStatus
+  /** Indexed chunks of this entry. */
+  chunks: number
+}
+
+/**
+ * Two-dimensional projection of every indexed entry — the "semantic map" of the
+ * UI. Coordinates are unitless: only relative distances mean anything.
+ */
+export interface VectorMap {
+  model: string
+  dim: number
+  backend: VectorBackend
+  entries: number
+  chunks: number
+  /** Share of the total variance on each axis, 0..1. */
+  explained: [number, number]
+  points: VectorMapPoint[]
+  /** True when the coordinates came from the cache instead of a fresh build. */
+  cached: boolean
+}
+
+/** Where a query lands on the map, with the entries closest to it. */
+export interface VectorMapQuery {
+  x: number
+  y: number
+  model: string
+  hits: Array<{ id: string; score: number }>
 }
