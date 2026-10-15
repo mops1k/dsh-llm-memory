@@ -13,6 +13,7 @@
  *   node scripts/backfill-vectors.mjs                    # default storage root
  *   node scripts/backfill-vectors.mjs --root <path>      # explicit storage root
  *   node scripts/backfill-vectors.mjs --copy            # work on a copy of the DB
+ *   node scripts/backfill-vectors.mjs --copy --keep     # keep the copy (bench data)
  *   node scripts/backfill-vectors.mjs --cache <dir>      # model cache directory
  *   node scripts/backfill-vectors.mjs --slice <n>        # entries per progress slice
  *   node scripts/backfill-vectors.mjs --limit <n>        # first n entries only
@@ -39,6 +40,7 @@ function flag(name, fallback) {
 
 const asJson = argv.includes('--json')
 const useCopy = argv.includes('--copy')
+const keepCopy = argv.includes('--keep')
 const limit = Number.parseInt(flag('limit', '0'), 10) || 0
 const sliceSize = Math.max(1, Number.parseInt(flag('slice', '25'), 10) || 25)
 const cacheFlag = flag('cache', undefined)
@@ -127,6 +129,7 @@ try {
   const summary = {
     root: liveRoot,
     copied: useCopy,
+    copyRoot: useCopy ? root : null,
     model: provider.model,
     dim: provider.dim,
     entries: ids.length,
@@ -153,5 +156,6 @@ try {
   process.exitCode = summary.lastError ? 1 : 0
 } finally {
   engine.close()
-  if (tempRoot) rmSync(tempRoot, { recursive: true, force: true })
+  if (tempRoot && !keepCopy) rmSync(tempRoot, { recursive: true, force: true })
+  if (tempRoot && keepCopy && !asJson) console.log(`copy kept at ${tempRoot}`)
 }

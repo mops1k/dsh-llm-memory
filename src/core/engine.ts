@@ -424,6 +424,8 @@ export class MemoryEngine {
     this.store = new MemoryStore({
       storageRoot: this.config.storageRoot,
       scanBudgetMs: this.config.projectScanBudgetMs,
+      // Loading the extension has to be allowed when the connection is created.
+      allowExtension: this.config.embeddings.backend === 'sqlite-vec',
     })
     if (options.resolveProjectRoot) this.externalResolver = options.resolveProjectRoot
     if (options.embeddingProvider) this.injectedProvider = options.embeddingProvider
@@ -457,6 +459,7 @@ export class MemoryEngine {
         model: provider.model,
         dim: provider.dim,
         backend: settings.backend,
+        quantization: settings.quantization,
       })
       if (!index) {
         this.vectorUnavailable = true

@@ -137,6 +137,12 @@ export const MemorySettingsSchema = z.object({
         .description(
           'Where chunk vectors live: js (plain table, in-process cosine scan), sqlite-vec (vec0 KNN in SQL) or off. Falls back to js when the extension cannot load.',
         ),
+      quantization: z
+        .union([z.const('float'), z.const('int8'), z.const('bit')])
+        .default(DEFAULT_EMBEDDINGS.quantization)
+        .description(
+          'Storage precision of the sqlite-vec table: float (full 32-bit), int8 (4x smaller) or bit (32x smaller, Hamming distance, needs a dimension divisible by 8). Ignored by the js backend.',
+        ),
       topK: z
         .number()
         .min(5)

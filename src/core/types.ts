@@ -144,6 +144,14 @@ export interface MemoryStoreOptions {
    * (0 = no budget). Callers can override it per pass.
    */
   scanBudgetMs?: number
+  /**
+   * Open the connection with SQLite extension loading enabled.
+   *
+   * node:sqlite refuses to enable it after the connection exists (measured:
+   * "Cannot enable extension loading because it was disabled at database
+   * creation"), so the sqlite-vec backend requires this at construction time.
+   */
+  allowExtension?: boolean
 }
 
 /** Edge types of the heuristic knowledge graph. */
@@ -207,6 +215,16 @@ export type EmbeddingProviderMode = 'off' | 'local' | 'http'
  * uses the `vec0` virtual table of the sqlite-vec extension (KNN in SQL).
  */
 export type VectorBackend = 'off' | 'js' | 'sqlite-vec'
+
+/**
+ * Storage precision of the vectors.
+ *
+ * `float` keeps full 32-bit precision, `int8` stores one byte per dimension and
+ * `bit` one bit per dimension (binary quantization, distances are Hamming-based
+ * and need a dimension divisible by 8). Quantization trades recall fidelity for
+ * size; only the sqlite-vec backend supports it.
+ */
+export type VectorQuantization = 'float' | 'int8' | 'bit'
 
 /**
  * Role of a text handed to an embedding model.

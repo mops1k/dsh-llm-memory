@@ -33,8 +33,9 @@ import type {
   MemoryStoreOptions,
   VectorBackend,
   VectorIndex,
+  VectorQuantization,
 } from './types.js'
-import { createVectorIndex } from './vector-index.js'
+import { VECTOR_TABLE_DDL, VECTOR_TABLE_INDEX_DDL, createVectorIndex } from './vector-index.js'
 import {
   decodePage,
   deleteItemPage,
@@ -267,6 +268,8 @@ export class MemoryStore {
   private projectsLoaded = false
   /** Default per-directory budget of an index pass (0 = no budget). */
   private readonly scanBudgetMs: number
+  /** Whether the connection allows loading SQLite extensions (sqlite-vec). */
+  private readonly allowExtension: boolean
   /** Vector index over chunk embeddings; null while the vector leg is off. */
   private vectors: VectorIndex | null = null
   /**
@@ -280,6 +283,7 @@ export class MemoryStore {
     this.root = paths.root
     this.dbPath = options.dbPath ?? paths.dbPath
     this.scanBudgetMs = Math.max(0, options.scanBudgetMs ?? 0)
+    this.allowExtension = options.allowExtension === true
   }
 
   /** Whether the underlying database connection is open. */
@@ -298,13 +302,19 @@ export class MemoryStore {
    * `memory_vectors` belongs to the schema, so a backend only reads and writes
    * rows and the database handle stays owned by the store.
    */
-  initVectorIndex(options: { model: string; dim: number; backend: VectorBackend }): VectorIndex | null {
+  initVectorIndex(options: {
+    model: string
+    dim: number
+    backend: VectorBackend
+    quantization?: VectorQuantization
+  }): VectorIndex | null {
     this.ensureReady()
     this.vectors = createVectorIndex(options.backend, {
       db: this.requireDb(),
       model: options.model,
       dim: options.dim,
       debug,
+      ...(options.quantization ? { quantization: options.quantization } : {}),
     })
     return this.vectors
   }
@@ -362,7 +372,11 @@ export class MemoryStore {
   open(): void {
     if (this.db) return
     ensureDir(dirname(this.dbPath))
-    const db = new DatabaseSync(this.dbPath)
+    // `DatabaseSync` rejects an explicit `undefined` options argument, so the
+    // flag has to switch between two constructor calls.
+    const db = this.allowExtension
+      ? new DatabaseSync(this.dbPath, { allowExtension: true })
+      : new DatabaseSync(this.dbPath)
     try {
       db.exec('PRAGMA journal_mode = WAL;')
       db.exec('PRAGMA busy_timeout = 5000;')
@@ -432,24 +446,8 @@ export class MemoryStore {
     // Chunk vectors live next to the entries they describe. `model`, `dim` and
     // `hash` make the cache self-describing: switching the embedding model
     // invalidates vectors through the hash instead of a separate migration.
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS memory_vectors (
-        entry_id TEXT NOT NULL,
-        chunk_ix INTEGER NOT NULL,
-        model TEXT NOT NULL DEFAULT '',
-        dim INTEGER NOT NULL DEFAULT 0,
-        hash TEXT NOT NULL DEFAULT '',
-        scope TEXT NOT NULL DEFAULT 'project',
-        project TEXT NOT NULL DEFAULT '',
-        kind TEXT NOT NULL DEFAULT 'facts',
-        tier TEXT NOT NULL DEFAULT 'normal',
-        status TEXT NOT NULL DEFAULT 'active',
-        vector BLOB NOT NULL,
-        created_at TEXT NOT NULL DEFAULT '',
-        PRIMARY KEY (entry_id, chunk_ix)
-      );
-    `)
-    db.exec('CREATE INDEX IF NOT EXISTS idx_memory_vectors_model ON memory_vectors(model);')
+    db.exec(VECTOR_TABLE_DDL)
+    db.exec(VECTOR_TABLE_INDEX_DDL)
     this.ensureColumns()
     this.ftsAvailable = this.ensureFts()
   }

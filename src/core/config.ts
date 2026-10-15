@@ -6,7 +6,7 @@
  * top of {@link MemoryConfig}; this module only provides defaults and a tolerant
  * merge helper.
  */
-import type { EmbeddingProviderMode, MemoryScope, VectorBackend } from './types.js'
+import type { EmbeddingProviderMode, MemoryScope, VectorBackend, VectorQuantization } from './types.js'
 
 /** Recall scope accepted by the engine. */
 export type RecallScope = MemoryScope | 'all'
@@ -63,6 +63,11 @@ export interface EmbeddingConfig {
   chunkOverlap: number
   /** Storage of the vectors: in-process scan, sqlite-vec or off. */
   backend: VectorBackend
+  /**
+   * Storage precision of the sqlite-vec table; ignored by the in-process
+   * backend, which always keeps float32 vectors in `memory_vectors`.
+   */
+  quantization: VectorQuantization
   /** Load the model in the background at startup instead of on first query. */
   prewarm: boolean
 }
@@ -80,6 +85,7 @@ export const DEFAULT_EMBEDDINGS: EmbeddingConfig = {
   chunkChars: 800,
   chunkOverlap: 120,
   backend: 'js',
+  quantization: 'float',
   prewarm: true,
 }
 
@@ -271,6 +277,10 @@ function asVectorBackend(value: unknown, fallback: VectorBackend): VectorBackend
   return value === 'off' || value === 'js' || value === 'sqlite-vec' ? value : fallback
 }
 
+function asQuantization(value: unknown, fallback: VectorQuantization): VectorQuantization {
+  return value === 'float' || value === 'int8' || value === 'bit' ? value : fallback
+}
+
 function asFloat(value: unknown, fallback: number, min: number, max: number): number {
   const n = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(n)) return fallback
@@ -301,6 +311,7 @@ function asEmbeddings(value: unknown, fallback: EmbeddingConfig): EmbeddingConfi
     chunkChars,
     chunkOverlap,
     backend: asVectorBackend(src['backend'], fallback.backend),
+    quantization: asQuantization(src['quantization'], fallback.quantization),
     prewarm: typeof src['prewarm'] === 'boolean' ? src['prewarm'] : fallback.prewarm,
   }
 }
