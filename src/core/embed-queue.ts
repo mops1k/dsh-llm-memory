@@ -204,7 +204,14 @@ export class EmbeddingQueue {
       const chunks = entryChunks(entry, this.config)
       if (chunks.length === 0) continue
       const stored = this.index.storedHashes(id)
-      if (chunksUnchanged(stored, chunks)) continue
+      if (chunksUnchanged(stored, chunks)) {
+        // The text is unchanged, so nothing gets embedded — but the entry may
+        // have moved project or changed kind/scope/tier/status, and every vector
+        // row carries a copy of that metadata. Leaving it stale made filtered
+        // searches answer with yesterday's scope (16.10.2026 finding).
+        this.refreshMetadata(entry)
+        continue
+      }
       jobs.push({ entry, chunks })
       for (const chunk of chunks) texts.push(chunk.text)
     }
@@ -244,6 +251,36 @@ export class EmbeddingQueue {
       this.index.upsert(records)
       this.embedded++
     }
+    return true
+  }
+
+  /**
+   * Rewrites the stored rows of one entry with its current metadata, keeping the
+   * vectors as they are. The chunk hash covers text and model only, so this is
+   * the only path a metadata-only change can travel to reach the vector table.
+   */
+  private refreshMetadata(entry: MemoryEntry): boolean {
+    const rows = this.index.records([entry.id])
+    if (rows.length === 0) return false
+    const stale = rows.some(
+      (row) =>
+        row.scope !== entry.scope ||
+        row.project !== entry.project ||
+        row.kind !== entry.kind ||
+        row.tier !== entry.tier ||
+        row.status !== entry.status,
+    )
+    if (!stale) return false
+    this.index.upsert(
+      rows.map((row) => ({
+        ...row,
+        scope: entry.scope,
+        project: entry.project,
+        kind: entry.kind,
+        tier: entry.tier,
+        status: entry.status,
+      })),
+    )
     return true
   }
 }

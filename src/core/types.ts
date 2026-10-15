@@ -375,6 +375,12 @@ export interface VectorIndex {
    * size, and the duplicate report uses it as a weight.
    */
   chunkCounts(filter?: MemoryFilter): Map<string, number>
+  /**
+   * Stored chunks with their vectors, optionally restricted to some entries. The
+   * embedding queue reads them to refresh the metadata copy of an entry without
+   * embedding its text again.
+   */
+  records(entryIds?: readonly string[]): VectorRecord[]
   /** Counters for the settings UI and logs. */
   stats(): VectorIndexStats
 }

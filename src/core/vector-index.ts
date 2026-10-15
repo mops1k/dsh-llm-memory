@@ -435,6 +435,10 @@ export class JsVectorIndex implements VectorIndex {
     return this.cache.chunkCounts(filter)
   }
 
+  records(entryIds?: readonly string[]): VectorRecord[] {
+    return this.cache.records(entryIds)
+  }
+
   search(query: VectorQuery): VectorMatch[] {
     if (query.entryIds && query.entryIds.length === 0) return []
     return this.cache.scan(query)
@@ -615,6 +619,10 @@ export class SqliteVecIndex implements VectorIndex {
 
   chunkCounts(filter?: MemoryFilter): Map<string, number> {
     return this.cache.chunkCounts(filter)
+  }
+
+  records(entryIds?: readonly string[]): VectorRecord[] {
+    return this.cache.records(entryIds)
   }
 
   search(query: VectorQuery): VectorMatch[] {
