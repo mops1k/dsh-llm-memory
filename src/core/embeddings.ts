@@ -254,7 +254,12 @@ export class WorkerEmbeddingProvider implements EmbeddingProvider {
       dtype: this.options.dtype ?? 'q8',
       reportProgress: this.progressListener !== null,
     }
-    const worker = new Worker(workerPath, { workerData })
+    const worker = new Worker(workerPath, {
+      workerData,
+      // Named so a leaked worker is visible next to the host threads
+      // (`/proc/<pid>/task/*/comm`), which is how the 2026-10-15 hang was found.
+      name: 'dsh-llm-memory-embed',
+    })
     worker.on('message', (message: EmbedWorkerResponse) => this.onMessage(message))
     worker.on('error', (error: Error) => this.fail(error))
     worker.on('exit', (code: number) => {

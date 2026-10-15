@@ -1413,12 +1413,16 @@ export class MemoryEngine {
   /** Stop the embedding queue and close the underlying database connection. */
   close(): void {
     const vectors = this.vectors
+    const modelProvider = this.modelProvider
     this.vectors = null
+    this.modelProvider = null
     this.store.onEntryChanged = null
     if (vectors) {
       vectors.queue.stop()
       vectors.provider.close?.()
     }
+    // A provider kept for downloads (the vector leg was off) owns its own worker.
+    if (modelProvider && modelProvider !== vectors?.provider) modelProvider.close?.()
     this.store.close()
   }
 
