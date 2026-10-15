@@ -57,7 +57,7 @@ and can import existing memory from other plugins.
 - **WebUI panel in the dsh shell**: the **LLM Memory** view tab next to the
   conversation renders the WebUI as a React view inside the shell (no iframe) and
   follows the dsh light/dark theme through the `--dsw-*` design tokens. The view
-  has Search & Browse, Create/Edit, Graph, Status, Lint and Health (lint/heal)
+  has Search & Browse, Create/Edit, Graph, Map, Status, Lint and Health (lint/heal)
   sections. The same page is still served standalone at the plugin HTTP path
   (`<webPath>/ui`), using the same tokens.
 - **Importers** (idempotent, keyed by an external key):
@@ -289,6 +289,16 @@ What semantics adds beyond recall:
   the prompt digest.
 - e5 cosine is compressed (related ~0.91, unrelated ~0.74), so every threshold in
   this plugin is a relative rule rather than an absolute value.
+- The **Map** tab draws the embeddings themselves: every entry is a point on the
+  plane of the two leading principal components (the PCA runs inside the plugin,
+  with no new dependencies), coloured by project or kind, sized by chunk count,
+  with the semantic graph edges as grey lines. The "Place a query" field embeds
+  free text, drops a crosshair on the map and rings the closest entries, so it is
+  visible where recall is looking. The two axes carry only part of the variance
+  (about 17% on the live store of 1068 entries / 3234 chunks), so the map is an
+  overview: trust the edges and rings more than absolute distances. Coordinates
+  are cached until the index changes; **Refresh** rebuilds them (~120 ms on the
+  live store, ~260 kB response).
 
 Degradation: with `provider: off`, a missing `@huggingface/transformers`, a
 failing worker or an extension that cannot load, the plugin falls back to FTS5;

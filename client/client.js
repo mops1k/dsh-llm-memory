@@ -36,6 +36,7 @@ window.__ModuleLoader__.load({
       ["browse", "Search & Browse"],
       ["edit", "Create / Edit"],
       ["graph", "Graph"],
+      ["map", "Map"],
       ["status", "Status"],
       ["lint", "Lint"],
       ["health", "Health"],
@@ -1182,6 +1183,558 @@ window.__ModuleLoader__.load({
     }
 
     /* ------------------------------------------------------------------ *
+     * conversation.view — Map (the embedding space, two leading axes)
+     * ------------------------------------------------------------------ */
+
+    const MAP_HEIGHT = 540;
+    /** Colour per project in the "by project" mode; index comes from a hash. */
+    const MAP_PALETTE = [
+      "#4c8bf5",
+      "#e8a33d",
+      "#43b581",
+      "#c678dd",
+      "#e06c75",
+      "#56b6c2",
+      "#d19a66",
+      "#8fbf5f",
+      "#9a7ff2",
+      "#5fb3a1",
+    ];
+    /** Semantic edges drawn at most; the graph itself has thousands. */
+    const MAP_MAX_EDGES = 600;
+
+    function mapProjectColor(project) {
+      let hash = 0;
+      const text = String(project || "");
+      for (let index = 0; index < text.length; index++) hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+      return MAP_PALETTE[hash % MAP_PALETTE.length];
+    }
+
+    /**
+     * Turns map coordinates into canvas coordinates once, so panning and zooming
+     * only add a transform on top. Bounds come from every point, not the filtered
+     * ones: changing a filter must not move the picture.
+     */
+    function layoutMap(points, edges, width, height) {
+      const pad = 26;
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      const minX = xs.length > 0 ? Math.min.apply(null, xs) : 0;
+      const maxX = xs.length > 0 ? Math.max.apply(null, xs) : 1;
+      const minY = ys.length > 0 ? Math.min.apply(null, ys) : 0;
+      const maxY = ys.length > 0 ? Math.max.apply(null, ys) : 1;
+      const spanX = maxX - minX || 1;
+      const spanY = maxY - minY || 1;
+      const innerW = Math.max(40, width - pad * 2);
+      const innerH = Math.max(40, height - pad * 2);
+      /** Raw map coordinates -> canvas coordinates (y flipped, so up is up). */
+      const place = (x, y) => [
+        pad + ((x - minX) / spanX) * innerW,
+        height - pad - ((y - minY) / spanY) * innerH,
+      ];
+
+      const items = points.map((point) => {
+        const spot = place(point.x, point.y);
+        return { point, wx: spot[0], wy: spot[1] };
+      });
+      const byId = new Map(items.map((item) => [item.point.id, item]));
+      const links = [];
+      for (const edge of edges) {
+        if (edge.type && edge.type !== "related") continue;
+        const from = byId.get(edge.source);
+        const to = byId.get(edge.target);
+        if (!from || !to) continue;
+        links.push({ from, to, weight: Number(edge.weight) || 0 });
+        if (links.length >= MAP_MAX_EDGES) break;
+      }
+      const maxChunks = items.reduce((max, item) => Math.max(max, item.point.chunks || 1), 1);
+      return { items, links, maxChunks, place };
+    }
+
+    /** Multi-chunk entries carry more text, so their points read bigger. */
+    function mapRadius(chunks, maxChunks) {
+      return 2.4 + 4 * Math.sqrt((chunks || 1) / maxChunks);
+    }
+
+    function MapTab(props) {
+      const [payload, setPayload] = React.useState(null);
+      const [edges, setEdges] = React.useState([]);
+      const [error, setError] = React.useState("");
+      const [busy, setBusy] = React.useState(false);
+      const [colorBy, setColorBy] = React.useState("project");
+      const [kindFilter, setKindFilter] = React.useState("");
+      const [projectFilter, setProjectFilter] = React.useState("");
+      const [scopeFilter, setScopeFilter] = React.useState("");
+      const [statusFilter, setStatusFilter] = React.useState("active");
+      const [queryText, setQueryText] = React.useState("");
+      const [placed, setPlaced] = React.useState(null);
+      const [queryNote, setQueryNote] = React.useState("");
+      const [hover, setHover] = React.useState(null);
+      const [width, setWidth] = React.useState(900);
+      // Panning and zooming live in a ref (no re-render per mouse move); this
+      // counter is what tells the drawing effect that the view moved.
+      const [viewTick, setViewTick] = React.useState(0);
+      const canvasRef = React.useRef(null);
+      const wrapRef = React.useRef(null);
+      const viewRef = React.useRef({ scale: 1, tx: 0, ty: 0 });
+      const dragRef = React.useRef(null);
+      const map = payload && payload.map ? payload.map : null;
+      const reason = payload ? payload.reason : null;
+      const points = map ? map.points || [] : [];
+
+      const load = React.useCallback(
+        (refresh) => {
+          setBusy(true);
+          apiGet(props.base, "/api/vectors/map" + (refresh ? "?refresh=1" : ""))
+            .then((result) => {
+              setPayload(result);
+              setError("");
+            })
+            .catch((err) => setError(errorText(err)))
+            .then(() => setBusy(false));
+        },
+        [props.base],
+      );
+
+      React.useEffect(() => {
+        load(false);
+      }, [load]);
+
+      React.useEffect(() => {
+        let alive = true;
+        apiGet(props.base, "/api/graph")
+          .then((result) => {
+            if (alive) setEdges((result && result.edges) || []);
+          })
+          .catch(() => undefined);
+        return () => {
+          alive = false;
+        };
+      }, [props.base]);
+
+      React.useEffect(() => {
+        const element = wrapRef.current;
+        const measure = () => {
+          if (element && element.clientWidth > 0) setWidth(element.clientWidth);
+        };
+        measure();
+        window.addEventListener("resize", measure);
+        return () => window.removeEventListener("resize", measure);
+      }, []);
+
+      const projects = React.useMemo(
+        () => Array.from(new Set(points.map((point) => point.project))).sort(),
+        [points],
+      );
+      const visible = React.useMemo(
+        () =>
+          points.filter(
+            (point) =>
+              (!kindFilter || point.kind === kindFilter) &&
+              (!projectFilter || point.project === projectFilter) &&
+              (!scopeFilter || point.scope === scopeFilter) &&
+              (!statusFilter || statusFilter === "all" || point.status === statusFilter),
+          ),
+        [points, kindFilter, projectFilter, scopeFilter, statusFilter],
+      );
+      const layout = React.useMemo(() => layoutMap(points, edges, width, MAP_HEIGHT), [points, edges, width]);
+      const visibleLayout = React.useMemo(() => {
+        const ids = new Set(visible.map((point) => point.id));
+        return {
+          items: layout.items.filter((item) => ids.has(item.point.id)),
+          links: layout.links.filter((link) => ids.has(link.from.point.id) && ids.has(link.to.point.id)),
+        };
+      }, [layout, visible]);
+      const hitIds = React.useMemo(() => new Set(placed ? placed.hits.map((hit) => hit.id) : []), [placed]);
+
+      /** Centre-relative transform: panning and zooming never touch the data. */
+      const toScreen = React.useCallback(
+        (wx, wy) => {
+          const view = viewRef.current;
+          const cx = width / 2;
+          const cy = MAP_HEIGHT / 2;
+          return [cx + (wx - cx) * view.scale + view.tx, cy + (wy - cy) * view.scale + view.ty];
+        },
+        [width],
+      );
+
+      React.useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas || !map) return;
+        const ratio = window.devicePixelRatio || 1;
+        canvas.width = Math.max(1, Math.round(width * ratio));
+        canvas.height = Math.max(1, Math.round(MAP_HEIGHT * ratio));
+        const ctx = canvas.getContext("2d");
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        ctx.clearRect(0, 0, width, MAP_HEIGHT);
+        const { items, links } = visibleLayout;
+        const { maxChunks } = layout;
+        const radiusOf = (item) => mapRadius(item.point.chunks, maxChunks) * Math.min(2, viewRef.current.scale);
+
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(140, 150, 175, 0.22)";
+        for (const link of links) {
+          const from = toScreen(link.from.wx, link.from.wy);
+          const to = toScreen(link.to.wx, link.to.wy);
+          ctx.beginPath();
+          ctx.moveTo(from[0], from[1]);
+          ctx.lineTo(to[0], to[1]);
+          ctx.stroke();
+        }
+
+        for (const item of items) {
+          const spot = toScreen(item.wx, item.wy);
+          ctx.beginPath();
+          ctx.arc(spot[0], spot[1], radiusOf(item), 0, Math.PI * 2);
+          ctx.fillStyle =
+            colorBy === "kind" ? KIND_COLORS[item.point.kind] || T.tertiary : mapProjectColor(item.point.project);
+          ctx.globalAlpha = item.point.status === "active" ? 0.92 : 0.4;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = T.business;
+        for (const item of items) {
+          if (!hitIds.has(item.point.id)) continue;
+          const spot = toScreen(item.wx, item.wy);
+          ctx.beginPath();
+          ctx.arc(spot[0], spot[1], radiusOf(item) + 3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        if (placed && layout.place) {
+          const spot = toScreen.apply(null, layout.place(placed.x, placed.y));
+          ctx.beginPath();
+          ctx.arc(spot[0], spot[1], 9, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(spot[0] - 14, spot[1]);
+          ctx.lineTo(spot[0] + 14, spot[1]);
+          ctx.moveTo(spot[0], spot[1] - 14);
+          ctx.lineTo(spot[0], spot[1] + 14);
+          ctx.stroke();
+        }
+      }, [map, visibleLayout, layout, placed, hitIds, colorBy, width, toScreen, viewTick]);
+
+      /** Nearest visible point to a screen position, within a forgiving radius. */
+      const pick = React.useCallback(
+        (event) => {
+          const box = canvasRef.current ? canvasRef.current.getBoundingClientRect() : null;
+          if (!box) return null;
+          const px = event.clientX - box.left;
+          const py = event.clientY - box.top;
+          let best = null;
+          let bestDistance = 14;
+          for (const item of visibleLayout.items) {
+            const spot = toScreen(item.wx, item.wy);
+            const distance = Math.hypot(spot[0] - px, spot[1] - py);
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              best = { item, px, py };
+            }
+          }
+          return best;
+        },
+        [visibleLayout, toScreen],
+      );
+
+      React.useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return undefined;
+        // Passive React onWheel handlers cannot preventDefault, so zoom is native.
+        const onWheel = (event) => {
+          event.preventDefault();
+          const view = viewRef.current;
+          const next = Math.min(6, Math.max(0.4, view.scale * (event.deltaY < 0 ? 1.12 : 0.89)));
+          const ratio = next / view.scale;
+          const box = canvas.getBoundingClientRect();
+          const px = event.clientX - box.left - width / 2;
+          const py = event.clientY - box.top - MAP_HEIGHT / 2;
+          view.scale = next;
+          view.tx = px - (px - view.tx) * ratio;
+          view.ty = py - (py - view.ty) * ratio;
+          setHover(null);
+          setViewTick((value) => value + 1);
+        };
+        canvas.addEventListener("wheel", onWheel, { passive: false });
+        return () => canvas.removeEventListener("wheel", onWheel);
+      }, [width]);
+
+      const onPointerDown = (event) => {
+        dragRef.current = { x: event.clientX, y: event.clientY, moved: 0 };
+        if (canvasRef.current && canvasRef.current.setPointerCapture) {
+          try {
+            canvasRef.current.setPointerCapture(event.pointerId);
+          } catch (err) {
+            // Pointer capture is a convenience; dragging still works without it.
+          }
+        }
+      };
+
+      const onPointerMove = (event) => {
+        const drag = dragRef.current;
+        if (drag) {
+          const dx = event.clientX - drag.x;
+          const dy = event.clientY - drag.y;
+          drag.x = event.clientX;
+          drag.y = event.clientY;
+          drag.moved += Math.abs(dx) + Math.abs(dy);
+          if (drag.moved > 3) {
+            viewRef.current.tx += dx;
+            viewRef.current.ty += dy;
+            if (hover) setHover(null);
+            setViewTick((value) => value + 1);
+          }
+          return;
+        }
+        const picked = pick(event);
+        if (!picked) {
+          if (hover) setHover(null);
+          return;
+        }
+        if (!hover || hover.point.id !== picked.item.point.id) {
+          setHover({ point: picked.item.point, left: picked.px, top: picked.py });
+        }
+      };
+
+      const onPointerUp = (event) => {
+        const drag = dragRef.current;
+        dragRef.current = null;
+        if (drag && drag.moved <= 3) {
+          const picked = pick(event);
+          if (picked) props.onOpen(picked.item.point.id);
+        }
+      };
+
+      const resetView = () => {
+        viewRef.current = { scale: 1, tx: 0, ty: 0 };
+        setHover(null);
+        setViewTick((value) => value + 1);
+      };
+
+      const placeQuery = () => {
+        const text = queryText.trim();
+        if (text.length === 0) return;
+        setQueryNote("Embedding the query\u2026");
+        apiPost(props.base, "/api/vectors/map/query", { text, limit: 5 })
+          .then((result) => {
+            setPlaced(result);
+            setQueryNote(
+              result.hits.length > 0
+                ? "Closest entries are ringed; the crosshair is the query itself."
+                : "The query landed on the map, but nothing is close enough to ring.",
+            );
+          })
+          .catch((err) => {
+            setPlaced(null);
+            setQueryNote(errorText(err));
+          });
+      };
+
+      const reasonText = {
+        "not-configured": "Vector search is off: turn it on in Settings \u2192 LLM Memory to build the map.",
+        "model-missing": "The embedding model is not downloaded yet: get it in Settings \u2192 LLM Memory.",
+        indexing:
+          "Embeddings are still being computed. The map appears once the queue drains \u2014 press Refresh in a moment.",
+        empty: "No entry has been embedded yet, so there is nothing to place.",
+      };
+      const legendValues = colorBy === "kind" ? KINDS : projects;
+
+      return h(
+        "div",
+        null,
+        h(
+          "p",
+          { style: S.hint },
+          map
+            ? "Entries placed by the two leading principal components of their embeddings: close points mean similar " +
+              "meaning. The axes carry " +
+              Math.round((map.explained[0] + map.explained[1]) * 100) +
+              "% of the variance; " +
+              map.entries +
+              " points from " +
+              map.chunks +
+              " chunks."
+            : "The semantic map projects every entry embedding onto two axes, so related memories land next to each other.",
+        ),
+        h(
+          "div",
+          { style: S.toolbar },
+          h("label", { style: S.label }, "Colour"),
+          h(
+            "select",
+            { style: S.input, value: colorBy, onChange: (event) => setColorBy(event.target.value) },
+            [
+              ["project", "by project"],
+              ["kind", "by kind"],
+            ].map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
+          ),
+          h("label", { style: S.label }, "Status"),
+          h(
+            "select",
+            { style: S.input, value: statusFilter, onChange: (event) => setStatusFilter(event.target.value) },
+            [
+              ["active", "active"],
+              ["superseded", "superseded"],
+              ["archived", "archived"],
+              ["all", "all"],
+            ].map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
+          ),
+          h("label", { style: S.label }, "Kind"),
+          h(
+            "select",
+            { style: S.input, value: kindFilter, onChange: (event) => setKindFilter(event.target.value) },
+            [["", "any"]]
+              .concat(KINDS.map((kind) => [kind, kind]))
+              .map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
+          ),
+          h("label", { style: S.label }, "Project"),
+          h(
+            "select",
+            { style: S.input, value: projectFilter, onChange: (event) => setProjectFilter(event.target.value) },
+            [["", "any"]]
+              .concat(projects.map((project) => [project, project]))
+              .map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
+          ),
+          h("label", { style: S.label }, "Scope"),
+          h(
+            "select",
+            { style: S.input, value: scopeFilter, onChange: (event) => setScopeFilter(event.target.value) },
+            [
+              ["", "any"],
+              ["project", "project"],
+              ["user", "user"],
+            ].map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
+          ),
+          h("span", { style: S.toolbarSpacer }),
+          h(
+            "button",
+            { type: "button", style: S.button, disabled: busy, onClick: () => load(true) },
+            busy ? "Rebuilding\u2026" : "Refresh",
+          ),
+          h("button", { type: "button", style: S.button, onClick: resetView }, "Reset view"),
+        ),
+        map
+          ? h(
+              "div",
+              { style: S.toolbar },
+              h("label", { style: S.label }, "Place a query"),
+              h("input", {
+                style: Object.assign({}, S.input, { minWidth: "280px", flex: "1 1 280px" }),
+                type: "text",
+                value: queryText,
+                placeholder: "Free text: where does recall look?",
+                onChange: (event) => setQueryText(event.target.value),
+                onKeyDown: (event) => {
+                  if (event.key === "Enter") placeQuery();
+                },
+              }),
+              h("button", { type: "button", style: S.button, onClick: placeQuery }, "Show on map"),
+              placed
+                ? h(
+                    "button",
+                    {
+                      type: "button",
+                      style: S.button,
+                      onClick: () => {
+                        setPlaced(null);
+                        setQueryNote("");
+                      },
+                    },
+                    "Clear",
+                  )
+                : null,
+            )
+          : null,
+        queryNote ? h("p", { style: S.hint }, queryNote) : null,
+        error ? h("p", { style: Object.assign({}, S.hint, { color: T.danger }) }, error) : null,
+        map
+          ? h(
+              "div",
+              null,
+              h(
+                "div",
+                { style: S.legend },
+                legendValues.map((value) =>
+                  h(
+                    "span",
+                    { key: value },
+                    h("i", {
+                      style: Object.assign({}, S.legendDot, {
+                        background: colorBy === "kind" ? KIND_COLORS[value] || T.tertiary : mapProjectColor(value),
+                      }),
+                    }),
+                    value,
+                  ),
+                ),
+                h("span", null, visible.length + " of " + points.length + " points shown"),
+              ),
+              h(
+                "div",
+                { style: S.graphBox, ref: wrapRef },
+                h("canvas", {
+                  ref: canvasRef,
+                  style: {
+                    width: "100%",
+                    height: MAP_HEIGHT + "px",
+                    background: T.bg1,
+                    border: "1px solid " + T.border1,
+                    borderRadius: "8px",
+                    cursor: "grab",
+                    display: "block",
+                  },
+                  onPointerDown,
+                  onPointerMove,
+                  onPointerUp,
+                  onPointerLeave: () => {
+                    dragRef.current = null;
+                    setHover(null);
+                  },
+                  onDoubleClick: resetView,
+                }),
+                hover
+                  ? h(
+                      "div",
+                      {
+                        style: {
+                          position: "absolute",
+                          left: Math.min(hover.left + 12, Math.max(0, width - 270)) + "px",
+                          top: Math.max(6, hover.top - 10) + "px",
+                          maxWidth: "260px",
+                          padding: "6px 8px",
+                          fontSize: "11px",
+                          lineHeight: "1.35",
+                          color: T.text,
+                          background: T.bg2,
+                          border: "1px solid " + T.border1,
+                          borderRadius: "6px",
+                          pointerEvents: "none",
+                        },
+                      },
+                      hover.point.title || hover.point.id,
+                      h("div", { style: { color: T.secondary } }, hover.point.kind + " \u00b7 " + hover.point.project),
+                      h(
+                        "div",
+                        { style: { color: T.caption } },
+                        hover.point.chunks +
+                          (hover.point.chunks === 1 ? " chunk" : " chunks") +
+                          (hover.point.status === "active" ? "" : " \u00b7 " + hover.point.status),
+                      ),
+                    )
+                  : null,
+                h(
+                  "div",
+                  { style: S.graphHint },
+                  "Wheel to zoom \u00b7 drag to pan \u00b7 click a point for details \u00b7 double click to reset",
+                ),
+              ),
+            )
+          : h("p", { style: S.hint }, reason ? reasonText[reason] || reason : "Loading the map\u2026"),
+      );
+    }
+
+    /* ------------------------------------------------------------------ *
      * conversation.view — Status and Lint
      * ------------------------------------------------------------------ */
 
@@ -1879,6 +2432,8 @@ window.__ModuleLoader__.load({
           });
         } else if (tab === "graph") {
           content = h(GraphTab, { base, onOpen: openItem });
+        } else if (tab === "map") {
+          content = h(MapTab, { base, onOpen: openItem });
         } else if (tab === "status") {
           content = h("div", { style: S.panel }, h(StatusPanel, { base, version: browseVersion }));
         } else if (tab === "lint") {
