@@ -261,9 +261,17 @@ export class WorkerEmbeddingProvider implements EmbeddingProvider {
       name: 'dsh-llm-memory-embed',
     })
     worker.on('message', (message: EmbedWorkerResponse) => this.onMessage(message))
-    worker.on('error', (error: Error) => this.fail(error))
+    // Only the *current* worker may fail the provider. A deliberate `reload`
+    // terminates the previous worker, and Node reports that exit with code 1 —
+    // by then a fresh worker may already exist, and blaming it there would kill
+    // a healthy download (the 2026-10-15 "worker exited with code 1" bug).
+    worker.on('error', (error: Error) => {
+      if (this.worker === worker) this.fail(error)
+    })
     worker.on('exit', (code: number) => {
-      if (this.worker !== null && code !== 0) this.fail(new Error(`embedding worker exited with code ${code}`))
+      if (this.worker === worker && code !== 0) {
+        this.fail(new Error(`embedding worker exited with code ${code}`))
+      }
     })
     this.worker = worker
     return worker
