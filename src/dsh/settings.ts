@@ -16,7 +16,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SettingsForms } from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 
-import { DEFAULT_CONFIG, DEFAULT_EMBEDDINGS, DEFAULT_SYSTEM_PROMPT } from '../core/config.js'
+import { DEFAULT_CONFIG, DEFAULT_EMBEDDINGS, DEFAULT_SYSTEM_PROMPT, type MemoryConfig } from '../core/config.js'
 
 /** Settings namespace owned by this plugin (lowercase, hyphenated). */
 export const SETTINGS_NAMESPACE = 'dsh-llm-memory'
@@ -124,110 +124,116 @@ export const MemorySettingsSchema = z.object({
     .default(DEFAULT_CONFIG.lintMaxPairs)
     .volatile()
     .description('Maximum number of memory pairs checked for overlaps (0 means unlimited).'),
-  embeddings: z
-    .object({
-      provider: z
-        .union([z.const('off'), z.const('local'), z.const('http')])
-        // The core default is `off` so a bare engine never downloads a model;
-        // the plugin enables the local provider out of the box.
-        .default('local')
-        .volatile()
-        .description(
-          'Embedding source for semantic search: off (lexical FTS5 only), local (in-process multilingual ONNX model) or http (reserved; not implemented yet, falls back to lexical search).',
-        ),
-      model: z
-        .string()
-        .default(DEFAULT_EMBEDDINGS.model)
-        .volatile()
-        .description(
-          'Embedding model id: a transformers.js model for the local provider (Xenova/multilingual-e5-small by default), a model name for http.',
-        ),
-      dim: z
-        .number()
-        .min(64)
-        .step(1)
-        .default(DEFAULT_EMBEDDINGS.dim)
-        .volatile()
-        .description('Vector length the model produces. Vectors of another length are re-embedded.'),
-      backend: z
-        .union([z.const('off'), z.const('js'), z.const('sqlite-vec')])
-        .default(DEFAULT_EMBEDDINGS.backend)
-        .volatile()
-        .description(
-          'Where chunk vectors live: js (plain table, in-process cosine scan), sqlite-vec (vec0 KNN in SQL) or off. Falls back to js when the extension cannot load.',
-        ),
-      quantization: z
-        .union([z.const('float'), z.const('int8'), z.const('bit')])
-        .default(DEFAULT_EMBEDDINGS.quantization)
-        .volatile()
-        .description(
-          'Storage precision of the sqlite-vec table: float (full 32-bit), int8 (4x smaller) or bit (32x smaller, Hamming distance, needs a dimension divisible by 8). Ignored by the js backend.',
-        ),
-      topK: z
-        .number()
-        .min(5)
-        .max(500)
-        .step(5)
-        .default(DEFAULT_EMBEDDINGS.topK)
-        .volatile()
-        .description('Chunk hits the vector leg contributes before rank fusion with the FTS5 leg.'),
-      minScore: z
-        .number()
-        .min(0)
-        .max(1)
-        .step(0.01)
-        .default(DEFAULT_EMBEDDINGS.minScore)
-        .volatile()
-        .description('Minimum cosine similarity for a vector hit to count (0 keeps every candidate; e5 cosine is compressed).'),
-      batchSize: z
-        .number()
-        .min(1)
-        .max(256)
-        .step(1)
-        .default(DEFAULT_EMBEDDINGS.batchSize)
-        .volatile()
-        .description('Texts embedded per model call during indexing.'),
-      chunkChars: z
-        .number()
-        .min(200)
-        .max(8000)
-        .step(50)
-        .default(DEFAULT_EMBEDDINGS.chunkChars)
-        .volatile()
-        .description('Target characters per chunk of an entry body.'),
-      chunkOverlap: z
-        .number()
-        .min(0)
-        .max(4000)
-        .step(10)
-        .default(DEFAULT_EMBEDDINGS.chunkOverlap)
-        .volatile()
-        .description('Characters shared by neighbouring chunks (capped at half the chunk size).'),
-      semanticEdgesPerEntry: z
-        .number()
-        .min(1)
-        .max(20)
-        .step(1)
-        .default(DEFAULT_EMBEDDINGS.semanticEdgesPerEntry)
-        .volatile()
-        .description(
-          'Semantic neighbours kept per entry in the knowledge graph. The cut is relative (top-N per entry) because e5 cosine scores are compressed.',
-        ),
-      semanticMaxEdges: z
-        .number()
-        .min(10)
-        .max(10000)
-        .step(10)
-        .default(DEFAULT_EMBEDDINGS.semanticMaxEdges)
-        .volatile()
-        .description('Overall cap on semantic related edges in the graph.'),
-      prewarm: z
-        .boolean()
-        .default(DEFAULT_EMBEDDINGS.prewarm)
-        .volatile()
-        .description('Load the embedding model in the background at startup instead of on the first query.'),
-    })
-    .description('Vector (semantic) retrieval: embeddings, chunking and the vector index backend.'),
+  embeddingsProvider: z
+    .union([z.const('off'), z.const('local'), z.const('http')])
+    // The core default is `off` so a bare engine never downloads a model;
+    // the plugin enables the local provider out of the box.
+    .default('local')
+    .volatile()
+    .description(
+      'Vector search, embedding source: off (lexical FTS5 only), local (in-process multilingual ONNX model) or http (reserved; not implemented yet, falls back to lexical search).',
+    ),
+  embeddingsModel: z
+    .string()
+    .default(DEFAULT_EMBEDDINGS.model)
+    .volatile()
+    .description(
+      'Vector search, embedding model id: a transformers.js model for the local provider (Xenova/multilingual-e5-small by default), a model name for http.',
+    ),
+  embeddingsDim: z
+    .number()
+    .min(64)
+    .step(1)
+    .default(DEFAULT_EMBEDDINGS.dim)
+    .volatile()
+    .description(
+      'Vector search: vector length the model produces. Vectors of another length are re-embedded.',
+    ),
+  embeddingsBackend: z
+    .union([z.const('off'), z.const('js'), z.const('sqlite-vec')])
+    .default(DEFAULT_EMBEDDINGS.backend)
+    .volatile()
+    .description(
+      'Vector search, where chunk vectors live: js (plain table, in-process cosine scan), sqlite-vec (vec0 KNN in SQL) or off. Falls back to js when the extension cannot load.',
+    ),
+  embeddingsQuantization: z
+    .union([z.const('float'), z.const('int8'), z.const('bit')])
+    .default(DEFAULT_EMBEDDINGS.quantization)
+    .volatile()
+    .description(
+      'Vector search, storage precision of the sqlite-vec table: float (full 32-bit), int8 (4x smaller) or bit (32x smaller, Hamming distance, needs a dimension divisible by 8). Ignored by the js backend.',
+    ),
+  embeddingsTopK: z
+    .number()
+    .min(5)
+    .max(500)
+    .step(5)
+    .default(DEFAULT_EMBEDDINGS.topK)
+    .volatile()
+    .description(
+      'Vector search: chunk hits the vector leg contributes before rank fusion with the FTS5 leg.',
+    ),
+  embeddingsMinScore: z
+    .number()
+    .min(0)
+    .max(1)
+    .step(0.01)
+    .default(DEFAULT_EMBEDDINGS.minScore)
+    .volatile()
+    .description(
+      'Vector search: minimum cosine similarity for a vector hit to count (0 keeps every candidate; e5 cosine is compressed).',
+    ),
+  embeddingsBatchSize: z
+    .number()
+    .min(1)
+    .max(256)
+    .step(1)
+    .default(DEFAULT_EMBEDDINGS.batchSize)
+    .volatile()
+    .description('Vector search: texts embedded per model call during indexing.'),
+  embeddingsChunkChars: z
+    .number()
+    .min(200)
+    .max(8000)
+    .step(50)
+    .default(DEFAULT_EMBEDDINGS.chunkChars)
+    .volatile()
+    .description('Vector search: target characters per chunk of an entry body.'),
+  embeddingsChunkOverlap: z
+    .number()
+    .min(0)
+    .max(4000)
+    .step(10)
+    .default(DEFAULT_EMBEDDINGS.chunkOverlap)
+    .volatile()
+    .description(
+      'Vector search: characters shared by neighbouring chunks (capped at half the chunk size).',
+    ),
+  embeddingsSemanticEdgesPerEntry: z
+    .number()
+    .min(1)
+    .max(20)
+    .step(1)
+    .default(DEFAULT_EMBEDDINGS.semanticEdgesPerEntry)
+    .volatile()
+    .description(
+      'Vector search: semantic neighbours kept per entry in the knowledge graph. The cut is relative (top-N per entry) because e5 cosine scores are compressed.',
+    ),
+  embeddingsSemanticMaxEdges: z
+    .number()
+    .min(10)
+    .max(10000)
+    .step(10)
+    .default(DEFAULT_EMBEDDINGS.semanticMaxEdges)
+    .volatile()
+    .description('Vector search: overall cap on semantic related edges in the graph.'),
+  embeddingsPrewarm: z
+    .boolean()
+    .default(DEFAULT_EMBEDDINGS.prewarm)
+    .volatile()
+    .description(
+      'Vector search: load the embedding model in the background at startup instead of on the first query.',
+    ),
   webPath: z
     .string()
     .default(DEFAULT_CONFIG.webPath)
@@ -288,6 +294,48 @@ export function unwrapSettings<T>(value: T): Unwrapped<T> {
     return plain as Unwrapped<T>
   }
   return value as Unwrapped<T>
+}
+
+/** Flat Settings field name → key of the core `embeddings` group. */
+const EMBEDDING_SETTING_KEYS = {
+  embeddingsProvider: 'provider',
+  embeddingsModel: 'model',
+  embeddingsDim: 'dim',
+  embeddingsBackend: 'backend',
+  embeddingsQuantization: 'quantization',
+  embeddingsTopK: 'topK',
+  embeddingsMinScore: 'minScore',
+  embeddingsBatchSize: 'batchSize',
+  embeddingsChunkChars: 'chunkChars',
+  embeddingsChunkOverlap: 'chunkOverlap',
+  embeddingsSemanticEdgesPerEntry: 'semanticEdgesPerEntry',
+  embeddingsSemanticMaxEdges: 'semanticMaxEdges',
+  embeddingsPrewarm: 'prewarm',
+} as const
+
+/**
+ * Fold the flat Settings fields back into the core configuration shape.
+ *
+ * dsh's Settings UI renders schema *leaves* only: a nested `embeddings` group is
+ * never drawn (verified in the running GUI, 2026-10-15 — the other fields showed
+ * up after the fields were made volatile, the group did not), so the schema keeps
+ * those fields flat and this function rebuilds the `embeddings` object the core
+ * expects.
+ *
+ * @param settings - Resolved and unwrapped plugin settings.
+ * @returns Core configuration input with a nested `embeddings` group.
+ */
+export function toMemoryConfig(settings: Partial<MemorySettings>): Partial<MemoryConfig> {
+  const rest: Record<string, unknown> = {}
+  const embeddings: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(settings as Record<string, unknown>)) {
+    const coreKey = (EMBEDDING_SETTING_KEYS as Record<string, string>)[key]
+    if (coreKey === undefined) rest[key] = value
+    else embeddings[coreKey] = value
+  }
+  return (
+    Object.keys(embeddings).length === 0 ? rest : { ...rest, embeddings }
+  ) as Partial<MemoryConfig>
 }
 
 /** Log a warning through the Cordis logger, falling back to the console. */

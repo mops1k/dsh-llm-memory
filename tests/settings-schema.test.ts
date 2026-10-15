@@ -1,17 +1,19 @@
 /**
  * The settings schema is the plugin's Loader config, so two contracts matter:
  * dsh's Settings UI exposes a field only when its schema is declared
- * `.volatile()` (otherwise the page is empty — the bug this file guards), and
- * cordis resolves those fields into reactive wrappers that the plugin must
- * unwrap before the core sees plain data. The nested `embeddings` group has to
- * survive both: resolve with defaults, accept partial edits and stay visible.
+ * `.volatile()`, and it renders schema *leaves* only — a nested object group is
+ * never drawn (both facts verified against the running GUI on 2026-10-15). The
+ * embedding fields are therefore flat and folded back into the core
+ * configuration shape by `toMemoryConfig`. Cordis delivers volatile fields as
+ * reactive wrappers, which the plugin unwraps at its boundary.
  */
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_EMBEDDINGS } from '../src/core/config'
+import { DEFAULT_EMBEDDINGS, mergeConfig } from '../src/core/config'
 import {
   MemoryPluginConfigSchema,
   MemorySettingsSchema,
+  toMemoryConfig,
   unwrapSettings,
   type VolatileValue,
 } from '../src/dsh/settings'
@@ -56,18 +58,37 @@ describe('memory settings schema', () => {
   it('exposes every field to the Settings page (all leaves are volatile)', () => {
     const schema = MemoryPluginConfigSchema as unknown as SchemaNode
     expect(visibleFields(schema)).toEqual(leafPaths(schema))
-    expect(visibleFields(schema)).toContain('embeddings.provider')
-    expect(visibleFields(schema)).toContain('embeddings.prewarm')
+    expect(visibleFields(schema)).toContain('embeddingsProvider')
+    expect(visibleFields(schema)).toContain('embeddingsPrewarm')
   })
 
-  it('resolves the nested embeddings group from an empty patch', () => {
-    const resolved = unwrapSettings(MemoryPluginConfigSchema({}))
+  it('keeps the embedding fields flat, because a nested group is not rendered', () => {
+    const settings = unwrapSettings(MemoryPluginConfigSchema({}))
     // The plugin enables the local provider even though the core default is off.
-    expect(resolved.embeddings.provider).toBe('local')
-    expect(resolved.embeddings.model).toBe(DEFAULT_EMBEDDINGS.model)
-    expect(resolved.embeddings.dim).toBe(DEFAULT_EMBEDDINGS.dim)
-    expect(resolved.embeddings.backend).toBe(DEFAULT_EMBEDDINGS.backend)
-    expect(resolved.embeddings.prewarm).toBe(DEFAULT_EMBEDDINGS.prewarm)
+    expect(settings.embeddingsProvider).toBe('local')
+    expect(settings.embeddingsModel).toBe(DEFAULT_EMBEDDINGS.model)
+    expect(settings.embeddingsDim).toBe(DEFAULT_EMBEDDINGS.dim)
+    expect(settings.embeddingsBackend).toBe(DEFAULT_EMBEDDINGS.backend)
+    expect(settings.embeddingsPrewarm).toBe(DEFAULT_EMBEDDINGS.prewarm)
+    expect(settings).not.toHaveProperty('embeddings')
+  })
+
+  it('folds the flat fields back into the core embeddings group', () => {
+    const core = mergeConfig(toMemoryConfig(unwrapSettings(MemorySettingsSchema({}))))
+    expect(core.embeddings.provider).toBe('local')
+    expect(core.embeddings.model).toBe(DEFAULT_EMBEDDINGS.model)
+    expect(core.embeddings.dim).toBe(DEFAULT_EMBEDDINGS.dim)
+    expect(core.embeddings.chunkChars).toBe(DEFAULT_EMBEDDINGS.chunkChars)
+  })
+
+  it('applies a flat edit to the nested core field', () => {
+    const settings = unwrapSettings(
+      MemorySettingsSchema({ embeddingsBackend: 'sqlite-vec', embeddingsTopK: 80 }),
+    )
+    const core = mergeConfig(toMemoryConfig(settings))
+    expect(core.embeddings.backend).toBe('sqlite-vec')
+    expect(core.embeddings.topK).toBe(80)
+    expect(core.embeddings.model).toBe(DEFAULT_EMBEDDINGS.model)
   })
 
   it('delivers volatile fields as reactive wrappers until they are unwrapped', () => {
@@ -78,31 +99,23 @@ describe('memory settings schema', () => {
     )
   })
 
-  it('keeps edits inside the nested group and fills the rest with defaults', () => {
-    const resolved = unwrapSettings(
-      MemorySettingsSchema({ embeddings: { backend: 'sqlite-vec', topK: 80 } }),
-    )
-    expect(resolved.embeddings.backend).toBe('sqlite-vec')
-    expect(resolved.embeddings.topK).toBe(80)
-    expect(resolved.embeddings.model).toBe(DEFAULT_EMBEDDINGS.model)
-    expect(resolved.embeddings.chunkChars).toBe(DEFAULT_EMBEDDINGS.chunkChars)
-  })
-
   it('unwraps nested and array values without touching plain data', () => {
     expect(
       unwrapSettings({
         recallLimit: volatileOf(5),
         importRoots: [volatileOf('/mnt/c/memory'), '/opt/memory'],
-        embeddings: { provider: volatileOf('local'), dim: volatileOf(384) },
+        embeddingsProvider: volatileOf('local'),
+        embeddingsDim: volatileOf(384),
       }),
     ).toEqual({
       recallLimit: 5,
       importRoots: ['/mnt/c/memory', '/opt/memory'],
-      embeddings: { provider: 'local', dim: 384 },
+      embeddingsProvider: 'local',
+      embeddingsDim: 384,
     })
   })
 
   it('rejects an unknown embedding provider', () => {
-    expect(() => MemorySettingsSchema({ embeddings: { provider: 'remote' } })).toThrow()
+    expect(() => MemorySettingsSchema({ embeddingsProvider: 'remote' })).toThrow()
   })
 })

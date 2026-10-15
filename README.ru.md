@@ -117,6 +117,11 @@ cd ~/.dsh/profiles/web && pnpm add @huggingface/transformers sqlite-vec
 полей cordis отдаёт реактивными обёртками, поэтому плагин разворачивает их
 (`unwrapSettings`) на входе в `apply` и дальше работает с обычными данными.
 
+Настройки эмбеддингов лежат **плоско** (`embeddingsProvider`, `embeddingsDim`, …),
+а не вложенной группой: редактор рисует только листовые поля схемы и вложенный
+объект не показывает (проверено на живой панели 15.10.2026). В ядровый вид
+(`embeddings: { provider, dim, … }`) их складывает `toMemoryConfig`.
+
 | Опция | По умолчанию | Описание |
 | --- | --- | --- |
 | `storageRoot` | `$DSH_HOME/llm-memory` | Корень хранилища (пусто — по умолчанию). |
@@ -133,19 +138,19 @@ cd ~/.dsh/profiles/web && pnpm add @huggingface/transformers sqlite-vec
 | `lintMaxPairs` | `200` | Максимум пар, проверяемых lint (0 — без лимита). |
 | `webPath` | `/llm-memory` | Базовый HTTP-путь для WebUI и API. |
 | `rulesSource` | `bundled-en` | Источник правил для экспорта: канонический bundled AGENTS.md или `kilo-verbatim` (оба исходных файла). |
-| `embeddings.provider` | `local` | Источник эмбеддингов: `off` — только лексический FTS5, `local` — локальная мультиязычная модель, `http` — зарезервировано (пока не реализовано). |
-| `embeddings.model` | `Xenova/multilingual-e5-small` | Модель эмбеддингов (для `local` — id модели transformers.js). |
-| `embeddings.dim` | `384` | Размерность вектора; векторы другой длины пересчитываются. |
-| `embeddings.backend` | `js` | Где ищутся соседи: `js` — скан в процессе, `sqlite-vec` — KNN в SQL (нужен пакет `sqlite-vec`), `off` — выключено. |
-| `embeddings.quantization` | `float` | Точность хранения в `sqlite-vec`: `float`, `int8` (вчетверо меньше) или `bit` (в 32 раза меньше, но заметно теряет качество). |
-| `embeddings.topK` | `50` | Сколько чанков даёт векторная нога до слияния с FTS5. |
-| `embeddings.minScore` | `0` | Минимальный косинус попадания; косинус e5 сжат, поэтому надёжнее оставить 0 и полагаться на ранжирование. |
-| `embeddings.batchSize` | `16` | Текстов на один вызов модели при индексации. |
-| `embeddings.chunkChars` | `800` | Целевой размер чанка в символах. |
-| `embeddings.chunkOverlap` | `120` | Перекрытие соседних чанков (не больше половины размера чанка). |
-| `embeddings.semanticEdgesPerEntry` | `3` | Сколько семантических соседей на запись попадает в граф Wiki. |
-| `embeddings.semanticMaxEdges` | `300` | Общий предел таких рёбер. |
-| `embeddings.prewarm` | `true` | Грузить модель в фоне при старте, а не на первом запросе. |
+| `embeddingsProvider` | `local` | Источник эмбеддингов: `off` — только лексический FTS5, `local` — локальная мультиязычная модель, `http` — зарезервировано (пока не реализовано). |
+| `embeddingsModel` | `Xenova/multilingual-e5-small` | Модель эмбеддингов (для `local` — id модели transformers.js). |
+| `embeddingsDim` | `384` | Размерность вектора; векторы другой длины пересчитываются. |
+| `embeddingsBackend` | `js` | Где ищутся соседи: `js` — скан в процессе, `sqlite-vec` — KNN в SQL (нужен пакет `sqlite-vec`), `off` — выключено. |
+| `embeddingsQuantization` | `float` | Точность хранения в `sqlite-vec`: `float`, `int8` (вчетверо меньше) или `bit` (в 32 раза меньше, но заметно теряет качество). |
+| `embeddingsTopK` | `50` | Сколько чанков даёт векторная нога до слияния с FTS5. |
+| `embeddingsMinScore` | `0` | Минимальный косинус попадания; косинус e5 сжат, поэтому надёжнее оставить 0 и полагаться на ранжирование. |
+| `embeddingsBatchSize` | `16` | Текстов на один вызов модели при индексации. |
+| `embeddingsChunkChars` | `800` | Целевой размер чанка в символах. |
+| `embeddingsChunkOverlap` | `120` | Перекрытие соседних чанков (не больше половины размера чанка). |
+| `embeddingsSemanticEdgesPerEntry` | `3` | Сколько семантических соседей на запись попадает в граф Wiki. |
+| `embeddingsSemanticMaxEdges` | `300` | Общий предел таких рёбер. |
+| `embeddingsPrewarm` | `true` | Грузить модель в фоне при старте, а не на первом запросе. |
 
 ### Startup-only опция профиля
 

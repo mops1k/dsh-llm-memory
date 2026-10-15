@@ -115,6 +115,11 @@ appearing on a settings page: non-volatile fields live only in the profile patch
 Cordis hands volatile values over as reactive wrappers, so the plugin unwraps
 them (`unwrapSettings`) when `apply` starts and works with plain data afterwards.
 
+The embedding settings are **flat** (`embeddingsProvider`, `embeddingsDim`, …)
+rather than a nested group: the editor renders schema leaves only and never draws
+a nested object (verified in the live panel on 2026-10-15). `toMemoryConfig`
+folds them back into the core shape (`embeddings: { provider, dim, … }`).
+
 | Option | Default | Description |
 | --- | --- | --- |
 | `storageRoot` | `$DSH_HOME/llm-memory` | Memory root (empty uses the default). |
@@ -131,19 +136,19 @@ them (`unwrapSettings`) when `apply` starts and works with plain data afterwards
 | `lintMaxPairs` | `200` | Maximum pairs checked by lint (0 = unlimited). |
 | `webPath` | `/llm-memory` | Base HTTP path for the WebUI and the API. |
 | `rulesSource` | `bundled-en` | Rules export source: canonical bundled English AGENTS.md or `kilo-verbatim` (both source files). |
-| `embeddings.provider` | `local` | Embedding source: `off` (lexical FTS5 only), `local` (in-process multilingual model), `http` (reserved, not implemented yet). |
-| `embeddings.model` | `Xenova/multilingual-e5-small` | Embedding model id (a transformers.js model for `local`). |
-| `embeddings.dim` | `384` | Vector length; vectors of another length are rebuilt. |
-| `embeddings.backend` | `js` | Where neighbours are found: `js` (in-process scan), `sqlite-vec` (KNN in SQL, needs the `sqlite-vec` package) or `off`. |
-| `embeddings.quantization` | `float` | Storage precision of `sqlite-vec`: `float`, `int8` (4× smaller) or `bit` (32× smaller, but noticeably lossier). |
-| `embeddings.topK` | `50` | Chunk hits the vector leg contributes before rank fusion with FTS5. |
-| `embeddings.minScore` | `0` | Minimum cosine of a vector hit; e5 cosine is compressed, so keeping 0 and relying on ranking is safer. |
-| `embeddings.batchSize` | `16` | Texts embedded per model call while indexing. |
-| `embeddings.chunkChars` | `800` | Target characters per chunk. |
-| `embeddings.chunkOverlap` | `120` | Overlap between neighbouring chunks (capped at half the chunk size). |
-| `embeddings.semanticEdgesPerEntry` | `3` | Semantic neighbours per entry kept in the Wiki graph. |
-| `embeddings.semanticMaxEdges` | `300` | Overall cap on those edges. |
-| `embeddings.prewarm` | `true` | Load the model in the background at startup rather than on the first query. |
+| `embeddingsProvider` | `local` | Embedding source: `off` (lexical FTS5 only), `local` (in-process multilingual model), `http` (reserved, not implemented yet). |
+| `embeddingsModel` | `Xenova/multilingual-e5-small` | Embedding model id (a transformers.js model for `local`). |
+| `embeddingsDim` | `384` | Vector length; vectors of another length are rebuilt. |
+| `embeddingsBackend` | `js` | Where neighbours are found: `js` (in-process scan), `sqlite-vec` (KNN in SQL, needs the `sqlite-vec` package) or `off`. |
+| `embeddingsQuantization` | `float` | Storage precision of `sqlite-vec`: `float`, `int8` (4× smaller) or `bit` (32× smaller, but noticeably lossier). |
+| `embeddingsTopK` | `50` | Chunk hits the vector leg contributes before rank fusion with FTS5. |
+| `embeddingsMinScore` | `0` | Minimum cosine of a vector hit; e5 cosine is compressed, so keeping 0 and relying on ranking is safer. |
+| `embeddingsBatchSize` | `16` | Texts embedded per model call while indexing. |
+| `embeddingsChunkChars` | `800` | Target characters per chunk. |
+| `embeddingsChunkOverlap` | `120` | Overlap between neighbouring chunks (capped at half the chunk size). |
+| `embeddingsSemanticEdgesPerEntry` | `3` | Semantic neighbours per entry kept in the Wiki graph. |
+| `embeddingsSemanticMaxEdges` | `300` | Overall cap on those edges. |
+| `embeddingsPrewarm` | `true` | Load the model in the background at startup rather than on the first query. |
 
 ### Startup-only profile option
 

@@ -16,6 +16,7 @@ import { createMemoryRuntime } from './dsh/engine.js'
 import {
   MemoryPluginConfigSchema,
   registerMemorySettings,
+  toMemoryConfig,
   unwrapSettings,
 } from './dsh/settings.js'
 import { registerMemoryTools } from './dsh/tools.js'
@@ -42,7 +43,7 @@ export type Config = ReturnType<typeof Config>
  * also works in headless profiles.
  */
 export function apply(ctx: Context, config: Config): void {
-  const resolved = mergeConfig(unwrapSettings(config))
+  const resolved = mergeConfig(toMemoryConfig(unwrapSettings(config)))
   const runtime = createMemoryRuntime(resolved, {
     resolveProjectRoot: (key) => resolveWorkspaceProjectRoot(ctx, key),
   })
