@@ -129,6 +129,39 @@ export function rankItemsHybrid(
   bm25Ranks: Map<string, number>,
   vectorRanks?: Map<string, number>,
 ): MemoryEntry[] {
+  return rankItemsHybridDetailed(items, query, options, preferScope, bm25Ranks, vectorRanks).items
+}
+
+/** Which retrieval leg brought an entry in, and where it stood in that leg. */
+export interface RankProvenance {
+  /** 0-based position in the lexical ranking, when the entry is a lexical hit. */
+  bm25?: number
+  /** 0-based position in the metadata ranking; every candidate has one. */
+  metadata: number
+  /** 0-based position in the vector ranking, when the entry is a semantic hit. */
+  vector?: number
+  /** Fused RRF score the final order is sorted by. */
+  score: number
+}
+
+export interface HybridRanking {
+  items: MemoryEntry[]
+  /** Legs and positions per entry id — what makes a hit explainable in the UI. */
+  provenance: Map<string, RankProvenance>
+}
+
+/**
+ * {@link rankItemsHybrid} plus the provenance of every entry: which legs pulled
+ * it in and at which position. The order is identical to the plain function.
+ */
+export function rankItemsHybridDetailed(
+  items: MemoryEntry[],
+  query: string,
+  options: RankingOptions = DEFAULT_RANKING,
+  preferScope: MemoryScope | 'all',
+  bm25Ranks: Map<string, number>,
+  vectorRanks?: Map<string, number>,
+): HybridRanking {
   const byBm25 = [...items].sort((a, b) => (bm25Ranks.get(b.id) ?? 0) - (bm25Ranks.get(a.id) ?? 0))
   const byMeta = [...items].sort(
     (a, b) => computeScore(b, [], options, preferScope) - computeScore(a, [], options, preferScope),
@@ -151,7 +184,19 @@ export function rankItemsHybrid(
     if (c !== undefined && vectorRanks?.has(item.id)) score += (fusion.vector ?? 1) / (options.rrfK + c + 1)
     return score
   }
-  return [...items].sort((a, b) => rrf(b) - rrf(a))
+  const scores = new Map(items.map((item) => [item.id, rrf(item)]))
+  const provenance = new Map<string, RankProvenance>()
+  for (const item of items) {
+    const lexical = posBm25.get(item.id)
+    const semantic = posVector.get(item.id)
+    provenance.set(item.id, {
+      ...(lexical !== undefined && bm25Ranks.has(item.id) ? { bm25: lexical } : {}),
+      metadata: posMeta.get(item.id) ?? 0,
+      ...(semantic !== undefined && vectorRanks?.has(item.id) ? { vector: semantic } : {}),
+      score: scores.get(item.id) ?? 0,
+    })
+  }
+  return { items: [...items].sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0)), provenance }
 }
 
 /** Two entries linked by vector similarity. */

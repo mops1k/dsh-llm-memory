@@ -58,7 +58,7 @@
 - **WebUI-панель в оболочке dsh**: вкладка **LLM Memory** рядом с разговором
   рендерит WebUI как React-представление прямо в оболочке (без iframe) и следует
   светлой/тёмной теме dsh через дизайн-токены `--dsw-*`. На странице — разделы
-  Search & Browse, Create/Edit, Graph, Map, Status, Lint и Health (lint/heal).
+  Search & Browse, Create/Edit, Graph, Map, Recall, Status, Lint и Health (lint/heal).
   Та же страница по-прежнему доступна отдельно по HTTP-пути плагина
   (`<webPath>/ui`) и использует те же токены.
 - **Импортёры** (идемпотентные, по внешнему ключу):
@@ -128,6 +128,8 @@ cd ~/.dsh/profiles/web && pnpm add @huggingface/transformers sqlite-vec
 | --- | --- | --- |
 | `storageRoot` | `$DSH_HOME/llm-memory` | Корень хранилища (пусто — по умолчанию). |
 | `recallLimit` | `10` | Максимум записей, возвращаемых `llm_memory_recall`. |
+| `recallFormat` | `markdown` | Формат выдачи recall, когда агент его не указал (`markdown`, `table`, `timeline`, `json`). |
+| `recallAllowFormatOverride` | `true` | Разрешить агенту выбирать формат на каждый вызов. Выключено — формат жёстко берётся из `recallFormat`, о чём сказано в описании инструмента. |
 | `promptRulesLimit` | `6` | Максимум строк правил/предпочтений в системном промпте. Дайджест входит в каждый запрос, поэтому держите его коротким. |
 | `rulesPromptScope` | `project` | Охват дайджеста по проектам: `project` — кросс-проектный слой `user` плюс текущий воркспейс, `all` — все проекты. |
 | `recallScope` | `project` | Область поиска по умолчанию: `project` — проект сессии плюс кросс-проектный слой `user`; `user` — только user; `all` — все проекты. |

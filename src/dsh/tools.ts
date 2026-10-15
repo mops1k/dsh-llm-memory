@@ -26,7 +26,7 @@ import { MEMORY_KINDS, MEMORY_SCOPES, MEMORY_TIERS, clampImportance } from '../c
 const AUTONOMY_NOTE = 'Runs autonomously: never asks the user for confirmation.'
 
 /** Enum options for the `format` parameter of `memory_recall`. */
-const RECALL_FORMATS = ['markdown', 'table', 'timeline', 'json'] as const
+export const RECALL_FORMATS = ['markdown', 'table', 'timeline', 'json'] as const
 
 /**
  * Enum options for the `detail` parameter of `memory_recall`.
@@ -304,7 +304,9 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
         format: {
           type: 'string',
           enum: [...RECALL_FORMATS],
-          description: 'Rendering format of the returned text.',
+          description:
+            'Rendering format of the returned text. Omit it to get the format configured in the memory settings; ' +
+            'when those settings pin the format, this argument is ignored.',
         },
       },
       output: {

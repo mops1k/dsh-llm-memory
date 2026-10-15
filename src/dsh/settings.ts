@@ -53,6 +53,20 @@ export const MemorySettingsSchema = z.object({
     .description(
       'Hard character budget of a whole llm_memory_recall rendering in digest mode. Bounds the worst case when the query matches many long entries.',
     ),
+  recallFormat: z
+    .union([z.const('markdown'), z.const('table'), z.const('timeline'), z.const('json')])
+    .default(DEFAULT_CONFIG.recallFormat)
+    .volatile()
+    .description(
+      'Format llm_memory_recall returns when the agent does not ask for one. markdown reads best in context; json is for parsing; table and timeline are compact overviews.',
+    ),
+  recallAllowFormatOverride: z
+    .boolean()
+    .default(DEFAULT_CONFIG.recallAllowFormatOverride)
+    .volatile()
+    .description(
+      'Let the agent pick another format per call (json to parse, table to skim). Off pins recall to the format above; the tool description tells the model, so it stops asking.',
+    ),
   promptRulesLimit: z
     .number()
     .min(1)

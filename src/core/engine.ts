@@ -13,7 +13,13 @@
 import { statSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { mergeConfig, type MemoryConfig, type RecallScope, type RulesPromptScope } from './config.js'
+import {
+  mergeConfig,
+  type MemoryConfig,
+  type RecallFormat,
+  type RecallScope,
+  type RulesPromptScope,
+} from './config.js'
 import { entryChunks } from './chunks.js'
 import { EmbeddingQueue, type EmbeddingQueueStatus } from './embed-queue.js'
 import { createEmbeddingProvider } from './embeddings.js'
@@ -26,7 +32,8 @@ import {
 } from './model-cache.js'
 import { appendLog, debug } from './log.js'
 import { sanitizeProjectKey } from './paths.js'
-import { DEFAULT_RANKING, rankItems, rankItemsHybrid, rankRulesBase, semanticPairs, significantOverlapPairs } from './ranking.js'
+import { DEFAULT_RANKING, rankItems, rankItemsHybridDetailed, rankRulesBase, semanticPairs, significantOverlapPairs } from './ranking.js'
+import type { RankProvenance } from './ranking.js'
 import type { SemanticPair } from './ranking.js'
 import { MemoryStore, genMemoryId, newMemoryEntry } from './store.js'
 import { buildGraph } from './wiki.js'
@@ -55,8 +62,10 @@ import type {
 import { clampImportance } from './types.js'
 import { projectInto, projectVectors, type VectorProjection } from './projection.js'
 
-/** Output format of `recall`. */
-export type RecallFormat = 'markdown' | 'table' | 'timeline' | 'json'
+/** Output format of `recall`; the list itself lives in the config module. */
+export type { RecallFormat }
+/** Every format `recall` understands, for tools and HTTP validation. */
+export const RECALL_FORMAT_VALUES: readonly RecallFormat[] = ['markdown', 'table', 'timeline', 'json']
 
 /**
  * Body detail of `recall`: `digest` (default) returns a short excerpt of every
@@ -186,6 +195,12 @@ export interface RecallResult {
   items: MemoryEntry[]
   text: string
   format: RecallFormat
+  /**
+   * Retrieval legs that produced each returned entry (`bm25`, `vector`,
+   * `metadata`), keyed by id — the UI shows them next to a hit so a search can
+   * be judged instead of trusted.
+   */
+  sources: Map<string, string[]>
 }
 
 /** Counters returned by {@link MemoryEngine.statusReport}. */
@@ -384,6 +399,12 @@ export interface RecallRenderOptions {
    * fills it with the passage the vector leg matched.
    */
   excerpts?: ReadonlyMap<string, string>
+  /**
+   * Retrieval legs that produced each entry, keyed by id (`bm25`, `vector`,
+   * `metadata`). Only the `json` format renders them: markers inside the text
+   * would cost prompt tokens without telling the model anything it can use.
+   */
+  sources?: ReadonlyMap<string, string[]>
 }
 
 /**
@@ -450,6 +471,7 @@ export function renderRecall(
         supersededBy: entry.supersededBy,
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt,
+        sources: options.sources?.get(entry.id) ?? [],
       })),
       null,
       2,
@@ -1113,7 +1135,12 @@ export class MemoryEngine {
    */
   async recall(query = '', options: RecallOptions = {}): Promise<RecallResult> {
     const scope: RecallScope = options.scope ?? this.config.recallScope
-    const format: RecallFormat = options.format ?? 'markdown'
+    // The agent may ask for a format (json to parse, table to skim); the setting
+    // decides what it gets when it does not, and can pin the format outright.
+    const format: RecallFormat =
+      options.format !== undefined && this.config.recallAllowFormatOverride
+        ? options.format
+        : this.config.recallFormat
     const detail: RecallDetail = options.detail ?? 'digest'
     const limit = Math.max(1, options.limit ?? this.config.recallLimit)
     const text = (query ?? '').trim()
@@ -1165,11 +1192,24 @@ export class MemoryEngine {
     }
 
     const candidates = [...items.values()]
-    const ranked =
+    // Hybrid ranking also reports which leg pulled an entry in; the plain
+    // lexical path has nothing to report beyond its own order.
+    const ranked: { items: MemoryEntry[]; provenance: Map<string, RankProvenance> } =
       text.length === 0
-        ? rankItems(candidates, query, DEFAULT_RANKING, scope)
-        : rankItemsHybrid(candidates, query, DEFAULT_RANKING, scope, bm25, semantic)
-    const rankedItems = ranked.slice(0, limit)
+        ? { items: rankItems(candidates, query, DEFAULT_RANKING, scope), provenance: new Map() }
+        : rankItemsHybridDetailed(candidates, query, DEFAULT_RANKING, scope, bm25, semantic)
+    const rankedItems = ranked.items.slice(0, limit)
+    const sources = new Map<string, string[]>(
+      rankedItems.map((entry) => {
+        const found = ranked.provenance.get(entry.id)
+        if (!found) return [entry.id, ['bm25']]
+        const legs: string[] = []
+        if (found.bm25 !== undefined) legs.push('bm25')
+        if (found.vector !== undefined) legs.push('vector')
+        legs.push('metadata')
+        return [entry.id, legs]
+      }),
+    )
 
     // The excerpt mode returns the passage the vector leg matched rather than
     // the head of the body; it stays inside the same per-entry character budget.
@@ -1190,9 +1230,11 @@ export class MemoryEngine {
         detail,
         textChars: this.config.recallTextChars,
         totalChars: this.config.recallTotalChars,
+        sources,
         ...(excerpts ? { excerpts } : {}),
       }),
       format,
+      sources,
     }
   }
 

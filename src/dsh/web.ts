@@ -16,7 +16,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 
 import type { MemoryConfig } from '../core/config.js'
-import type { MemoryEngine, SaveInput, UpdatePatch } from '../core/engine.js'
+import type { MemoryEngine, RecallFormat, SaveInput, UpdatePatch } from '../core/engine.js'
+import { RECALL_FORMAT_VALUES } from '../core/engine.js'
 import {
   detectImportProjects,
   IMPORT_SOURCES,
@@ -538,6 +539,39 @@ export function createWebHandler(
         return
       }
       sendJson(res, 200, query)
+      return
+    }
+    if (rel === '/api/recall') {
+      const body = await readJsonBody(req, MAX_BODY_BYTES)
+      const query = typeof body.query === 'string' ? body.query.trim() : ''
+      if (query.length === 0) {
+        sendJson(res, 400, { error: 'query is required' })
+        return
+      }
+      const format =
+        typeof body.format === 'string' && (RECALL_FORMAT_VALUES as readonly string[]).includes(body.format)
+          ? (body.format as RecallFormat)
+          : undefined
+      const limit = typeof body.limit === 'number' && Number.isFinite(body.limit) ? body.limit : undefined
+      const result = await engine.recall(query, {
+        ...(format ? { format } : {}),
+        ...(limit ? { limit } : {}),
+      })
+      sendJson(res, 200, {
+        format: result.format,
+        text: result.text,
+        items: result.items.map((entry) => ({
+          id: entry.id,
+          title: entry.title,
+          kind: entry.kind,
+          scope: entry.scope,
+          project: entry.project,
+          tier: entry.tier,
+          status: entry.status,
+          updatedAt: entry.updatedAt,
+          sources: result.sources.get(entry.id) ?? [],
+        })),
+      })
       return
     }
     if (rel === '/api/model/download') {

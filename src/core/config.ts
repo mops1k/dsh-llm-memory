@@ -12,6 +12,12 @@ import type { EmbeddingProviderMode, MemoryScope, VectorBackend, VectorQuantizat
 export type RecallScope = MemoryScope | 'all'
 
 /**
+ * Output formats of `recall`. They live here rather than in the engine so the
+ * settings schema, the engine and the HTTP layer can share one list.
+ */
+export type RecallFormat = 'markdown' | 'table' | 'timeline' | 'json'
+
+/**
  * Project reach of the rules/preferences digest injected into the system prompt:
  * `project` keeps the cross-project user layer plus the calling session's
  * project, `all` keeps every project (the pre-0.1.2 behaviour).
@@ -117,6 +123,18 @@ export interface MemoryConfig {
    */
   recallTotalChars: number
   /**
+   * Format `recall` renders with when the caller does not ask for one. The agent
+   * usually omits it, so this is what the model actually sees in its context.
+   */
+  recallFormat: RecallFormat
+  /**
+   * Whether the agent may pick another format per call. `false` pins recall to
+   * {@link recallFormat}: useful when a readable digest matters more than the
+   * agent's convenience, and the tool description says so, so the model does not
+   * waste calls asking for something else.
+   */
+  recallAllowFormatOverride: boolean
+  /**
    * Maximum number of rules/preferences lines injected into the system prompt
    * by `rulesForPrompt` (the digest is rebuilt on every prompt assembly).
    */
@@ -201,6 +219,8 @@ export const DEFAULT_CONFIG: MemoryConfig = {
   recallLimit: 10,
   recallTextChars: 400,
   recallTotalChars: 12000,
+  recallFormat: 'markdown',
+  recallAllowFormatOverride: true,
   promptRulesLimit: 6,
   rulesPromptScope: 'project',
   recallScope: 'project',
@@ -236,6 +256,10 @@ function asOptionalString(value: unknown): string | undefined {
 
 function asScope(value: unknown, fallback: RecallScope): RecallScope {
   return value === 'project' || value === 'user' || value === 'all' ? value : fallback
+}
+
+function asRecallFormat(value: unknown, fallback: RecallFormat): RecallFormat {
+  return value === 'markdown' || value === 'table' || value === 'timeline' || value === 'json' ? value : fallback
 }
 
 function asStringArray(value: unknown): string[] {
@@ -338,6 +362,11 @@ export function mergeConfig(partial?: Partial<MemoryConfig> | null): MemoryConfi
     recallLimit: asNumber(src.recallLimit, DEFAULT_CONFIG.recallLimit, 1, 1000),
     recallTextChars: asNumber(src.recallTextChars, DEFAULT_CONFIG.recallTextChars, 0, 100000),
     recallTotalChars: asNumber(src.recallTotalChars, DEFAULT_CONFIG.recallTotalChars, 500, 1000000),
+    recallFormat: asRecallFormat(src.recallFormat, DEFAULT_CONFIG.recallFormat),
+    recallAllowFormatOverride:
+      typeof src.recallAllowFormatOverride === 'boolean'
+        ? src.recallAllowFormatOverride
+        : DEFAULT_CONFIG.recallAllowFormatOverride,
     promptRulesLimit: asNumber(src.promptRulesLimit, DEFAULT_CONFIG.promptRulesLimit, 1, 1000),
     rulesPromptScope: asRulesPromptScope(src.rulesPromptScope, DEFAULT_CONFIG.rulesPromptScope),
     recallScope: asScope(src.recallScope, DEFAULT_CONFIG.recallScope),

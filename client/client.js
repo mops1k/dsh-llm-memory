@@ -37,6 +37,7 @@ window.__ModuleLoader__.load({
       ["edit", "Create / Edit"],
       ["graph", "Graph"],
       ["map", "Map"],
+      ["recall", "Recall"],
       ["status", "Status"],
       ["lint", "Lint"],
       ["health", "Health"],
@@ -155,6 +156,11 @@ window.__ModuleLoader__.load({
         lintMaxPairs: String(typeof v.lintMaxPairs === "number" ? v.lintMaxPairs : 200),
         recallTextChars: String(typeof v.recallTextChars === "number" ? v.recallTextChars : 400),
         recallTotalChars: String(typeof v.recallTotalChars === "number" ? v.recallTotalChars : 12000),
+        recallFormat:
+          v.recallFormat === "table" || v.recallFormat === "timeline" || v.recallFormat === "json"
+            ? v.recallFormat
+            : "markdown",
+        recallAllowFormatOverride: v.recallAllowFormatOverride !== false,
         promptRulesLimit: String(typeof v.promptRulesLimit === "number" ? v.promptRulesLimit : 6),
         rulesPromptScope: v.rulesPromptScope === "all" ? "all" : "project",
         projectScanBudgetMs: String(typeof v.projectScanBudgetMs === "number" ? v.projectScanBudgetMs : 0),
@@ -1773,6 +1779,110 @@ window.__ModuleLoader__.load({
     }
 
     /* ------------------------------------------------------------------ *
+     * conversation.view — Recall (what the agent would actually receive)
+     * ------------------------------------------------------------------ */
+
+    const RECALL_FORMATS = ["markdown", "table", "timeline", "json"];
+
+    function RecallTab(props) {
+      const [query, setQuery] = React.useState("");
+      const [format, setFormat] = React.useState("");
+      const [result, setResult] = React.useState(null);
+      const [error, setError] = React.useState("");
+      const [busy, setBusy] = React.useState(false);
+
+      const run = () => {
+        const text = query.trim();
+        if (text.length === 0) return;
+        setBusy(true);
+        apiPost(props.base, "/api/recall", format ? { query: text, format } : { query: text })
+          .then((payload) => {
+            setResult(payload);
+            setError("");
+          })
+          .catch((err) => {
+            setResult(null);
+            setError(errorText(err));
+          })
+          .then(() => setBusy(false));
+      };
+
+      const legs = (item) => (item.sources || []).map((leg) => h("span", { key: leg, style: S.pill }, leg));
+
+      return h(
+        "div",
+        null,
+        h(
+          "p",
+          { style: S.hint },
+          "Runs llm_memory_recall the way the agent calls it and shows both sides: which legs brought each entry in, " +
+            "and the exact text the agent received. The format is the settings default unless you pick one here.",
+        ),
+        h(
+          "div",
+          { style: S.toolbar },
+          h("label", { style: S.label }, "Query"),
+          h("input", {
+            style: Object.assign({}, S.input, { minWidth: "280px", flex: "1 1 280px" }),
+            type: "text",
+            value: query,
+            placeholder: "Free text, as the agent would ask",
+            onChange: (event) => setQuery(event.target.value),
+            onKeyDown: (event) => {
+              if (event.key === "Enter") run();
+            },
+          }),
+          h("label", { style: S.label }, "Format"),
+          h(
+            "select",
+            { style: S.input, value: format, onChange: (event) => setFormat(event.target.value) },
+            [["", "settings default"]]
+              .concat(RECALL_FORMATS.map((item) => [item, item]))
+              .map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
+          ),
+          h(
+            "button",
+            { type: "button", style: S.button, disabled: busy, onClick: run },
+            busy ? "Recalling\u2026" : "Run recall",
+          ),
+        ),
+        error ? h("p", { style: Object.assign({}, S.hint, { color: T.danger }) }, error) : null,
+        result
+          ? h(
+              "div",
+              null,
+              h("h3", { style: S.sectionTitle }, "Hits (" + result.items.length + ")"),
+              result.items.length === 0
+                ? h("p", { style: S.hint }, "Nothing matched this query.")
+                : h(
+                    "div",
+                    { style: S.list },
+                    result.items.map((item) =>
+                      h(
+                        "div",
+                        {
+                          key: item.id,
+                          style: S.card,
+                          onClick: () => props.onOpen(item.id),
+                        },
+                        h("div", { style: S.cardTitle }, item.title),
+                        h(
+                          "div",
+                          { style: S.meta },
+                          item.kind + " \u00b7 " + item.scope + " \u00b7 " + item.project + " \u00b7 " + item.status,
+                        ),
+                        h("div", { style: S.pills }, legs(item)),
+                      ),
+                    ),
+                  ),
+              h("h3", { style: S.sectionTitle }, "Rendered text (" + result.format + ")"),
+              h("pre", { style: S.pre }, result.text),
+            )
+          : null,
+      );
+    }
+
+    /* ------------------------------------------------------------------ *
      * conversation.view — Status and Lint
      * ------------------------------------------------------------------ */
 
@@ -2472,6 +2582,8 @@ window.__ModuleLoader__.load({
           content = h(GraphTab, { base, onOpen: openItem });
         } else if (tab === "map") {
           content = h(MapTab, { base, onOpen: openItem });
+        } else if (tab === "recall") {
+          content = h(RecallTab, { base, onOpen: openItem });
         } else if (tab === "status") {
           content = h("div", { style: S.panel }, h(StatusPanel, { base, version: browseVersion }));
         } else if (tab === "lint") {
@@ -2669,6 +2781,11 @@ window.__ModuleLoader__.load({
             await scope.set("lintMaxPairs", intValue(form.lintMaxPairs, 200, 0, 100000));
             await scope.set("recallTextChars", intValue(form.recallTextChars, 400, 0, 100000));
             await scope.set("recallTotalChars", intValue(form.recallTotalChars, 12000, 500, 1000000));
+            await scope.set(
+              "recallFormat",
+              oneOf(form.recallFormat, ["markdown", "table", "timeline", "json"], "markdown"),
+            );
+            await scope.set("recallAllowFormatOverride", form.recallAllowFormatOverride !== false);
             await scope.set("promptRulesLimit", intValue(form.promptRulesLimit, 6, 1, 100));
             await scope.set("rulesPromptScope", oneOf(form.rulesPromptScope, ["project", "all"], "project"));
             await scope.set("projectScanBudgetMs", intValue(form.projectScanBudgetMs, 0, 0, 600000));
@@ -2829,6 +2946,25 @@ window.__ModuleLoader__.load({
             "Recall total chars",
             "Hard character budget of one llm_memory_recall rendering in digest mode.",
             { min: 500, max: 1000000, step: 500 },
+          ),
+          selectField(
+            form,
+            update,
+            "recallFormat",
+            "Recall output format",
+            "What llm_memory_recall returns when the agent does not ask for a format. markdown reads best in context, json is for parsing.",
+            [
+              ["markdown", "markdown"],
+              ["table", "table"],
+              ["timeline", "timeline"],
+              ["json", "json"],
+            ],
+          ),
+          checkboxField(
+            form,
+            update,
+            "recallAllowFormatOverride",
+            "Let the agent choose another format per call (off pins the format above)",
           ),
           numberField(
             form,

@@ -57,7 +57,7 @@ and can import existing memory from other plugins.
 - **WebUI panel in the dsh shell**: the **LLM Memory** view tab next to the
   conversation renders the WebUI as a React view inside the shell (no iframe) and
   follows the dsh light/dark theme through the `--dsw-*` design tokens. The view
-  has Search & Browse, Create/Edit, Graph, Map, Status, Lint and Health (lint/heal)
+  has Search & Browse, Create/Edit, Graph, Map, Recall, Status, Lint and Health (lint/heal)
   sections. The same page is still served standalone at the plugin HTTP path
   (`<webPath>/ui`), using the same tokens.
 - **Importers** (idempotent, keyed by an external key):
@@ -126,6 +126,8 @@ the core shape (`embeddings: { provider, dim, … }`).
 | --- | --- | --- |
 | `storageRoot` | `$DSH_HOME/llm-memory` | Memory root (empty uses the default). |
 | `recallLimit` | `10` | Maximum entries returned by `llm_memory_recall`. |
+| `recallFormat` | `markdown` | Format recall returns when the agent does not ask for one (`markdown`, `table`, `timeline`, `json`). |
+| `recallAllowFormatOverride` | `true` | Let the agent pick another format per call. Off pins recall to `recallFormat` and the tool description says so. |
 | `promptRulesLimit` | `6` | Maximum rules/preferences lines injected into the system prompt. The digest is part of every request, so keep it small. |
 | `rulesPromptScope` | `project` | Project reach of that digest: `project` keeps the cross-project `user` layer plus the current workspace, `all` keeps every project. |
 | `recallScope` | `project` | Default recall layer: `project` = the session project plus the cross-project `user` layer; `user` = user only; `all` = every project. |

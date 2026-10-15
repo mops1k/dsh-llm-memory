@@ -1,14 +1,60 @@
 import { describe, expect, it } from 'vitest'
 
 import { newMemoryEntry } from '../src/core/store'
+import { renderRecall } from '../src/core/engine'
 import {
   DEFAULT_RANKING,
   computeScore,
   rankItemsHybrid,
+  rankItemsHybridDetailed,
   rankRulesBase,
   significantOverlapPairs,
   tokenize,
 } from '../src/core/ranking'
+
+describe('recall provenance', () => {
+  it('reports the legs that pulled each entry in, without changing the order', () => {
+    const lexicalOnly = newMemoryEntry({ id: 'm_p1', kind: 'facts', title: 'Lexical', text: 'text' })
+    const semanticOnly = newMemoryEntry({ id: 'm_p2', kind: 'facts', title: 'Semantic', text: 'text' })
+    const both = newMemoryEntry({ id: 'm_p3', kind: 'facts', title: 'Both', text: 'text' })
+    const items = [lexicalOnly, semanticOnly, both]
+    const bm25 = new Map([
+      ['m_p1', 9],
+      ['m_p3', 4],
+    ])
+    const vectors = new Map([
+      ['m_p2', 0.91],
+      ['m_p3', 0.88],
+    ])
+
+    const detailed = rankItemsHybridDetailed(items, 'text', DEFAULT_RANKING, 'all', bm25, vectors)
+    expect(detailed.provenance.get('m_p1')).toMatchObject({ bm25: 0 })
+    expect(detailed.provenance.get('m_p1')?.vector).toBeUndefined()
+    expect(detailed.provenance.get('m_p2')).toMatchObject({ vector: 0 })
+    expect(detailed.provenance.get('m_p2')?.bm25).toBeUndefined()
+    expect(detailed.provenance.get('m_p3')).toMatchObject({ bm25: 1, vector: 1 })
+    for (const entry of items) {
+      expect(detailed.provenance.get(entry.id)?.metadata).toBeGreaterThanOrEqual(0)
+      expect(detailed.provenance.get(entry.id)?.score).toBeGreaterThan(0)
+    }
+    // The order must stay exactly what the plain hybrid call returns.
+    expect(detailed.items.map((entry) => entry.id)).toEqual(
+      rankItemsHybrid(items, 'text', DEFAULT_RANKING, 'all', bm25, vectors).map((entry) => entry.id),
+    )
+  })
+
+  it('renders the legs in the json format only', () => {
+    const entry = newMemoryEntry({ id: 'm_p4', kind: 'facts', title: 'Entry', text: 'text' })
+    const sources = new Map([['m_p4', ['bm25', 'vector', 'metadata']]])
+
+    const json = JSON.parse(renderRecall([entry], 'json', { sources })) as Array<Record<string, unknown>>
+    expect(json[0]?.['sources']).toEqual(['bm25', 'vector', 'metadata'])
+    // The text formats stay clean: markers there would only cost prompt tokens.
+    const markdown = renderRecall([entry], 'markdown', { sources })
+    expect(markdown).not.toContain('vector')
+    expect(renderRecall([entry], 'json').startsWith('[')).toBe(true)
+  })
+})
 
 describe('ranking', () => {
   it('tokenizes and deduplicates lowercase words', () => {

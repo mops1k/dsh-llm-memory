@@ -490,3 +490,29 @@ describe('semantic map routes', () => {
     expect(String(json(query).error)).toContain('unavailable')
   })
 })
+
+describe('recall route', () => {
+  it('returns hits with the legs that produced them and the rendered text', async () => {
+    engine.save({ title: 'Нужный факт', text: 'Здесь встречается слово needle и больше ничего.' })
+    engine.save({ title: 'Другое', text: 'Запись совсем про другое, без нужного слова.' })
+
+    const response = await call('POST', '/llm-memory/api/recall', { query: 'needle' })
+    expect(response.statusCode).toBe(200)
+    const payload = json(response)
+    const items = payload.items as Array<Record<string, unknown>>
+    expect(items.length).toBeGreaterThan(0)
+    expect(items[0]!['title']).toBe('Нужный факт')
+    // No vector leg on this engine, so the lexical leg is what must be reported.
+    expect(items[0]!['sources']).toContain('bm25')
+    expect(String(payload.text)).toContain('Нужный факт')
+    expect(payload.format).toBe('markdown')
+
+    const jsonFormat = json(await call('POST', '/llm-memory/api/recall', { query: 'needle', format: 'json' }))
+    expect(jsonFormat.format).toBe('json')
+    expect(String(jsonFormat.text)).toContain('sources')
+
+    const empty = await call('POST', '/llm-memory/api/recall', {})
+    expect(empty.statusCode).toBe(400)
+    expect(String(json(empty).error)).toContain('query is required')
+  })
+})
