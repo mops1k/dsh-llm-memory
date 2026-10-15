@@ -139,6 +139,11 @@ export interface MemoryStoreOptions {
   storageRoot?: string
   /** Overrides the SQLite index path. */
   dbPath?: string
+  /**
+   * Default per-base-directory time budget for index passes in milliseconds
+   * (0 = no budget). Callers can override it per pass.
+   */
+  scanBudgetMs?: number
 }
 
 /** Edge types of the heuristic knowledge graph. */

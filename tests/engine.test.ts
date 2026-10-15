@@ -3,7 +3,8 @@ import { existsSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { MemoryEngine } from '../src/core/engine'
-import { entryFilePath } from '../src/core/paths'
+import { pageToText } from '../src/core/frontmatter'
+import { entryFilePath, writeFileAtomic } from '../src/core/paths'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 let root: string
@@ -61,6 +62,39 @@ describe('MemoryEngine', () => {
     expect(engine.recall('alpha', { format: 'timeline' }).text).toMatch(/^- \d{4}-\d{2}-\d{2}/)
     const parsed = JSON.parse(engine.recall('alpha', { format: 'json' }).text) as Array<{ title: string }>
     expect(parsed[0]?.title).toBe('Alpha')
+  })
+
+  it('cuts long bodies in the digest rendering and returns them whole on request', () => {
+    const body = 'The build uses pnpm and Node 24. '.repeat(40).trim()
+    const entry = engine.save({ text: body, title: 'Long entry', kind: 'facts' })
+
+    const digest = engine.recall('Long entry')
+    expect(digest.text).toContain(entry.id)
+    expect(digest.text).not.toContain(body)
+    expect(digest.text).toContain('1 entry body was cut to 400 characters')
+    expect(digest.text).toContain('detail: "full"')
+
+    const full = engine.recall('Long entry', { detail: 'full' })
+    expect(full.text).toContain(body)
+    expect(full.text).not.toContain('entry body was cut')
+  })
+
+  it('keeps the whole rendering inside the configured total budget', () => {
+    for (let index = 0; index < 8; index += 1) {
+      engine.save({ text: `${'word '.repeat(80)}entry ${index}`, title: `Bulk ${index}`, kind: 'facts' })
+    }
+    engine.close()
+    engine = new MemoryEngine({
+      storageRoot: root,
+      project: 'demo',
+      config: { recallTextChars: 300, recallTotalChars: 600 },
+    })
+
+    const result = engine.recall('entry')
+
+    expect(result.items).toHaveLength(8)
+    expect(result.text.length).toBeLessThanOrEqual(760)
+    expect(result.text).toContain('Recall output cut to 600 characters')
   })
 
   it('filters recall by kind and scope', () => {
@@ -216,6 +250,47 @@ describe('MemoryEngine', () => {
     expect(prompt).toContain('Tabs')
   })
 
+  it('keeps the rule digest inside the user layer and the calling project', () => {
+    engine.save({ text: 'Rule for the demo workspace.', title: 'Demo rule', kind: 'rules' })
+    engine.save({ text: 'Rule for another workspace.', title: 'Other rule', kind: 'rules', project: 'other' })
+    engine.save({ text: 'Cross-project preference.', title: 'User preference', kind: 'preferences', scope: 'user' })
+
+    const prompt = engine.rulesForPrompt(10, { project: 'demo' })
+
+    expect(prompt).toContain('Demo rule')
+    expect(prompt).toContain('User preference')
+    expect(prompt).not.toContain('Other rule')
+  })
+
+  it('keeps every project when rulesPromptScope is "all"', () => {
+    const wideRoot = makeTempRoot()
+    const wide = new MemoryEngine({ storageRoot: wideRoot, project: 'demo', config: { rulesPromptScope: 'all' } })
+    try {
+      wide.save({ text: 'Rule for another workspace.', title: 'Other rule', kind: 'rules', project: 'other' })
+
+      expect(wide.rulesForPrompt(10, { project: 'demo' })).toContain('Other rule')
+    } finally {
+      wide.close()
+      cleanupRoot(wideRoot)
+    }
+  })
+
+  it('bounds the digest with promptRulesLimit and not with recallLimit', () => {
+    for (let index = 0; index < 8; index += 1) {
+      engine.save({ text: `Rule number ${index}.`, title: `Rule ${index}`, kind: 'rules' })
+    }
+
+    // Header plus one line per rule; the default prompt digest limit is 6.
+    expect(engine.rulesForPrompt().split('\n')).toHaveLength(7)
+    expect(engine.rulesForPrompt(3).split('\n')).toHaveLength(4)
+  })
+
+  it('falls back to every project when the caller has no project', () => {
+    engine.save({ text: 'Rule for another workspace.', title: 'Other rule', kind: 'rules', project: 'other' })
+
+    expect(engine.rulesForPrompt(10)).toContain('Other rule')
+  })
+
   it('imports entries idempotently by extKey', () => {
     const entry = {
       extKey: 'kilo:42',
@@ -289,5 +364,23 @@ describe('MemoryEngine', () => {
     expect(bAfter?.related).toContain(a.id)
     expect(engine.get(a.id)?.status).toBe('active')
     expect(bAfter?.status).toBe('active')
+  })
+
+  it('refreshes the index incrementally: an unchanged heal reads no page', () => {
+    const a = engine.save({ text: 'Alpha body.', title: 'Alpha' })
+    engine.save({ text: 'Beta body.', title: 'Beta' })
+
+    expect(engine.heal().reindexed).toBe(0)
+
+    // A page edited outside the plugin is picked up by the next heal, and only
+    // that page is read again.
+    const entry = engine.get(a.id)
+    expect(entry).not.toBeNull()
+    if (!entry) return
+    writeFileAtomic(entryFilePath(root, entry), pageToText({ ...entry, text: 'Alpha body, edited by hand.' }))
+
+    const afterEdit = engine.heal()
+    expect(afterEdit.reindexed).toBe(1)
+    expect(engine.get(a.id)?.text).toBe('Alpha body, edited by hand.')
   })
 })

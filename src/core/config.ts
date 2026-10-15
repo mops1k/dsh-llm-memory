@@ -12,6 +12,13 @@ import type { MemoryScope } from './types.js'
 export type RecallScope = MemoryScope | 'all'
 
 /**
+ * Project reach of the rules/preferences digest injected into the system prompt:
+ * `project` keeps the cross-project user layer plus the calling session's
+ * project, `all` keeps every project (the pre-0.1.2 behaviour).
+ */
+export type RulesPromptScope = 'project' | 'all'
+
+/**
  * Source used by the "export rules to dsh AGENTS.md" action:
  * `bundled-en` reads the English translation shipped in `rules/en/`,
  * `kilo-verbatim` reads the original Kilo rule files found on this machine.
@@ -24,6 +31,25 @@ export interface MemoryConfig {
   storageRoot: string | undefined
   /** Default number of entries returned by `recall`. */
   recallLimit: number
+  /**
+   * Character budget of one entry body in the default `digest` recall
+   * rendering. A longer body is cut and marked; `detail: "full"` returns it
+   * whole.
+   */
+  recallTextChars: number
+  /**
+   * Hard character budget of a whole recall rendering, whatever the per-entry
+   * budget. A tool result is re-sent in every later request of the session, so
+   * an unbounded dump is paid for many times over.
+   */
+  recallTotalChars: number
+  /**
+   * Maximum number of rules/preferences lines injected into the system prompt
+   * by `rulesForPrompt` (the digest is rebuilt on every prompt assembly).
+   */
+  promptRulesLimit: number
+  /** Project reach of that digest. */
+  rulesPromptScope: RulesPromptScope
   /**
    * Default scope used by `recall`. `project` means the calling session's
    * project plus the cross-project user layer; `all` searches every project.
@@ -43,6 +69,16 @@ export interface MemoryConfig {
   projectRoots: Record<string, string>
   /** Explicit import root directories (Kilo / mnemon / dsh-memory stores). */
   importRoots: string[]
+  /**
+   * Per-base-directory time budget of an index pass, in milliseconds
+   * (0 = no budget).
+   *
+   * A directory that exceeds the budget is left with its previous index rows
+   * for this pass (its pages are listed but not re-read). This bounds the worst
+   * case on slow mounts: on a WSL host a single `/mnt/c` project root can cost
+   * seconds per pass, which would otherwise block the host thread.
+   */
+  projectScanBudgetMs: number
   /** Whether import roots are auto-detected (Windows / WSL / Linux). */
   importAutoDetect: boolean
   /** Source of the rules exported to `$DSH_HOME/AGENTS.md`. */
@@ -88,6 +124,10 @@ export const DEFAULT_SYSTEM_PROMPT = [
 export const DEFAULT_CONFIG: MemoryConfig = {
   storageRoot: undefined,
   recallLimit: 10,
+  recallTextChars: 400,
+  recallTotalChars: 12000,
+  promptRulesLimit: 6,
+  rulesPromptScope: 'project',
   recallScope: 'project',
   lintOverlapMinCommonWords: 8,
   lintMaxPairs: 200,
@@ -97,6 +137,7 @@ export const DEFAULT_CONFIG: MemoryConfig = {
   projectRoots: {},
   importRoots: [],
   importAutoDetect: true,
+  projectScanBudgetMs: 0,
   rulesSource: 'bundled-en',
   webPath: '/llm-memory',
   sessionStartGuide: true,
@@ -157,6 +198,10 @@ function asRulesSource(value: unknown, fallback: RulesSourceMode): RulesSourceMo
   return value === 'bundled-en' || value === 'kilo-verbatim' ? value : fallback
 }
 
+function asRulesPromptScope(value: unknown, fallback: RulesPromptScope): RulesPromptScope {
+  return value === 'project' || value === 'all' ? value : fallback
+}
+
 /**
  * Merge a partial configuration over {@link DEFAULT_CONFIG}, validating values
  * and falling back to the default whenever a value is missing or invalid.
@@ -166,6 +211,10 @@ export function mergeConfig(partial?: Partial<MemoryConfig> | null): MemoryConfi
   return {
     storageRoot: src.storageRoot === undefined ? DEFAULT_CONFIG.storageRoot : asOptionalString(src.storageRoot),
     recallLimit: asNumber(src.recallLimit, DEFAULT_CONFIG.recallLimit, 1, 1000),
+    recallTextChars: asNumber(src.recallTextChars, DEFAULT_CONFIG.recallTextChars, 0, 100000),
+    recallTotalChars: asNumber(src.recallTotalChars, DEFAULT_CONFIG.recallTotalChars, 500, 1000000),
+    promptRulesLimit: asNumber(src.promptRulesLimit, DEFAULT_CONFIG.promptRulesLimit, 1, 1000),
+    rulesPromptScope: asRulesPromptScope(src.rulesPromptScope, DEFAULT_CONFIG.rulesPromptScope),
     recallScope: asScope(src.recallScope, DEFAULT_CONFIG.recallScope),
     lintOverlapMinCommonWords: asNumber(
       src.lintOverlapMinCommonWords,
@@ -186,6 +235,12 @@ export function mergeConfig(partial?: Partial<MemoryConfig> | null): MemoryConfi
       src.importRoots === undefined ? [...DEFAULT_CONFIG.importRoots] : asStringArray(src.importRoots),
     importAutoDetect:
       typeof src.importAutoDetect === 'boolean' ? src.importAutoDetect : DEFAULT_CONFIG.importAutoDetect,
+    projectScanBudgetMs: asNumber(
+      src.projectScanBudgetMs,
+      DEFAULT_CONFIG.projectScanBudgetMs,
+      0,
+      600000,
+    ),
     rulesSource: asRulesSource(src.rulesSource, DEFAULT_CONFIG.rulesSource),
     webPath: src.webPath === undefined ? DEFAULT_CONFIG.webPath : asWebPath(src.webPath, DEFAULT_CONFIG.webPath),
     sessionStartGuide:

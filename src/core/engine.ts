@@ -12,7 +12,7 @@
  */
 import { statSync } from 'node:fs'
 
-import { mergeConfig, type MemoryConfig, type RecallScope } from './config.js'
+import { mergeConfig, type MemoryConfig, type RecallScope, type RulesPromptScope } from './config.js'
 import { appendLog } from './log.js'
 import { sanitizeProjectKey } from './paths.js'
 import { DEFAULT_RANKING, rankItems, rankRulesBase, significantOverlapPairs } from './ranking.js'
@@ -40,6 +40,13 @@ import { clampImportance } from './types.js'
 /** Output format of `recall`. */
 export type RecallFormat = 'markdown' | 'table' | 'timeline' | 'json'
 
+/**
+ * Body detail of `recall`: `digest` (default) returns a short excerpt of every
+ * entry, `full` returns complete bodies. Recall output becomes part of the
+ * request history for the rest of the session, so the digest stays the default.
+ */
+export type RecallDetail = 'digest' | 'full'
+
 /** Number of significant common words required for a lint overlap pair. */
 const LINT_OVERLAP_MIN_SCORE = 0.45
 
@@ -61,6 +68,14 @@ export interface MemoryEngineOptions {
   resolveProjectRoot?: (key: string) => string | null | undefined
   /** Partial configuration merged over the defaults. */
   config?: Partial<MemoryConfig>
+}
+
+/** Per-call overrides for the rules/preferences digest of the system prompt. */
+export interface RulesPromptOptions {
+  /** Project key of the calling session; `undefined` means unknown. */
+  project?: string
+  /** Explicit project reach, overriding `config.rulesPromptScope`. */
+  scope?: RulesPromptScope
 }
 
 /** Input accepted by {@link MemoryEngine.save}. */
@@ -117,6 +132,7 @@ export interface RecallOptions {
   tier?: MemoryTier | 'all'
   limit?: number
   format?: RecallFormat
+  detail?: RecallDetail
 }
 
 /** Result of {@link MemoryEngine.recall}. */
@@ -218,7 +234,10 @@ export interface HealReport {
   removedLinks: number
   /** Missing reverse links (`supersededBy` / symmetric `related`) added. */
   addedBacklinks: number
-  /** Number of entries rebuilt from markdown during reindex. */
+  /**
+   * Number of entries read back from markdown during the incremental reindex
+   * (0 when no page changed on disk).
+   */
   reindexed: number
   /** Broken link count before healing. */
   brokenBefore: number
@@ -239,21 +258,67 @@ function statusMarkers(entry: MemoryEntry): string {
   return markers.length > 0 ? ` ${markers.join(' ')}` : ''
 }
 
-/** Render a single entry as a markdown section (English). */
-export function renderMemoryEntry(entry: MemoryEntry): string {
+/**
+ * Cut `text` to `maxChars` characters, appending an ellipsis when something was
+ * dropped. A negative budget means "no limit".
+ */
+function cutText(text: string, maxChars: number): string {
+  if (maxChars < 0 || text.length <= maxChars) return text
+  return `${text.slice(0, maxChars).trimEnd()}…`
+}
+
+/**
+ * Render a single entry as a markdown section (English).
+ *
+ * `textChars` (> = 0) caps the body: recall output stays in the request history
+ * for the whole session, so the default rendering shows an excerpt and the
+ * model asks for `detail: "full"` when it needs the rest.
+ */
+export function renderMemoryEntry(entry: MemoryEntry, textChars?: number): string {
   const lines = [
     `### ${entry.title}${statusMarkers(entry)}`,
     `- id: \`${entry.id}\` · scope: ${entry.scope} · kind: ${entry.kind} · importance: ${entry.importance}/5 · updated: ${entry.updatedAt.slice(0, 10)}`,
     `- tags: ${entry.tags.length > 0 ? entry.tags.join(', ') : '—'}`,
   ]
   if (entry.supersedes.length > 0) lines.push(`- supersedes: ${entry.supersedes.join(', ')}`)
-  lines.push('', entry.text)
+  const body = textChars === undefined ? entry.text : cutText(entry.text, textChars)
+  lines.push('', body)
   return lines.join('\n')
 }
 
+/** How {@link renderRecall} should bound one rendering. */
+export interface RecallRenderOptions {
+  /** Body detail: `digest` (default) excerpts every body, `full` keeps it whole. */
+  detail?: RecallDetail
+  /** Character budget of one entry body in `digest` mode. */
+  textChars?: number
+  /** Hard character budget of the whole rendering. */
+  totalChars?: number
+}
+
+/**
+ * Append the notice that tells the model how to recover cut content.
+ *
+ * The notice is one line at the end of the rendering instead of a marker per
+ * entry: every byte here is re-sent in each later request of the session.
+ */
+function withTruncationNotice(text: string, detail: RecallDetail, textChars: number, cutEntries: number): string {
+  if (cutEntries === 0) return text
+  const what = cutEntries === 1 ? '1 entry body was' : `${cutEntries} entry bodies were`
+  return `${text}\n\n_[${what} cut to ${textChars} characters. Call llm_memory_recall with detail: "full" to read complete bodies.]_`
+}
+
 /** Render a list of entries in the requested output format. */
-export function renderRecall(items: MemoryEntry[], format: RecallFormat = 'markdown'): string {
+export function renderRecall(
+  items: MemoryEntry[],
+  format: RecallFormat = 'markdown',
+  options: RecallRenderOptions = {},
+): string {
+  const detail: RecallDetail = options.detail ?? 'digest'
+  const textChars = options.textChars ?? 400
   const confidenceOf = (entry: MemoryEntry): number => Math.round((entry.confidence ?? 0.5) * 1000) / 1000
+  let rendered: string
+  let cutEntries = 0
   if (format === 'table') {
     const header = ['id', 'scope', 'kind', 'tier', 'importance', 'updated', 'title']
     const rows: string[][] = [header]
@@ -272,16 +337,14 @@ export function renderRecall(items: MemoryEntry[], format: RecallFormat = 'markd
     const renderRow = (row: string[]): string =>
       `| ${row.map((cell, index) => (cell ?? '').padEnd(widths[index] ?? 0)).join(' | ')} |`
     const separator = `|${widths.map((width) => '-'.repeat(width + 2)).join('|')}|`
-    return [renderRow(header), separator, ...rows.slice(1).map(renderRow)].join('\n')
-  }
-  if (format === 'timeline') {
-    return [...items]
+    rendered = [renderRow(header), separator, ...rows.slice(1).map(renderRow)].join('\n')
+  } else if (format === 'timeline') {
+    rendered = [...items]
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .map((entry) => `- ${entry.updatedAt.slice(0, 10)} [${entry.scope}/${entry.kind}] ${entry.title} (${entry.id})`)
       .join('\n')
-  }
-  if (format === 'json') {
-    return JSON.stringify(
+  } else if (format === 'json') {
+    rendered = JSON.stringify(
       items.map((entry) => ({
         id: entry.id,
         title: entry.title,
@@ -301,8 +364,17 @@ export function renderRecall(items: MemoryEntry[], format: RecallFormat = 'markd
       null,
       2,
     )
+  } else {
+    const bodyBudget = detail === 'full' ? -1 : textChars
+    cutEntries = bodyBudget < 0 ? 0 : items.filter((entry) => entry.text.length > bodyBudget).length
+    rendered = items.map((entry) => renderMemoryEntry(entry, bodyBudget < 0 ? undefined : bodyBudget)).join('\n\n')
   }
-  return items.map(renderMemoryEntry).join('\n\n')
+  const total = options.totalChars ?? 0
+  const bounded = withTruncationNotice(rendered, detail, textChars, cutEntries)
+  if (total > 0 && bounded.length > total) {
+    return `${cutText(bounded, total)}\n\n_[Recall output cut to ${total} characters.]_`
+  }
+  return bounded
 }
 
 /**
@@ -324,7 +396,10 @@ export class MemoryEngine {
       ...(options.projectRoots !== undefined ? { projectRoots: options.projectRoots } : {}),
     })
     this.project = sanitizeProjectKey(options.project ?? '')
-    this.store = new MemoryStore({ storageRoot: this.config.storageRoot })
+    this.store = new MemoryStore({
+      storageRoot: this.config.storageRoot,
+      scanBudgetMs: this.config.projectScanBudgetMs,
+    })
     if (options.resolveProjectRoot) this.externalResolver = options.resolveProjectRoot
   }
 
@@ -527,6 +602,7 @@ export class MemoryEngine {
   recall(query = '', options: RecallOptions = {}): RecallResult {
     const scope: RecallScope = options.scope ?? this.config.recallScope
     const format: RecallFormat = options.format ?? 'markdown'
+    const detail: RecallDetail = options.detail ?? 'digest'
     const limit = Math.max(1, options.limit ?? this.config.recallLimit)
     const text = (query ?? '').trim()
 
@@ -554,7 +630,15 @@ export class MemoryEngine {
 
     const ranked = rankItems(candidates, query, DEFAULT_RANKING, scope)
     const items = ranked.slice(0, limit)
-    return { items, text: renderRecall(items, format), format }
+    return {
+      items,
+      text: renderRecall(items, format, {
+        detail,
+        textChars: this.config.recallTextChars,
+        totalChars: this.config.recallTotalChars,
+      }),
+      format,
+    }
   }
 
   /** Counters by scope/kind/status plus storage paths and database size. */
@@ -644,11 +728,24 @@ export class MemoryEngine {
   /**
    * Compact English digest of active rules/preferences for the system prompt.
    * Returns an empty string when there is nothing to inject.
+   *
+   * The digest is rebuilt on every prompt assembly, so it stays deliberately
+   * small: `config.promptRulesLimit` bounds the number of lines and
+   * `config.rulesPromptScope` decides whether rules of other projects may
+   * appear. With the `project` scope the user layer is always kept, and the
+   * caller's project is kept when {@link RulesPromptOptions.project} is known;
+   * an unknown project falls back to every project (the pre-0.1.2 behaviour).
    */
-  rulesForPrompt(limit = this.config.recallLimit): string {
+  rulesForPrompt(limit = this.config.promptRulesLimit, options: RulesPromptOptions = {}): string {
+    const scope: RulesPromptScope = options.scope ?? this.config.rulesPromptScope
+    const project = options.project
     const items = this.store
       .list({ status: 'active' })
-      .items.filter((entry) => entry.kind === 'rules' || entry.kind === 'preferences')
+      .items.filter((entry) => {
+        if (entry.kind !== 'rules' && entry.kind !== 'preferences') return false
+        if (scope === 'all' || project === undefined) return true
+        return entry.scope === 'user' || entry.project === project
+      })
     if (items.length === 0) return ''
     const ranked = rankRulesBase(items, DEFAULT_RANKING).slice(0, Math.max(1, limit))
     const lines = ['Long-term memory: rules and preferences (respect these).']
@@ -741,8 +838,9 @@ export class MemoryEngine {
 
   /**
    * Safe health repair: drop broken relation references, add missing reverse
-   * links (`supersededBy` for `supersedes`, symmetric `related`), then rebuild
-   * the derived index from the markdown pages.
+   * links (`supersededBy` for `supersedes`, symmetric `related`), then refresh
+   * the derived index incrementally — only pages whose size or mtime changed
+   * since the last pass are read again.
    *
    * Non-destructive: no entry is deleted and no status is changed.
    */
@@ -804,10 +902,17 @@ export class MemoryEngine {
       this.store.upsert(entry)
     }
 
-    const reindexed = this.store.reindexFromDisk()
+    // Refresh the index incrementally: pages that did not change on disk are
+    // skipped by their stored size+mtime, so a heal with no external edits
+    // reads no page at all.
+    const reconciled = this.store.reconcileFromDisk()
     const brokenAfter = this.lintReport().brokenLinks.length
-    appendLog(this.root, 'heal', `removed=${removedLinks} added=${addedBacklinks} reindexed=${reindexed}`)
-    return { removedLinks, addedBacklinks, reindexed, brokenBefore, brokenAfter }
+    appendLog(
+      this.root,
+      'heal',
+      `removed=${removedLinks} added=${addedBacklinks} reindexed=${reconciled.read} (${reconciled.mode})`,
+    )
+    return { removedLinks, addedBacklinks, reindexed: reconciled.read, brokenBefore, brokenAfter }
   }
 
   /** Close the underlying database connection. */

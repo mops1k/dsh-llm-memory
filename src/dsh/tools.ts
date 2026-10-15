@@ -28,6 +28,14 @@ const AUTONOMY_NOTE = 'Runs autonomously: never asks the user for confirmation.'
 /** Enum options for the `format` parameter of `memory_recall`. */
 const RECALL_FORMATS = ['markdown', 'table', 'timeline', 'json'] as const
 
+/**
+ * Enum options for the `detail` parameter of `memory_recall`.
+ *
+ * `digest` keeps the tool result small on purpose: it becomes part of the
+ * request history and is re-sent in every later request of the session.
+ */
+const RECALL_DETAILS = ['digest', 'full'] as const
+
 /** Structural view of `ctx.sessions` limited to what a memory tool needs. */
 export interface SessionStoreLike {
   get(id: string): { header?: { cwd?: string } } | undefined
@@ -260,6 +268,8 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
       description:
         'Search long-term memory and return the most relevant entries, ranked for the current query. ' +
         'Call it before answering questions about user preferences, past decisions, project facts or earlier work. ' +
+        'Every result stays in the request history for the rest of the session, so the default `digest` detail returns a short excerpt per entry; ' +
+        'pass `detail: "full"` only when the excerpt is not enough. ' +
         'The default `markdown` rendering is human-readable; `table`, `timeline` and `json` are available for structured consumption. ' +
         AUTONOMY_NOTE,
       parameters: {
@@ -281,6 +291,13 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
           description: 'Restrict project entries to one project key (default: the current session project).',
         },
         limit: { type: 'integer', description: `Maximum number of entries to return (default ${defaultLimit}).` },
+        detail: {
+          type: 'string',
+          enum: [...RECALL_DETAILS],
+          description:
+            'Body detail: digest (default) returns a short excerpt of every entry, full returns complete bodies. ' +
+            'Use full only for the one or two entries you actually need.',
+        },
         format: {
           type: 'string',
           enum: [...RECALL_FORMATS],
@@ -312,6 +329,7 @@ export function registerMemoryTools(ctx: Context, engine: MemoryEngine, config: 
           ...(args.scope !== undefined ? { scope: args.scope } : {}),
           ...(project !== undefined ? { project } : {}),
           ...(args.limit !== undefined ? { limit: args.limit } : {}),
+          ...(args.detail !== undefined ? { detail: args.detail } : {}),
           ...(args.format !== undefined ? { format: args.format } : {}),
         })
         return {

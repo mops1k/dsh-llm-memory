@@ -14,6 +14,8 @@ import { appendLog, debug } from './log.js'
 import {
   ensureDir,
   entryPathFor,
+  fileStatInfo,
+  readFileIfExists,
   readProjectsRegistry,
   removeFileIfExists,
   resolveStoragePaths,
@@ -30,7 +32,14 @@ import type {
   MemoryListResult,
   MemoryStoreOptions,
 } from './types.js'
-import { decodePage, deleteItemPage, migrateFlatPages, readAllPages, writeItemPage } from './wiki.js'
+import {
+  decodePage,
+  deleteItemPage,
+  enumeratePages,
+  migrateFlatPages,
+  readAllPages,
+  writeItemPage,
+} from './wiki.js'
 
 /** Values accepted by prepared statement parameters in this module. */
 type SqlParam = string | number | null
@@ -145,6 +154,34 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (char) => `\\${char}`)
 }
 
+/** Whether a decoded page carries exactly the data of an existing index row. */
+function entryMatchesRow(entry: MemoryEntry, row: Record<string, unknown>): boolean {
+  const sameStrings = (value: unknown, expected: string[]): boolean => {
+    const actual = asArray(value)
+    return actual.length === expected.length && actual.every((item, index) => item === expected[index])
+  }
+  return (
+    asString(row['scope']) === entry.scope &&
+    asString(row['project']) === entry.project &&
+    asString(row['kind']) === entry.kind &&
+    asString(row['tier']) === entry.tier &&
+    asString(row['status']) === entry.status &&
+    asString(row['title']) === entry.title &&
+    asString(row['text']) === entry.text &&
+    asString(row['keywords']) === entry.keywords &&
+    clampImportance(row['importance']) === entry.importance &&
+    asString(row['source']) === (entry.source ?? '') &&
+    asString(row['ext_key']) === (entry.extKey ?? '') &&
+    asString(row['created_at']) === entry.createdAt &&
+    asString(row['updated_at']) === entry.updatedAt &&
+    (asNumber(row['confidence']) ?? null) === (entry.confidence ?? null) &&
+    sameStrings(row['tags'], entry.tags) &&
+    sameStrings(row['supersedes'], entry.supersedes) &&
+    sameStrings(row['superseded_by'], entry.supersededBy) &&
+    sameStrings(row['related'], entry.related)
+  )
+}
+
 const DEFAULT_ORDER = 'm.updated_at DESC, m.id ASC'
 
 const ORDER_BY: Record<string, string> = {
@@ -157,6 +194,59 @@ const ORDER_BY: Record<string, string> = {
 
 function orderByClause(sort: string | undefined): string {
   return ORDER_BY[sort ?? 'updated'] ?? DEFAULT_ORDER
+}
+
+/** Tuning of an incremental index pass ({@link MemoryStore.reconcileFromDisk}). */
+export interface ReconcileOptions {
+  /**
+   * Stop `stat`-ing a base directory after this many milliseconds (0 = no
+   * budget).
+   *
+   * A directory that runs out of budget keeps its previous rows: its files were
+   * listed (so they are known to exist) but their fingerprints stay stale until
+   * the next pass. This bounds the worst case on slow mounts — on a WSL host a
+   * single `/mnt/c` project root can cost seconds per pass.
+   */
+  budgetPerBaseDirMs?: number
+  /**
+   * Clock used to measure the budget (defaults to `Date.now`). Injectable so a
+   * caller — primarily a test — can make deferral deterministic instead of
+   * depending on how fast the filesystem answers `stat`.
+   */
+  now?: () => number
+}
+
+/** Outcome of {@link MemoryStore.reconcileFromDisk}. */
+export interface ReconcileReport {
+  /**
+   * `incremental` when pages were compared by fingerprint; `full` when the
+   * database had no fingerprints at all and had to be rebuilt from scratch.
+   */
+  mode: 'incremental' | 'full'
+  /** Page files seen on disk (readdir only). */
+  scanned: number
+  /** Pages actually read and parsed (new, changed or without a fingerprint). */
+  read: number
+  /** Index rows created for pages that were not indexed before. */
+  added: number
+  /** Index rows refreshed from a changed page. */
+  updated: number
+  /** Rows left untouched because size and mtime matched. */
+  unchanged: number
+  /**
+   * Pages that were re-read (their fingerprint changed) but whose data is
+   * identical to the row already in the index: only the fingerprint is
+   * refreshed, so no row and no full-text index entry is rewritten.
+   */
+  refreshed: number
+  /** Rows removed because their page is gone from disk. */
+  removed: number
+  /** Pages that exist but carry no decodable frontmatter. */
+  skipped: number
+  /** Base directories cut short by the time budget. */
+  deferred: string[]
+  /** Wall-clock duration of the pass in milliseconds. */
+  ms: number
 }
 
 /**
@@ -172,11 +262,14 @@ export class MemoryStore {
   /** Cached `key -> absolute project root` registry (`projects.json`). */
   private projects: Record<string, string> = {}
   private projectsLoaded = false
+  /** Default per-directory budget of an index pass (0 = no budget). */
+  private readonly scanBudgetMs: number
 
   constructor(options: MemoryStoreOptions = {}) {
     const paths = resolveStoragePaths(resolveStorageRoot(options.storageRoot))
     this.root = paths.root
     this.dbPath = options.dbPath ?? paths.dbPath
+    this.scanBudgetMs = Math.max(0, options.scanBudgetMs ?? 0)
   }
 
   /** Whether the underlying database connection is open. */
@@ -259,11 +352,15 @@ export class MemoryStore {
     this.ready = true
     this.loadProjects()
     // Move legacy flat pages into their `<kind>/` subdirectory before reading.
-    // A non-zero count means the index may hold stale paths, so rebuild it.
     const migration = migrateFlatPages(this.root, this.projects)
     const row = this.requireDb().prepare('SELECT COUNT(*) AS count FROM memories').get()
     const count = asNumber(row?.['count']) ?? 0
-    if (count === 0 || migration.moved > 0) this.reindexFromDisk()
+    // A full pass is only needed when there is nothing to compare against.
+    // Pages moved out of the flat layout are picked up by the incremental pass,
+    // which re-reads them (their path changed) and drops the rows that pointed
+    // at the old paths.
+    if (count === 0) this.reindexFromDisk()
+    else if (migration.moved > 0) this.reconcileFromDisk()
   }
 
   private ensureSchema(): void {
@@ -295,6 +392,10 @@ export class MemoryStore {
     db.exec('CREATE INDEX IF NOT EXISTS idx_memories_scope_project ON memories(scope, project);')
     db.exec('CREATE INDEX IF NOT EXISTS idx_memories_status ON memories(status);')
     db.exec('CREATE INDEX IF NOT EXISTS idx_memories_kind ON memories(kind);')
+    // `path` identifies the markdown page a row was built from: the incremental
+    // reconcile replaces a row whose page changed its id by path, so a scan
+    // here would turn every such page into a full table scan.
+    db.exec('CREATE INDEX IF NOT EXISTS idx_memories_path ON memories(path);')
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_ext_key ON memories(ext_key) WHERE ext_key IS NOT NULL;')
     this.ensureColumns()
     this.ftsAvailable = this.ensureFts()
@@ -319,6 +420,10 @@ export class MemoryStore {
     add('path', "path TEXT NOT NULL DEFAULT ''")
     add('superseded_by', "superseded_by TEXT NOT NULL DEFAULT '[]'")
     add('confidence', 'confidence REAL')
+    // Incremental-index fingerprints. Rows created before these columns exist
+    // keep NULL and are read once by the first reconcile pass.
+    add('file_mtime_ms', 'file_mtime_ms INTEGER')
+    add('file_size', 'file_size INTEGER')
   }
 
   /** Create the FTS5 table, rebuilding it when it lacks the required `id` column. */
@@ -374,13 +479,19 @@ export class MemoryStore {
     }
   }
 
-  private writeRow(entry: MemoryEntry, file: string): void {
+  /**
+   * Insert or update one index row. `stat` carries the on-disk fingerprint
+   * (`size` + `mtimeMs`) that lets the next reconcile skip unchanged pages;
+   * without it the row is written with NULL fingerprints and is re-read then.
+   */
+  private writeRow(entry: MemoryEntry, file: string, stat?: { size: number; mtimeMs: number } | null): void {
     const db = this.requireDb()
     db.prepare(
       `INSERT INTO memories (
          id, scope, project, kind, tier, status, title, text, tags, keywords, importance,
-         supersedes, superseded_by, related, source, ext_key, path, created_at, updated_at, confidence
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         supersedes, superseded_by, related, source, ext_key, path, created_at, updated_at, confidence,
+         file_mtime_ms, file_size
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          scope = excluded.scope,
          project = excluded.project,
@@ -400,7 +511,9 @@ export class MemoryStore {
          path = excluded.path,
          created_at = excluded.created_at,
          updated_at = excluded.updated_at,
-         confidence = excluded.confidence`,
+         confidence = excluded.confidence,
+         file_mtime_ms = excluded.file_mtime_ms,
+         file_size = excluded.file_size`,
     ).run(
       entry.id,
       entry.scope,
@@ -422,6 +535,8 @@ export class MemoryStore {
       entry.createdAt,
       entry.updatedAt,
       entry.confidence ?? null,
+      stat?.mtimeMs ?? null,
+      stat?.size ?? null,
     )
     this.syncFts(entry)
   }
@@ -517,7 +632,7 @@ export class MemoryStore {
     const previousPath = previous ? asString(previous['path']) : ''
     if (previousPath.length > 0 && previousPath !== file) removeFileIfExists(previousPath)
 
-    this.writeRow(next, file)
+    this.writeRow(next, file, fileStatInfo(file))
     appendLog(this.root, 'upsert', next.title, next.id)
     return next
   }
@@ -640,13 +755,226 @@ export class MemoryStore {
           if (seenExtKeys.has(entry.extKey)) entry.extKey = undefined
           else seenExtKeys.add(entry.extKey)
         }
-        this.writeRow(entry, page.file)
+        this.writeRow(entry, page.file, { size: page.size, mtimeMs: page.mtimeMs })
         indexed++
       }
     })
     this.ready = true
     debug(`reindexed ${indexed} entries from ${this.root}`)
     return indexed
+  }
+
+  /**
+   * Bring the index in line with the markdown pages without re-reading pages
+   * that did not change.
+   *
+   * The pass lists every page (readdir only), `stat`s it and compares `size` +
+   * `mtimeMs` against the stored fingerprint: matching pages are skipped
+   * untouched, changed and new pages are read, decoded and (re)indexed, and
+   * rows whose page is gone from disk are removed. Because listing already
+   * proves existence, a page that was listed is never dropped — not even when a
+   * time budget stops the pass before its `stat` (see `budgetPerBaseDirMs`).
+   *
+   * This is what `heal()` and any "refresh the index" path should use: on a
+   * store with no external changes it costs one `stat` per page and reads
+   * nothing at all.
+   */
+  reconcileFromDisk(options: ReconcileOptions = {}): ReconcileReport {
+    const started = Date.now()
+    this.open()
+    this.loadProjects(true)
+    const db = this.requireDb()
+
+    const rows = db
+      .prepare('SELECT id, path, ext_key, file_size, file_mtime_ms FROM memories')
+      .all() as Array<Record<string, unknown>>
+
+    // A database written before the fingerprint columns existed has no basis
+    // for skipping anything, and rewriting every row in place (update + FTS
+    // rewrite + ext_key bookkeeping) is slower than the rebuild path that
+    // inserts into emptied tables. Rebuild such a database once instead.
+    const fingerprinted = rows.some((row) => asNumber(row['file_size']) !== undefined)
+    if (rows.length > 0 && !fingerprinted) {
+      const indexed = this.reindexFromDisk()
+      const report: ReconcileReport = {
+        mode: 'full',
+        scanned: indexed,
+        read: indexed,
+        added: 0,
+        updated: indexed,
+        unchanged: 0,
+        refreshed: 0,
+        removed: 0,
+        skipped: 0,
+        deferred: [],
+        ms: Date.now() - started,
+      }
+      debug(`reconcile: database had no page fingerprints, rebuilt ${indexed} entries in ${report.ms} ms`)
+      return report
+    }
+
+    const refs = enumeratePages(this.root, this.projects)
+
+    const stored = new Map<string, { id: string; size: number | undefined; mtimeMs: number | undefined }>()
+    const storedExtKeys = new Map<string, string[]>()
+    for (const row of rows) {
+      const path = asString(row['path'])
+      if (path.length === 0) continue
+      stored.set(path, {
+        id: asString(row['id']),
+        size: asNumber(row['file_size']),
+        mtimeMs: asNumber(row['file_mtime_ms']),
+      })
+      const extKey = asString(row['ext_key'])
+      if (extKey.length === 0) continue
+      const owners = storedExtKeys.get(extKey)
+      if (owners) owners.push(path)
+      else storedExtKeys.set(extKey, [path])
+    }
+
+    const budget = Math.max(0, options.budgetPerBaseDirMs ?? this.scanBudgetMs)
+    const budgetClock = options.now ?? Date.now
+    const deferred: string[] = []
+    const knownPaths = new Set<string>()
+    const pending: Array<{ entry: MemoryEntry; file: string; size: number; mtimeMs: number }> = []
+    const fingerprints: Array<{ id: string; size: number; mtimeMs: number }> = []
+    let scanned = 0
+    let read = 0
+    let unchanged = 0
+    let refreshed = 0
+    let skipped = 0
+
+    let currentBase = ''
+    let baseStart = started
+    let baseDeferred = false
+    for (const ref of refs) {
+      if (ref.baseDir !== currentBase) {
+        currentBase = ref.baseDir
+        baseStart = budgetClock()
+        baseDeferred = false
+      }
+      scanned++
+      knownPaths.add(ref.file)
+      if (baseDeferred) continue
+      if (budget > 0 && budgetClock() - baseStart > budget) {
+        baseDeferred = true
+        deferred.push(ref.baseDir)
+        debug(`reconcile: budget ${budget} ms exceeded in ${ref.baseDir}; leaving the rest of it untouched`)
+        continue
+      }
+      const info = fileStatInfo(ref.file)
+      if (info === null) {
+        knownPaths.delete(ref.file)
+        continue
+      }
+      const previous = stored.get(ref.file)
+      if (previous && previous.size === info.size && previous.mtimeMs === info.mtimeMs) {
+        unchanged++
+        continue
+      }
+      const text = readFileIfExists(ref.file)
+      if (text === null) {
+        knownPaths.delete(ref.file)
+        continue
+      }
+      read++
+      const entry = decodePage({
+        file: ref.file,
+        size: info.size,
+        mtimeMs: info.mtimeMs,
+        text,
+        scope: ref.scope,
+        project: ref.project,
+      })
+      if (!entry) {
+        skipped++
+        continue
+      }
+      // The file was touched but its data is already in the index (a backup
+      // restore, `touch`, a checkout): refresh the fingerprint only. Rewriting
+      // the row would also rewrite the full-text entry, which is what makes a
+      // mass re-read slow.
+      if (previous && previous.id === entry.id) {
+        const row = this.getRow(entry.id)
+        if (row && entryMatchesRow(entry, row)) {
+          fingerprints.push({ id: entry.id, size: info.size, mtimeMs: info.mtimeMs })
+          refreshed++
+          continue
+        }
+      }
+      pending.push({ entry, file: ref.file, size: info.size, mtimeMs: info.mtimeMs })
+    }
+
+    const removals: string[] = []
+    for (const [path, row] of stored) {
+      if (!knownPaths.has(path)) removals.push(row.id)
+    }
+
+    // The unique `ext_key` index allows one owner per key. Rows that are still
+    // present keep their key; a changed page claiming a taken key is written
+    // without it, exactly like a full rebuild decides by page order.
+    const seenExtKeys = new Set<string>()
+    for (const [extKey, paths] of storedExtKeys) {
+      if (paths.some((path) => knownPaths.has(path))) seenExtKeys.add(extKey)
+    }
+
+    let added = 0
+    let updated = 0
+    this.transaction(() => {
+      for (const item of fingerprints) {
+        db.prepare('UPDATE memories SET file_mtime_ms = ?, file_size = ? WHERE id = ?').run(
+          item.mtimeMs,
+          item.size,
+          item.id,
+        )
+      }
+      for (const item of pending) {
+        // A page keeps its path: an id that changed under the same file
+        // replaces the row instead of leaving a stale twin behind. The lookup
+        // is served by `idx_memories_path`, so an unchanged id costs nothing.
+        const previousRow = stored.get(item.file)
+        db.prepare('DELETE FROM memories WHERE path = ? AND id != ?').run(item.file, item.entry.id)
+        if (item.entry.extKey) {
+          if (seenExtKeys.has(item.entry.extKey)) item.entry.extKey = undefined
+          else {
+            seenExtKeys.add(item.entry.extKey)
+            db.prepare('UPDATE memories SET ext_key = NULL WHERE ext_key = ? AND id != ?').run(
+              item.entry.extKey,
+              item.entry.id,
+            )
+          }
+        }
+        const known = previousRow !== undefined
+        this.writeRow(item.entry, item.file, { size: item.size, mtimeMs: item.mtimeMs })
+        if (known) updated++
+        else added++
+      }
+      for (const id of removals) {
+        db.prepare('DELETE FROM memories WHERE id = ?').run(id)
+        if (this.ftsAvailable) db.prepare('DELETE FROM memories_fts WHERE id = ?').run(id)
+      }
+    })
+
+    this.ready = true
+    const report: ReconcileReport = {
+      mode: 'incremental',
+      scanned,
+      read,
+      added,
+      updated,
+      unchanged,
+      refreshed,
+      removed: removals.length,
+      skipped,
+      deferred,
+      ms: Date.now() - started,
+    }
+    debug(
+      `reconciled ${scanned} pages: read ${read}, added ${added}, updated ${updated}, ` +
+        `unchanged ${unchanged}, refreshed ${refreshed}, removed ${report.removed}, skipped ${skipped}, ` +
+        `deferred ${deferred.length}, ${report.ms} ms`,
+    )
+    return report
   }
 
   /** Close the database connection. */

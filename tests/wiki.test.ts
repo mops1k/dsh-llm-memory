@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -31,6 +31,18 @@ describe('wiki', () => {
     const projectPage = pages.find((page) => page.file === entryFilePath(root, project))
     expect(projectPage).toMatchObject({ scope: 'project', project: 'proj' })
     expect(pages.find((page) => page.file === entryFilePath(root, user))).toMatchObject({ scope: 'user', project: '' })
+  })
+
+  it('carries the size and mtime of every page for incremental indexing', () => {
+    initMemoryRoot(root)
+    const entry = newMemoryEntry({ id: 'm_w3', scope: 'user', title: 'Sized page', text: 'value' })
+    writeItemPage(root, entry)
+    const file = entryFilePath(root, entry)
+
+    const page = readAllPages(root).find((candidate) => candidate.file === file)
+    const info = statSync(file)
+    expect(page?.size).toBe(info.size)
+    expect(page?.mtimeMs).toBe(info.mtimeMs)
   })
 
   it('regenerates index.md', () => {

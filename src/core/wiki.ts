@@ -16,7 +16,7 @@ import {
   USER_DIR,
   ensureDir,
   entryPathFor,
-  fileMtimeMs,
+  fileStatInfo,
   kindDir,
   listChildDirectories,
   listMarkdownFiles,
@@ -40,6 +40,8 @@ import { MEMORY_KINDS } from './types.js'
 
 export interface PageOnDisk {
   file: string
+  /** File size in bytes, taken from the same `stat` call as `mtimeMs`. */
+  size: number
   mtimeMs: number
   text: string
   scope: MemoryScope
@@ -131,8 +133,22 @@ export function migrateFlatPages(root: string, projects?: Record<string, string>
 }
 
 /**
- * Collect all markdown pages from the user layer, the registered project trees
- * and the legacy per-project directories under the storage root.
+ * A page path with the storage layer it belongs to, collected before any file
+ * content is read. `baseDir` groups pages by the root they live in, which the
+ * incremental reconcile uses to budget slow mounts.
+ */
+export interface PageRef {
+  file: string
+  scope: MemoryScope
+  project: string
+  /** Base directory (before `<kind>/`) this page was found in. */
+  baseDir: string
+}
+
+/**
+ * Collect every markdown page path from the user layer, the registered project
+ * trees and the legacy per-project directories under the storage root — without
+ * reading a single page.
  *
  * Each base directory is scanned one level deep, once per known category
  * (`<baseDir>/<kind>/*.md`); a flat `*.md` left in the base directory by a
@@ -147,16 +163,17 @@ export function migrateFlatPages(root: string, projects?: Record<string, string>
  *
  * `projects` can be provided to avoid re-reading the registry (the store keeps
  * a cache); duplicate absolute file paths are collapsed.
+ *
+ * Listing is the cheap half of an index pass (readdir only): a page found here
+ * is known to exist even when the caller decides not to read it.
  */
-export function readAllPages(root: string, projects?: Record<string, string>): PageOnDisk[] {
-  const out: PageOnDisk[] = []
+export function enumeratePages(root: string, projects?: Record<string, string>): PageRef[] {
+  const out: PageRef[] = []
   const seen = new Set<string>()
-  const pushFile = (file: string, scope: MemoryScope, project: string): void => {
+  const pushFile = (file: string, scope: MemoryScope, project: string, baseDir: string): void => {
     if (seen.has(file)) return
-    const text = readFileIfExists(file)
-    if (text === null) return
     seen.add(file)
-    out.push({ file, mtimeMs: fileMtimeMs(file), text, scope, project })
+    out.push({ file, scope, project, baseDir })
   }
 
   const registry = projects ?? readProjectsRegistry(root)
@@ -164,12 +181,38 @@ export function readAllPages(root: string, projects?: Record<string, string>): P
 
   for (const { dir, scope, project } of scopeBaseDirs(root, registry)) {
     for (const kind of MEMORY_KINDS) {
-      for (const file of listMarkdownFiles(kindDir(dir, kind))) pushFile(file, scope, project)
+      for (const file of listMarkdownFiles(kindDir(dir, kind))) pushFile(file, scope, project, dir)
     }
     for (const file of listMarkdownFiles(dir)) {
       if (basename(file) === 'log.md' || basename(file) === 'index.md') continue
-      pushFile(file, scope, project)
+      pushFile(file, scope, project, dir)
     }
+  }
+  return out
+}
+
+/**
+ * Read every page listed by {@link enumeratePages}, one read and one `stat` per
+ * page. This is the full-rebuild path (empty database, explicit reindex); the
+ * incremental path only reads pages whose size or mtime changed.
+ */
+export function readAllPages(root: string, projects?: Record<string, string>): PageOnDisk[] {
+  const out: PageOnDisk[] = []
+  for (const ref of enumeratePages(root, projects)) {
+    const text = readFileIfExists(ref.file)
+    if (text === null) continue
+    // One `stat` supplies both fields of the incremental index. When it fails
+    // after a successful read (a race), fall back to the byte length so the
+    // page still gets indexed.
+    const info = fileStatInfo(ref.file)
+    out.push({
+      file: ref.file,
+      size: info?.size ?? Buffer.byteLength(text, 'utf8'),
+      mtimeMs: info?.mtimeMs ?? 0,
+      text,
+      scope: ref.scope,
+      project: ref.project,
+    })
   }
   return out
 }

@@ -40,6 +40,12 @@ and can import existing memory from other plugins.
   absolute root through `projects.json` and the dsh workspace registry, so pages
   land inside the repository. A session without a working directory falls back to
   the `_no-cwd` placeholder.
+- **Incremental index refresh**: the FTS5 database stores each page's size and
+  mtime. A reindex (`llm_memory_heal`, startup after a legacy flat migration)
+  re-reads only pages that are new or changed — an unchanged page costs a single
+  `stat`, and a page edited outside the plugin is picked up by the next heal.
+  `scripts/bench-index.mjs` reports that cost per storage root, which matters on
+  slow mounts such as WSL `/mnt/c`.
 - **Scoped lite restrictions**: an agent preset can import
   `dsh-llm-memory/tool-restrict` to hide delete/status/lint/heal while the full
   preset and the WebUI/API keep all seven globally registered tools.
@@ -96,6 +102,8 @@ Open **Settings → LLM Memory**. Values are applied on the next plugin restart.
 | --- | --- | --- |
 | `storageRoot` | `$DSH_HOME/llm-memory` | Memory root (empty uses the default). |
 | `recallLimit` | `10` | Maximum entries returned by `llm_memory_recall`. |
+| `promptRulesLimit` | `6` | Maximum rules/preferences lines injected into the system prompt. The digest is part of every request, so keep it small. |
+| `rulesPromptScope` | `project` | Project reach of that digest: `project` keeps the cross-project `user` layer plus the current workspace, `all` keeps every project. |
 | `recallScope` | `project` | Default recall layer: `project` = the session project plus the cross-project `user` layer; `user` = user only; `all` = every project. |
 | `autonomous` | `true` | The agent manages memory without asking. |
 | `requireConfirmation` | `false` | Ask before irreversible operations. |

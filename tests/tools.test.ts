@@ -206,6 +206,17 @@ describe('registerMemoryTools', () => {
     expectValidOutput(definition, value)
   })
 
+  it('memory_recall forwards the detail parameter', async () => {
+    const engine = makeEngine()
+    const { ctx, tools } = makeHarness()
+    registerMemoryTools(ctx, engine as unknown as MemoryEngine, mergeConfig({}))
+    const definition = tool(tools, 'llm_memory_recall')
+
+    await definition.execute({ query: 'build', detail: 'full' }, {} as never)
+
+    expect(engine.recall).toHaveBeenCalledWith('build', { detail: 'full' })
+  })
+
   it('memory_save calls engine.save and returns schema-valid output', async () => {
     const engine = makeEngine()
     const { ctx, tools } = makeHarness()

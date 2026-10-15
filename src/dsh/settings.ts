@@ -33,6 +33,36 @@ export const MemorySettingsSchema = z.object({
     .step(1)
     .default(DEFAULT_CONFIG.recallLimit)
     .description('Maximum number of entries returned by llm_memory_recall.'),
+  recallTextChars: z
+    .number()
+    .min(0)
+    .step(50)
+    .default(DEFAULT_CONFIG.recallTextChars)
+    .description(
+      'Characters of one entry body returned in the default digest mode of llm_memory_recall (0 = titles and metadata only). Recall output is re-sent in every later request, so keep it small.',
+    ),
+  recallTotalChars: z
+    .number()
+    .min(500)
+    .step(500)
+    .default(DEFAULT_CONFIG.recallTotalChars)
+    .description(
+      'Hard character budget of a whole llm_memory_recall rendering in digest mode. Bounds the worst case when the query matches many long entries.',
+    ),
+  promptRulesLimit: z
+    .number()
+    .min(1)
+    .step(1)
+    .default(DEFAULT_CONFIG.promptRulesLimit)
+    .description(
+      'Maximum number of rules/preferences lines injected into the system prompt. Keep it small: the digest is part of every request.',
+    ),
+  rulesPromptScope: z
+    .union([z.const('project'), z.const('all')])
+    .default(DEFAULT_CONFIG.rulesPromptScope)
+    .description(
+      'Project reach of the rules/preferences digest: project keeps the user layer plus the current workspace, all keeps every project.',
+    ),
   autonomous: z
     .boolean()
     .default(DEFAULT_CONFIG.autonomous)
@@ -49,6 +79,14 @@ export const MemorySettingsSchema = z.object({
     .array(z.string())
     .default([])
     .description('Extra directories searched for memory of other plugins (kilo-memory, dsh-mnemon, dsh-memory).'),
+  projectScanBudgetMs: z
+    .number()
+    .min(0)
+    .step(100)
+    .default(DEFAULT_CONFIG.projectScanBudgetMs)
+    .description(
+      'Time budget per storage directory for an index pass, in milliseconds (0 = no budget). A slow root (for example WSL /mnt/c) that exceeds it keeps its previous index rows until the next pass instead of blocking the host.',
+    ),
   importAutoDetect: z
     .boolean()
     .default(DEFAULT_CONFIG.importAutoDetect)
