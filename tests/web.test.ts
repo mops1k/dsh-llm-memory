@@ -9,6 +9,7 @@ import { mergeConfig } from '../src/core/config'
 import { MemoryEngine } from '../src/core/engine'
 import { createWebHandler, normalizeWebPath, type WebHandler } from '../src/dsh/web'
 import { cleanupRoot, makeTempRoot } from './helpers'
+import { FakeEmbeddingProvider } from './helpers/fake-embeddings'
 
 interface MockResponse {
   statusCode: number
@@ -248,5 +249,57 @@ describe('rules preview route', () => {
     expect(getRes.statusCode).toBe(200)
     expect(json(getRes).block).toContain('Preview rule.')
     expect(existsSync(target)).toBe(false)
+  })
+})
+
+describe('model cache routes', () => {
+  it('reports the cache state and refuses a download while vector search is off', async () => {
+    const status = await call('GET', '/llm-memory/api/model/status')
+    expect(status.statusCode).toBe(200)
+    const state = json(status)
+    expect(state.cached).toBe(false)
+    expect(state.enabled).toBe(false)
+    expect(String(state.dir)).toContain('_models')
+
+    const download = await call('POST', '/llm-memory/api/model/download', {})
+    expect(download.statusCode).toBe(400)
+    expect(String(json(download).error)).toContain('disabled')
+  })
+
+  it('starts a download through an injected provider and clears the flag', async () => {
+    const provider = new FakeEmbeddingProvider()
+    const own = new MemoryEngine({ storageRoot: root, project: 'demo', embeddingProvider: provider })
+    const ownHandler = createWebHandler(own, mergeConfig({ webPath: '/llm-memory' }))
+    const invoke = async (method: string, url: string, body?: unknown): Promise<MockResponse> => {
+      const res = makeResponse()
+      await ownHandler(
+        makeRequest(method, url, body) as unknown as IncomingMessage,
+        res as unknown as ServerResponse,
+      )
+      return res
+    }
+
+    const started = await invoke('POST', '/llm-memory/api/model/download', {})
+    expect(started.statusCode).toBe(200)
+    expect(json(started).downloading).toBe(true)
+    expect(provider.prewarmed).toBe(true)
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const settled = json(await invoke('GET', '/llm-memory/api/model/status'))
+    expect(settled.downloading).toBe(false)
+    expect(settled.error).toBe(null)
+    own.close()
+  })
+
+  it('deletes a cached model through the API', async () => {
+    const dir = join(root, '_models', 'Xenova', 'multilingual-e5-small', 'onnx')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'model_quantized.onnx'), 'y'.repeat(8))
+
+    expect(json(await call('GET', '/llm-memory/api/model/status')).cached).toBe(true)
+    const removed = await call('POST', '/llm-memory/api/model/remove', {})
+    expect(removed.statusCode).toBe(200)
+    expect(json(removed).cached).toBe(false)
+    expect(existsSync(join(root, '_models', 'Xenova', 'multilingual-e5-small'))).toBe(false)
   })
 })

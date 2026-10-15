@@ -238,7 +238,12 @@ How it works:
 - Embeddings come from the local `Xenova/multilingual-e5-small` model (384
   dimensions, q8) through `@huggingface/transformers`; the model is cached in
   `<storageRoot>/_models`, and no API key or network is needed after the first
-  download.
+  download. Press **Download model** on the **Settings → LLM Memory** page (about
+  130 MB, with a percentage, next to Check again and Delete cached model) instead
+  of fetching it by hand; the download runs in a worker thread, so dsh stays
+  responsive. The offline route still works: drop the same files into
+  `<storageRoot>/_models/Xenova/multilingual-e5-small`. Until the model is there,
+  search runs on FTS5.
 - ONNX inference does not yield the event loop (measured: a 64-text batch took
   3.4 s with a single timer tick), so indexing runs in a worker thread and never
   blocks dsh; a query is embedded in process (~19 ms).

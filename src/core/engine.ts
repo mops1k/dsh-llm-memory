@@ -17,6 +17,12 @@ import { mergeConfig, type MemoryConfig, type RecallScope, type RulesPromptScope
 import { entryChunks } from './chunks.js'
 import { EmbeddingQueue, type EmbeddingQueueStatus } from './embed-queue.js'
 import { createEmbeddingProvider } from './embeddings.js'
+import {
+  removeModelCache,
+  scanModelCache,
+  type ModelCacheStatus,
+  type ModelDownloadProgress,
+} from './model-cache.js'
 import { appendLog, debug } from './log.js'
 import { sanitizeProjectKey } from './paths.js'
 import { DEFAULT_RANKING, rankItems, rankItemsHybrid, rankRulesBase, semanticPairs, significantOverlapPairs } from './ranking.js'
@@ -179,6 +185,22 @@ export interface StatusReport {
   byProject: Record<string, number>
   /** Progress of the vector index; null while the vector leg is off. */
   vectors: EmbeddingQueueStatus | null
+}
+
+/** State of the embedding model shown by the settings page. */
+export interface ModelStatus extends ModelCacheStatus {
+  /** Configured embedding provider (`off`, `local` or the reserved `http`). */
+  provider: string
+  /** Configured model id. */
+  model: string
+  /** Whether the vector leg is active, that is a download would be usable. */
+  enabled: boolean
+  /** Whether a download is running right now. */
+  downloading: boolean
+  /** Live download progress, or null when nothing is downloading. */
+  progress: ModelDownloadProgress | null
+  /** Message of the last failed download, or null. */
+  error: string | null
 }
 
 /** A link pointing at an entry that does not exist. */
@@ -450,6 +472,12 @@ export class MemoryEngine {
   private vectors: { provider: EmbeddingProvider; index: VectorIndex; queue: EmbeddingQueue } | null = null
   /** Set when the vector leg cannot be built, so it is not retried per call. */
   private vectorUnavailable = false
+  /** Model cache and download state shown by the settings page. */
+  private modelState: {
+    downloading: boolean
+    progress: ModelDownloadProgress | null
+    error: string | null
+  } = { downloading: false, progress: null, error: null }
   /** Consecutive failures of the query-embedding path. */
   private vectorFailures = 0
 
@@ -489,7 +517,13 @@ export class MemoryEngine {
     try {
       const provider =
         this.injectedProvider ??
-        createEmbeddingProvider(settings, { cacheDir: join(this.store.root, '_models'), debug })
+        createEmbeddingProvider(settings, {
+          cacheDir: this.modelCacheDir(),
+          debug,
+          onProgress: (progress) => {
+            this.modelState.progress = progress
+          },
+        })
       if (!provider) {
         this.vectorUnavailable = true
         return null
@@ -531,6 +565,87 @@ export class MemoryEngine {
   /** Progress of the vector index, or null when the vector leg is off. */
   vectorStatus(): EmbeddingQueueStatus | null {
     return this.vectors?.queue.status() ?? null
+  }
+
+  /** Directory the embedding model is cached in, inside the memory root. */
+  modelCacheDir(): string {
+    return join(this.store.root, '_models')
+  }
+
+  /**
+   * State of the embedding model: what is on disk and whether a download runs.
+   *
+   * Works even when the vector leg is off: the settings page still has to say
+   * what a click on "Download model" would do.
+   */
+  modelStatus(): ModelStatus {
+    const settings = this.config.embeddings
+    // Prefer the model the provider actually loads (an injected provider may
+    // differ from the configured one in tests).
+    const model = this.vectors?.provider.model ?? settings.model
+    const cache = scanModelCache(this.modelCacheDir(), model)
+    return {
+      provider: settings.provider,
+      model,
+      enabled: this.vectors !== null || (settings.provider !== 'off' && settings.backend !== 'off'),
+      dir: cache.dir,
+      cached: cache.cached,
+      files: cache.files,
+      bytes: cache.bytes,
+      downloading: this.modelState.downloading,
+      progress: this.modelState.progress,
+      error: this.modelState.error,
+    }
+  }
+
+  /**
+   * Download (and load) the embedding model in the background.
+   *
+   * `prewarm` runs inside the embedding worker, so the download neither blocks
+   * the host nor touches the vector index; progress streams through
+   * {@link modelStatus}. Calling it while a download runs is a no-op.
+   *
+   * @returns The state right after the download was started.
+   * @throws when the vector leg is disabled, because nothing would use the model.
+   */
+  downloadModel(): ModelStatus {
+    const vectors = this.ensureVectors()
+    if (!vectors) {
+      throw new Error(
+        'Vector search is disabled: switch the embeddings provider to "local" and the backend away from "off" first.',
+      )
+    }
+    if (this.modelState.downloading) return this.modelStatus()
+    this.modelState = { downloading: true, progress: null, error: null }
+    void vectors.provider
+      .prewarm()
+      .then(() => {
+        this.modelState = { downloading: false, progress: null, error: null }
+        debug(`embeddings: ${this.config.embeddings.model} is cached and loaded`)
+      })
+      .catch((error: unknown) => {
+        this.modelState = {
+          downloading: false,
+          progress: null,
+          error: error instanceof Error ? error.message : String(error),
+        }
+        debug(`embeddings: model download failed (${this.modelState.error})`)
+      })
+    return this.modelStatus()
+  }
+
+  /**
+   * Delete the cached model files (settings action).
+   *
+   * The next load downloads them again; the vector index itself is untouched.
+   *
+   * @returns The cache state after the removal.
+   */
+  removeModel(): ModelStatus {
+    const settings = this.config.embeddings
+    removeModelCache(this.modelCacheDir(), this.vectors?.provider.model ?? settings.model)
+    this.modelState = { downloading: false, progress: null, error: null }
+    return this.modelStatus()
   }
 
   /** Drop the vector cache and queue a full re-embed (settings action). */

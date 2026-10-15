@@ -20,6 +20,7 @@
 import { Worker } from 'node:worker_threads'
 
 import type { EmbeddingConfig } from './config.js'
+import { createProgressTracker, type ModelDownloadProgress } from './model-cache.js'
 import { ensureDir } from './paths.js'
 import type { EmbeddingBatch, EmbeddingProvider, EmbeddingRole } from './types.js'
 
@@ -33,6 +34,8 @@ export interface EmbeddingProviderOptions {
   inline?: boolean
   /** Worker entry point; defaults to the compiled `./embed-worker.js` next to this module. */
   workerPath?: string | URL
+  /** Reports model download progress, so the settings page can show it. */
+  onProgress?: (progress: ModelDownloadProgress) => void
   debug?: (message: string) => void
 }
 
@@ -55,11 +58,15 @@ export interface EmbedWorkerRequest {
 /** Message received from the worker. */
 export interface EmbedWorkerResponse {
   id: number
+  /** Message kind; `progress` carries a download update, every other kind an answer. */
+  type?: 'progress'
   ok?: boolean
   ready?: boolean
   error?: string
   model?: string
   dim?: number
+  /** Download progress, present on `progress` messages. */
+  progress?: ModelDownloadProgress
   /** One transferable buffer per vector. */
   buffers?: ArrayBuffer[]
 }
@@ -69,6 +76,8 @@ export interface EmbedWorkerData {
   config: EmbeddingConfig
   cacheDir: string
   dtype: string
+  /** Whether the worker should report download progress to the host. */
+  reportProgress?: boolean
 }
 
 /**
@@ -136,8 +145,12 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
     // inside node_modules and is wiped by a reinstall.
     if (module.env) module.env.cacheDir = this.options.cacheDir
     this.options.debug?.(`embeddings: loading ${this.model} (cache ${this.options.cacheDir})`)
+    const onProgress = this.options.onProgress
     return (await module.pipeline('feature-extraction', this.model, {
       dtype: this.options.dtype ?? 'q8',
+      // Without the callback transformers.js downloads silently; the settings
+      // page wants a percentage, so the tracker is always wired when asked.
+      ...(onProgress ? { progress_callback: createProgressTracker(onProgress) } : {}),
     })) as TextExtractor
   }
 
@@ -214,6 +227,7 @@ export class WorkerEmbeddingProvider implements EmbeddingProvider {
       config: this.config,
       cacheDir: this.options.cacheDir,
       dtype: this.options.dtype ?? 'q8',
+      reportProgress: this.options.onProgress !== undefined,
     }
     const worker = new Worker(workerPath, { workerData })
     worker.on('message', (message: EmbedWorkerResponse) => this.onMessage(message))
@@ -226,6 +240,12 @@ export class WorkerEmbeddingProvider implements EmbeddingProvider {
   }
 
   private onMessage(message: EmbedWorkerResponse): void {
+    // Progress arrives while a prewarm request is still in flight and carries no
+    // answer: it must never resolve that request.
+    if (message.type === 'progress') {
+      if (message.progress) this.options.onProgress?.(message.progress)
+      return
+    }
     const entry = this.pending.get(message.id)
     if (!entry) return
     this.pending.delete(message.id)

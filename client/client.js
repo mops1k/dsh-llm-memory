@@ -1192,6 +1192,38 @@ window.__ModuleLoader__.load({
       return (bytes / 1024 / 1024).toFixed(2) + " MB";
     }
 
+    /** One human line describing the embedding-model cache state. */
+    function modelStatusText(model) {
+      if (!model) return "Model status is unavailable: the plugin API did not answer.";
+      if (model.error) return "Download failed: " + model.error;
+      if (model.downloading) {
+        const progress = model.progress;
+        if (!progress) return "Downloading the model\u2026 (waiting for the first bytes)";
+        const loaded = formatByteSize(progress.loadedBytes);
+        const total = progress.totalBytes > 0 ? formatByteSize(progress.totalBytes) : "unknown size";
+        return (
+          "Downloading: " +
+          progress.percent +
+          "% (" +
+          loaded +
+          " of " +
+          total +
+          "), files: " +
+          progress.files
+        );
+      }
+      if (model.enabled !== true) {
+        return "Vector search is off (provider or backend). Turn it on, save, then download the model.";
+      }
+      if (model.cached) {
+        return "Cached: " + formatByteSize(model.bytes) + " in " + model.files + " files \u2014 search uses it now.";
+      }
+      if (model.files > 0) {
+        return "Cache is incomplete: " + formatByteSize(model.bytes) + " in " + model.files + " files. Download again.";
+      }
+      return "Not downloaded yet (\u2248130 MB). Lexical search works; semantic search starts after the download.";
+    }
+
     function VectorPanel(props) {
       const vectors = props.vectors;
       if (!vectors) {
@@ -1910,6 +1942,61 @@ window.__ModuleLoader__.load({
         const [busy, setBusy] = React.useState(false);
         const [preview, setPreview] = React.useState(null);
         const [alreadyExported, setAlreadyExported] = React.useState(false);
+        const [model, setModel] = React.useState(null);
+        const [modelBusy, setModelBusy] = React.useState(false);
+
+        const loadModelStatus = React.useCallback(async () => {
+          try {
+            const data = await apiGet(webBase(scope), "/api/model/status");
+            setModel(data && typeof data === "object" ? data : null);
+          } catch (error) {
+            setModel(null);
+          }
+        }, []);
+
+        const downloading = model !== null && model.downloading === true;
+        React.useEffect(() => {
+          loadModelStatus();
+        }, []);
+        React.useEffect(() => {
+          if (!downloading) return undefined;
+          const timer = setInterval(() => {
+            loadModelStatus();
+          }, 1500);
+          return () => clearInterval(timer);
+        }, [downloading]);
+
+        const downloadModel = async () => {
+          setModelBusy(true);
+          setNotice("Starting the model download\u2026");
+          try {
+            const data = await apiPost(webBase(scope), "/api/model/download", {});
+            if (data && typeof data === "object") setModel(data);
+            setNotice("Model download started \u2014 progress is shown under the model field.");
+          } catch (error) {
+            setNotice("Model download failed: " + errorText(error));
+          } finally {
+            setModelBusy(false);
+          }
+        };
+
+        const removeModel = async () => {
+          if (
+            !window.confirm("Delete the cached embedding model? The next semantic search downloads it again.")
+          ) {
+            return;
+          }
+          setModelBusy(true);
+          try {
+            const data = await apiPost(webBase(scope), "/api/model/remove", {});
+            if (data && typeof data === "object") setModel(data);
+            setNotice("Cached model deleted.");
+          } catch (error) {
+            setNotice("Deleting the model failed: " + errorText(error));
+          } finally {
+            setModelBusy(false);
+          }
+        };
 
         const refreshRulesExportState = async () => {
           try {
@@ -2276,6 +2363,41 @@ window.__ModuleLoader__.load({
               hint: "transformers.js model id for the local provider (Xenova/multilingual-e5-small by default).",
             },
             h("input", inputProps("embeddingsModel")),
+          ),
+          h(
+            "div",
+            { style: S.field },
+            h("span", { style: S.label }, "Model cache"),
+            h("div", { style: S.hint }, modelStatusText(model)),
+            h(
+              "div",
+              { style: S.actions },
+              h(
+                "button",
+                {
+                  type: "button",
+                  style: S.primary,
+                  disabled: modelBusy || downloading,
+                  onClick: downloadModel,
+                },
+                downloading ? "Downloading\u2026" : "Download model",
+              ),
+              h(
+                "button",
+                { type: "button", style: S.button, disabled: modelBusy, onClick: loadModelStatus },
+                "Check again",
+              ),
+              h(
+                "button",
+                {
+                  type: "button",
+                  style: S.button,
+                  disabled: modelBusy || !model || model.files === 0,
+                  onClick: removeModel,
+                },
+                "Delete cached model",
+              ),
+            ),
           ),
           numberField(
             form,

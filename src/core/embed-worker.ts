@@ -26,6 +26,10 @@ const provider = new LocalEmbeddingProvider(data.config, {
   cacheDir: data.cacheDir,
   dtype: data.dtype,
   debug,
+  // Progress messages carry no request id and are filtered by type on the host.
+  onProgress: data.reportProgress
+    ? (progress) => port.postMessage({ id: 0, type: 'progress', progress })
+    : undefined,
 })
 
 port.on('message', (message: EmbedWorkerRequest) => {

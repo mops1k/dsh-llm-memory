@@ -23,8 +23,12 @@ export class FakeEmbeddingProvider implements EmbeddingProvider {
   readonly ready = true
   embeddedCount = 0
   lastTexts: string[] = []
+  /** Whether `prewarm` ran; the model-download tests assert on it. */
+  prewarmed = false
 
-  async prewarm(): Promise<void> {}
+  async prewarm(): Promise<void> {
+    this.prewarmed = true
+  }
 
   async embed(texts: string[], _role: EmbeddingRole): Promise<EmbeddingBatch> {
     this.embeddedCount += texts.length
