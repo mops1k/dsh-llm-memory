@@ -11,11 +11,14 @@
  * cross-project layer.
  */
 import { statSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { mergeConfig, type MemoryConfig, type RecallScope, type RulesPromptScope } from './config.js'
-import { appendLog } from './log.js'
+import { EmbeddingQueue, type EmbeddingQueueStatus } from './embed-queue.js'
+import { createEmbeddingProvider } from './embeddings.js'
+import { appendLog, debug } from './log.js'
 import { sanitizeProjectKey } from './paths.js'
-import { DEFAULT_RANKING, rankItems, rankRulesBase, significantOverlapPairs } from './ranking.js'
+import { DEFAULT_RANKING, rankItems, rankItemsHybrid, rankRulesBase, significantOverlapPairs } from './ranking.js'
 import { MemoryStore, genMemoryId, newMemoryEntry } from './store.js'
 import { buildGraph } from './wiki.js'
 import {
@@ -25,6 +28,7 @@ import {
   type ExternalIdResolution,
 } from './import/common.js'
 import type {
+  EmbeddingProvider,
   MemoryEntry,
   MemoryFilter,
   MemoryGraph,
@@ -34,6 +38,7 @@ import type {
   MemoryScope,
   MemoryStatus,
   MemoryTier,
+  VectorIndex,
 } from './types.js'
 import { clampImportance } from './types.js'
 
@@ -68,6 +73,16 @@ export interface MemoryEngineOptions {
   resolveProjectRoot?: (key: string) => string | null | undefined
   /** Partial configuration merged over the defaults. */
   config?: Partial<MemoryConfig>
+  /**
+   * Embedding provider to use instead of building one from the configuration
+   * (tests inject an in-process provider; the plugin uses the worker-backed one).
+   */
+  embeddingProvider?: EmbeddingProvider
+  /**
+   * Drive the embedding queue by hand instead of letting it run in the
+   * background; tests use it to make a pass deterministic.
+   */
+  manualEmbeddings?: boolean
 }
 
 /** Per-call overrides for the rules/preferences digest of the system prompt. */
@@ -153,6 +168,8 @@ export interface StatusReport {
   byScope: Record<string, number>
   byKind: Record<string, number>
   byProject: Record<string, number>
+  /** Progress of the vector index; null while the vector leg is off. */
+  vectors: EmbeddingQueueStatus | null
 }
 
 /** A link pointing at an entry that does not exist. */
@@ -388,6 +405,14 @@ export class MemoryEngine {
   readonly project: string
   private readonly store: MemoryStore
   private readonly externalResolver?: (key: string) => string | null | undefined
+  private readonly injectedProvider?: EmbeddingProvider
+  private readonly manualEmbeddings: boolean
+  /** Lazy vector stack: provider, index and the background embedding queue. */
+  private vectors: { provider: EmbeddingProvider; index: VectorIndex; queue: EmbeddingQueue } | null = null
+  /** Set when the vector leg cannot be built, so it is not retried per call. */
+  private vectorUnavailable = false
+  /** Consecutive failures of the query-embedding path. */
+  private vectorFailures = 0
 
   constructor(options: MemoryEngineOptions = {}) {
     this.config = mergeConfig({
@@ -401,6 +426,120 @@ export class MemoryEngine {
       scanBudgetMs: this.config.projectScanBudgetMs,
     })
     if (options.resolveProjectRoot) this.externalResolver = options.resolveProjectRoot
+    if (options.embeddingProvider) this.injectedProvider = options.embeddingProvider
+    this.manualEmbeddings = options.manualEmbeddings === true
+  }
+
+  /**
+   * Build the vector stack on first use.
+   *
+   * Every failure path — the optional dependency is missing, the worker cannot
+   * start, the settings disable vectors — leaves `vectors` null, so a broken
+   * embedding setup degrades to the lexical path instead of breaking recall.
+   */
+  private ensureVectors(): { provider: EmbeddingProvider; index: VectorIndex; queue: EmbeddingQueue } | null {
+    if (this.vectors) return this.vectors
+    if (this.vectorUnavailable) return null
+    const settings = this.config.embeddings
+    if (!this.injectedProvider && (settings.provider === 'off' || settings.backend === 'off')) {
+      this.vectorUnavailable = true
+      return null
+    }
+    try {
+      const provider =
+        this.injectedProvider ??
+        createEmbeddingProvider(settings, { cacheDir: join(this.store.root, '_models'), debug })
+      if (!provider) {
+        this.vectorUnavailable = true
+        return null
+      }
+      const index = this.store.initVectorIndex({
+        model: provider.model,
+        dim: provider.dim,
+        backend: settings.backend,
+      })
+      if (!index) {
+        this.vectorUnavailable = true
+        return null
+      }
+      const queue = new EmbeddingQueue({
+        store: this.store,
+        index,
+        provider,
+        config: settings,
+        debug,
+        manual: this.manualEmbeddings,
+      })
+      this.store.onEntryChanged = (id) => queue.enqueue([id])
+      this.vectors = { provider, index, queue }
+      if (settings.prewarm && !this.manualEmbeddings) queue.start()
+      return this.vectors
+    } catch (error) {
+      this.vectorUnavailable = true
+      debug(`vectors: disabled (${error instanceof Error ? error.message : String(error)})`)
+      return null
+    }
+  }
+
+  /** Start the vector leg in the background (plugin startup); idempotent. */
+  startVectors(): void {
+    this.ensureVectors()
+  }
+
+  /** Progress of the vector index, or null when the vector leg is off. */
+  vectorStatus(): EmbeddingQueueStatus | null {
+    return this.vectors?.queue.status() ?? null
+  }
+
+  /** Drop the vector cache and queue a full re-embed (settings action). */
+  rebuildVectors(): void {
+    const vectors = this.ensureVectors()
+    if (!vectors) return
+    vectors.index.clear()
+    vectors.queue.sweep()
+  }
+
+  /**
+   * Drive the embedding queue to completion (tests, maintenance and the
+   * backfill script, which passes one slice of ids at a time to report progress).
+   */
+  async embedPending(ids?: readonly string[]): Promise<void> {
+    const vectors = this.ensureVectors()
+    if (!vectors) return
+    await vectors.queue.processAll(ids)
+  }
+
+  /** Cosine similarity of the query against the indexed chunks, per entry. */
+  private async semanticRanks(query: string, filter: MemoryFilter): Promise<Map<string, number>> {
+    const scores = new Map<string, number>()
+    const text = (query ?? '').trim()
+    if (text.length === 0) return scores
+    const vectors = this.ensureVectors()
+    if (!vectors) return scores
+    try {
+      const batch = await vectors.provider.embed([text], 'query')
+      const vector = batch.vectors[0]
+      if (!vector) return scores
+      const matches = vectors.index.search({
+        vector,
+        limit: this.config.embeddings.topK,
+        filter,
+        minScore: this.config.embeddings.minScore,
+      })
+      for (const match of matches) {
+        const previous = scores.get(match.entryId)
+        if (previous === undefined || previous < match.score) scores.set(match.entryId, match.score)
+      }
+      this.vectorFailures = 0
+    } catch (error) {
+      this.vectorFailures++
+      debug(`vectors: query embedding failed (${error instanceof Error ? error.message : String(error)})`)
+      if (this.vectorFailures >= 3) {
+        this.vectorUnavailable = true
+        debug('vectors: disabled after 3 consecutive query failures; lexical search stays active')
+      }
+    }
+    return scores
   }
 
   /**
@@ -598,8 +737,14 @@ export class MemoryEngine {
     return this.store.list(filter)
   }
 
-  /** Search active entries and rank them; returns the items and their rendering. */
-  recall(query = '', options: RecallOptions = {}): RecallResult {
+  /**
+   * Search active entries and rank them; returns the items and their rendering.
+   *
+   * Asynchronous because the vector leg embeds the query; the lexical and
+   * metadata parts stay synchronous behind it, and a missing or failing vector
+   * leg simply contributes nothing to the fusion.
+   */
+  async recall(query = '', options: RecallOptions = {}): Promise<RecallResult> {
     const scope: RecallScope = options.scope ?? this.config.recallScope
     const format: RecallFormat = options.format ?? 'markdown'
     const detail: RecallDetail = options.detail ?? 'digest'
@@ -610,29 +755,50 @@ export class MemoryEngine {
     if (options.kind && options.kind !== 'all') base.kind = options.kind
     if (options.tier && options.tier !== 'all') base.tier = options.tier
 
-    let candidates: MemoryEntry[]
+    // The project layer means the calling session's project PLUS the
+    // cross-project user layer, so user-wide rules and preferences are always
+    // visible while entries of foreign projects stay hidden.
+    const filters: MemoryFilter[] = []
     if (scope === 'project') {
-      // The project layer means the calling session's project PLUS the
-      // cross-project user layer, so user-wide rules and preferences are always
-      // visible while entries of foreign projects stay hidden.
       const key =
         options.project && options.project !== 'all' ? sanitizeProjectKey(options.project) : this.project
-      candidates = [
-        ...this.store.search(text, { ...base, scope: 'project', project: key }),
-        ...this.store.search(text, { ...base, scope: 'user' }),
-      ]
+      filters.push({ ...base, scope: 'project', project: key }, { ...base, scope: 'user' })
     } else {
       const filter: MemoryFilter = { ...base }
       if (scope === 'user') filter.scope = 'user'
       if (options.project && options.project !== 'all') filter.project = options.project
-      candidates = this.store.search(text, filter)
+      filters.push(filter)
     }
 
-    const ranked = rankItems(candidates, query, DEFAULT_RANKING, scope)
-    const items = ranked.slice(0, limit)
+    const items = new Map<string, MemoryEntry>()
+    const bm25 = new Map<string, number>()
+    const semantic = new Map<string, number>()
+    for (const filter of filters) {
+      const lexical = this.store.searchRanked(text, filter)
+      for (const item of lexical.items) items.set(item.id, item)
+      for (const [id, score] of lexical.ranks) {
+        bm25.set(id, Math.max(bm25.get(id) ?? Number.NEGATIVE_INFINITY, score))
+      }
+      for (const [id, score] of await this.semanticRanks(text, filter)) {
+        semantic.set(id, Math.max(semantic.get(id) ?? Number.NEGATIVE_INFINITY, score))
+      }
+    }
+    // A semantic hit outside the lexical result set still has to be fetched.
+    for (const id of semantic.keys()) {
+      if (items.has(id)) continue
+      const entry = this.store.get(id)
+      if (entry) items.set(id, entry)
+    }
+
+    const candidates = [...items.values()]
+    const ranked =
+      text.length === 0
+        ? rankItems(candidates, query, DEFAULT_RANKING, scope)
+        : rankItemsHybrid(candidates, query, DEFAULT_RANKING, scope, bm25, semantic)
+    const rankedItems = ranked.slice(0, limit)
     return {
-      items,
-      text: renderRecall(items, format, {
+      items: rankedItems,
+      text: renderRecall(rankedItems, format, {
         detail,
         textChars: this.config.recallTextChars,
         totalChars: this.config.recallTotalChars,
@@ -664,6 +830,7 @@ export class MemoryEngine {
       byScope,
       byKind,
       byProject,
+      vectors: this.vectorStatus(),
     }
   }
 
@@ -915,8 +1082,15 @@ export class MemoryEngine {
     return { removedLinks, addedBacklinks, reindexed: reconciled.read, brokenBefore, brokenAfter }
   }
 
-  /** Close the underlying database connection. */
+  /** Stop the embedding queue and close the underlying database connection. */
   close(): void {
+    const vectors = this.vectors
+    this.vectors = null
+    this.store.onEntryChanged = null
+    if (vectors) {
+      vectors.queue.stop()
+      vectors.provider.close?.()
+    }
     this.store.close()
   }
 

@@ -31,7 +31,10 @@ import type {
   MemoryFilter,
   MemoryListResult,
   MemoryStoreOptions,
+  VectorBackend,
+  VectorIndex,
 } from './types.js'
+import { createVectorIndex } from './vector-index.js'
 import {
   decodePage,
   deleteItemPage,
@@ -264,6 +267,13 @@ export class MemoryStore {
   private projectsLoaded = false
   /** Default per-directory budget of an index pass (0 = no budget). */
   private readonly scanBudgetMs: number
+  /** Vector index over chunk embeddings; null while the vector leg is off. */
+  private vectors: VectorIndex | null = null
+  /**
+   * Called with the id of every entry written to the index. The embedding queue
+   * subscribes to it, which is why a write never has to know about embeddings.
+   */
+  onEntryChanged: ((id: string) => void) | null = null
 
   constructor(options: MemoryStoreOptions = {}) {
     const paths = resolveStoragePaths(resolveStorageRoot(options.storageRoot))
@@ -280,6 +290,28 @@ export class MemoryStore {
   /** Whether the FTS5 index is available in this SQLite build. */
   get hasFts(): boolean {
     return this.ftsAvailable
+  }
+
+  /**
+   * Create (or replace) the vector index for one embedding model.
+   *
+   * `memory_vectors` belongs to the schema, so a backend only reads and writes
+   * rows and the database handle stays owned by the store.
+   */
+  initVectorIndex(options: { model: string; dim: number; backend: VectorBackend }): VectorIndex | null {
+    this.ensureReady()
+    this.vectors = createVectorIndex(options.backend, {
+      db: this.requireDb(),
+      model: options.model,
+      dim: options.dim,
+      debug,
+    })
+    return this.vectors
+  }
+
+  /** Vector index of this store, or null while the vector leg is off. */
+  vectorIndex(): VectorIndex | null {
+    return this.vectors
   }
 
   /** Load (or reload) the project registry from `projects.json`. */
@@ -397,6 +429,27 @@ export class MemoryStore {
     // here would turn every such page into a full table scan.
     db.exec('CREATE INDEX IF NOT EXISTS idx_memories_path ON memories(path);')
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_ext_key ON memories(ext_key) WHERE ext_key IS NOT NULL;')
+    // Chunk vectors live next to the entries they describe. `model`, `dim` and
+    // `hash` make the cache self-describing: switching the embedding model
+    // invalidates vectors through the hash instead of a separate migration.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS memory_vectors (
+        entry_id TEXT NOT NULL,
+        chunk_ix INTEGER NOT NULL,
+        model TEXT NOT NULL DEFAULT '',
+        dim INTEGER NOT NULL DEFAULT 0,
+        hash TEXT NOT NULL DEFAULT '',
+        scope TEXT NOT NULL DEFAULT 'project',
+        project TEXT NOT NULL DEFAULT '',
+        kind TEXT NOT NULL DEFAULT 'facts',
+        tier TEXT NOT NULL DEFAULT 'normal',
+        status TEXT NOT NULL DEFAULT 'active',
+        vector BLOB NOT NULL,
+        created_at TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (entry_id, chunk_ix)
+      );
+    `)
+    db.exec('CREATE INDEX IF NOT EXISTS idx_memory_vectors_model ON memory_vectors(model);')
     this.ensureColumns()
     this.ftsAvailable = this.ensureFts()
   }
@@ -539,6 +592,7 @@ export class MemoryStore {
       stat?.size ?? null,
     )
     this.syncFts(entry)
+    this.onEntryChanged?.(entry.id)
   }
 
   private getRow(id: string): Record<string, unknown> | null {
@@ -647,6 +701,7 @@ export class MemoryStore {
     const db = this.requireDb()
     db.prepare('DELETE FROM memories WHERE id = ?').run(id)
     if (this.ftsAvailable) db.prepare('DELETE FROM memories_fts WHERE id = ?').run(id)
+    this.vectors?.remove(id)
     appendLog(this.root, 'delete', asString(row['title']), id)
     return true
   }
@@ -688,23 +743,44 @@ export class MemoryStore {
     return { items: rows.map(rowToEntry), total }
   }
 
-  private searchFts(terms: string[], filter: MemoryFilter): MemoryEntry[] | null {
+  /**
+   * FTS5 search together with the BM25 score of every hit (higher is better, so
+   * the SQLite rank is negated for the rank fusion).
+   *
+   * Returns null when FTS is unavailable, matched nothing or failed — the signal
+   * the callers use to fall back to LIKE.
+   */
+  private searchFtsRanked(
+    terms: string[],
+    filter: MemoryFilter,
+  ): { items: MemoryEntry[]; ranks: Map<string, number> } | null {
     if (!this.ftsAvailable) return null
     const where = this.buildWhere(filter)
     const match = terms.map((term) => `"${term.replace(/"/g, '""')}"*`).join(' OR ')
     const params: SqlParam[] = [match, ...where.params]
-    let sql = 'SELECT m.* FROM memories_fts JOIN memories m ON m.id = memories_fts.id WHERE memories_fts MATCH ?'
+    let sql =
+      'SELECT m.*, bm25(memories_fts) AS rank FROM memories_fts JOIN memories m ON m.id = memories_fts.id WHERE memories_fts MATCH ?'
     if (where.sql) sql += ` AND ${where.sql}`
     sql += ' ORDER BY bm25(memories_fts) ASC'
     sql = this.applyLimit(sql, params, filter)
     try {
       const rows = this.requireDb().prepare(sql).all(...params) as Array<Record<string, unknown>>
       if (rows.length === 0) return null
-      return rows.map(rowToEntry)
+      const ranks = new Map<string, number>()
+      const items = rows.map((row) => {
+        const entry = rowToEntry(row)
+        ranks.set(entry.id, -(asNumber(row['rank']) ?? 0))
+        return entry
+      })
+      return { items, ranks }
     } catch (error) {
       debug(`FTS search failed: ${String(error)}`)
       return null
     }
+  }
+
+  private searchFts(terms: string[], filter: MemoryFilter): MemoryEntry[] | null {
+    return this.searchFtsRanked(terms, filter)?.items ?? null
   }
 
   private searchLike(terms: string[], filter: MemoryFilter): MemoryEntry[] {
@@ -735,6 +811,19 @@ export class MemoryStore {
     const fts = this.searchFts(terms, filter)
     if (fts !== null) return fts
     return this.searchLike(terms, filter)
+  }
+
+  /**
+   * Search by text together with the lexical score of every hit, feeding the
+   * hybrid ranking that fuses BM25, metadata and the vector leg.
+   */
+  searchRanked(query: string, filter: MemoryFilter = {}): { items: MemoryEntry[]; ranks: Map<string, number> } {
+    this.ensureReady()
+    const terms = tokenize(query ?? '')
+    if (terms.length === 0) return { items: this.list(filter).items, ranks: new Map() }
+    const ranked = this.searchFtsRanked(terms, filter)
+    if (ranked) return ranked
+    return { items: this.searchLike(terms, filter), ranks: new Map() }
   }
 
   /** Rebuild the whole index from markdown pages on disk. */

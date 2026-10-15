@@ -16,7 +16,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SettingsForms } from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 
-import { DEFAULT_CONFIG, DEFAULT_SYSTEM_PROMPT } from '../core/config.js'
+import { DEFAULT_CONFIG, DEFAULT_EMBEDDINGS, DEFAULT_SYSTEM_PROMPT } from '../core/config.js'
 
 /** Settings namespace owned by this plugin (lowercase, hyphenated). */
 export const SETTINGS_NAMESPACE = 'dsh-llm-memory'
@@ -109,6 +109,75 @@ export const MemorySettingsSchema = z.object({
     .step(1)
     .default(DEFAULT_CONFIG.lintMaxPairs)
     .description('Maximum number of memory pairs checked for overlaps (0 means unlimited).'),
+  embeddings: z
+    .object({
+      provider: z
+        .union([z.const('off'), z.const('local'), z.const('http')])
+        // The core default is `off` so a bare engine never downloads a model;
+        // the plugin enables the local provider out of the box.
+        .default('local')
+        .description(
+          'Embedding source for semantic search: off (lexical FTS5 only), local (in-process multilingual ONNX model) or http (OpenAI-compatible endpoint).',
+        ),
+      model: z
+        .string()
+        .default(DEFAULT_EMBEDDINGS.model)
+        .description(
+          'Embedding model id: a transformers.js model for the local provider (Xenova/multilingual-e5-small by default), a model name for http.',
+        ),
+      dim: z
+        .number()
+        .min(64)
+        .step(1)
+        .default(DEFAULT_EMBEDDINGS.dim)
+        .description('Vector length the model produces. Vectors of another length are re-embedded.'),
+      backend: z
+        .union([z.const('off'), z.const('js'), z.const('sqlite-vec')])
+        .default(DEFAULT_EMBEDDINGS.backend)
+        .description(
+          'Where chunk vectors live: js (plain table, in-process cosine scan), sqlite-vec (vec0 KNN in SQL) or off. Falls back to js when the extension cannot load.',
+        ),
+      topK: z
+        .number()
+        .min(5)
+        .max(500)
+        .step(5)
+        .default(DEFAULT_EMBEDDINGS.topK)
+        .description('Chunk hits the vector leg contributes before rank fusion with the FTS5 leg.'),
+      minScore: z
+        .number()
+        .min(0)
+        .max(1)
+        .step(0.01)
+        .default(DEFAULT_EMBEDDINGS.minScore)
+        .description('Minimum cosine similarity for a vector hit to count (0 keeps every candidate; e5 cosine is compressed).'),
+      batchSize: z
+        .number()
+        .min(1)
+        .max(256)
+        .step(1)
+        .default(DEFAULT_EMBEDDINGS.batchSize)
+        .description('Texts embedded per model call during indexing.'),
+      chunkChars: z
+        .number()
+        .min(200)
+        .max(8000)
+        .step(50)
+        .default(DEFAULT_EMBEDDINGS.chunkChars)
+        .description('Target characters per chunk of an entry body.'),
+      chunkOverlap: z
+        .number()
+        .min(0)
+        .max(4000)
+        .step(10)
+        .default(DEFAULT_EMBEDDINGS.chunkOverlap)
+        .description('Characters shared by neighbouring chunks (capped at half the chunk size).'),
+      prewarm: z
+        .boolean()
+        .default(DEFAULT_EMBEDDINGS.prewarm)
+        .description('Load the embedding model in the background at startup instead of on the first query.'),
+    })
+    .description('Vector (semantic) retrieval: embeddings, chunking and the vector index backend.'),
   webPath: z
     .string()
     .default(DEFAULT_CONFIG.webPath)

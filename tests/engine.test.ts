@@ -21,7 +21,7 @@ afterEach(() => {
 })
 
 describe('MemoryEngine', () => {
-  it('saves an entry and recalls it as active', () => {
+  it('saves an entry and recalls it as active', async () => {
     const entry = engine.save({
       text: 'The build uses pnpm and Node 24.',
       title: 'Build toolchain',
@@ -33,14 +33,14 @@ describe('MemoryEngine', () => {
     expect(entry.project).toBe('demo')
     expect(engine.get(entry.id)?.title).toBe('Build toolchain')
 
-    const result = engine.recall('build toolchain')
+    const result = await engine.recall('build toolchain')
     expect(result.items.map((item) => item.id)).toContain(entry.id)
     expect(result.format).toBe('markdown')
     expect(result.text).toContain('Build toolchain')
     expect(result.text).toContain(entry.id)
   })
 
-  it('marks superseded entries and excludes them from recall', () => {
+  it('marks superseded entries and excludes them from recall', async () => {
     const old = engine.save({ text: 'Old decision: use MySQL.', title: 'Storage engine' })
     const fresh = engine.save({
       text: 'New decision: use PostgreSQL.',
@@ -52,34 +52,34 @@ describe('MemoryEngine', () => {
     expect(oldAfter?.status).toBe('superseded')
     expect(oldAfter?.supersededBy).toContain(fresh.id)
     expect(fresh.supersedes).toContain(old.id)
-    expect(engine.recall('storage engine').items.map((item) => item.id)).not.toContain(old.id)
+    expect((await engine.recall('storage engine')).items.map((item) => item.id)).not.toContain(old.id)
   })
 
-  it('renders recall in table, timeline and json formats', () => {
+  it('renders recall in table, timeline and json formats', async () => {
     engine.save({ text: 'Alpha beta gamma.', title: 'Alpha', kind: 'facts' })
 
-    expect(engine.recall('alpha', { format: 'table' }).text).toContain('| id')
-    expect(engine.recall('alpha', { format: 'timeline' }).text).toMatch(/^- \d{4}-\d{2}-\d{2}/)
-    const parsed = JSON.parse(engine.recall('alpha', { format: 'json' }).text) as Array<{ title: string }>
+    expect((await engine.recall('alpha', { format: 'table' })).text).toContain('| id')
+    expect((await engine.recall('alpha', { format: 'timeline' })).text).toMatch(/^- \d{4}-\d{2}-\d{2}/)
+    const parsed = JSON.parse((await engine.recall('alpha', { format: 'json' })).text) as Array<{ title: string }>
     expect(parsed[0]?.title).toBe('Alpha')
   })
 
-  it('cuts long bodies in the digest rendering and returns them whole on request', () => {
+  it('cuts long bodies in the digest rendering and returns them whole on request', async () => {
     const body = 'The build uses pnpm and Node 24. '.repeat(40).trim()
     const entry = engine.save({ text: body, title: 'Long entry', kind: 'facts' })
 
-    const digest = engine.recall('Long entry')
+    const digest = await engine.recall('Long entry')
     expect(digest.text).toContain(entry.id)
     expect(digest.text).not.toContain(body)
     expect(digest.text).toContain('1 entry body was cut to 400 characters')
     expect(digest.text).toContain('detail: "full"')
 
-    const full = engine.recall('Long entry', { detail: 'full' })
+    const full = await engine.recall('Long entry', { detail: 'full' })
     expect(full.text).toContain(body)
     expect(full.text).not.toContain('entry body was cut')
   })
 
-  it('keeps the whole rendering inside the configured total budget', () => {
+  it('keeps the whole rendering inside the configured total budget', async () => {
     for (let index = 0; index < 8; index += 1) {
       engine.save({ text: `${'word '.repeat(80)}entry ${index}`, title: `Bulk ${index}`, kind: 'facts' })
     }
@@ -90,18 +90,18 @@ describe('MemoryEngine', () => {
       config: { recallTextChars: 300, recallTotalChars: 600 },
     })
 
-    const result = engine.recall('entry')
+    const result = await engine.recall('entry')
 
     expect(result.items).toHaveLength(8)
     expect(result.text.length).toBeLessThanOrEqual(760)
     expect(result.text).toContain('Recall output cut to 600 characters')
   })
 
-  it('filters recall by kind and scope', () => {
+  it('filters recall by kind and scope', async () => {
     engine.save({ text: 'A rule about tests.', title: 'Rule', kind: 'rules' })
     engine.save({ text: 'A fact about tests.', title: 'Fact', kind: 'facts' })
 
-    const rules = engine.recall('tests', { kind: 'rules' })
+    const rules = await engine.recall('tests', { kind: 'rules' })
     expect(rules.items).toHaveLength(1)
     expect(rules.items[0]?.kind).toBe('rules')
 
@@ -113,10 +113,10 @@ describe('MemoryEngine', () => {
     })
     expect(userEntry.scope).toBe('user')
     expect(userEntry.project).toBe('')
-    expect(engine.recall('cross project', { scope: 'user' }).items.map((item) => item.id)).toContain(userEntry.id)
+    expect((await engine.recall('cross project', { scope: 'user' })).items.map((item) => item.id)).toContain(userEntry.id)
   })
 
-  it('recalls the current project plus user entries and hides foreign projects', () => {
+  it('recalls the current project plus user entries and hides foreign projects', async () => {
     const own = engine.save({ text: 'Own project note about widgets.', title: 'Own' })
     const foreign = engine.save({
       text: 'Foreign project note about widgets.',
@@ -130,16 +130,16 @@ describe('MemoryEngine', () => {
       scope: 'user',
     })
 
-    const result = engine.recall('widgets')
+    const result = await engine.recall('widgets')
     const ids = result.items.map((item) => item.id)
     expect(ids).toContain(own.id)
     expect(ids).toContain(shared.id)
     expect(ids).not.toContain(foreign.id)
 
-    const all = engine.recall('widgets', { scope: 'all' })
+    const all = await engine.recall('widgets', { scope: 'all' })
     expect(all.items.map((item) => item.id)).toContain(foreign.id)
 
-    const explicit = engine.recall('widgets', { project: 'other' })
+    const explicit = await engine.recall('widgets', { project: 'other' })
     expect(explicit.items.map((item) => item.id)).toContain(foreign.id)
     expect(explicit.items.map((item) => item.id)).not.toContain(own.id)
   })
@@ -154,13 +154,13 @@ describe('MemoryEngine', () => {
     expect(engine.update('m_missing', { title: 'x' })).toBeNull()
   })
 
-  it('forgets an entry by marking it superseded', () => {
+  it('forgets an entry by marking it superseded', async () => {
     const entry = engine.save({ text: 'Temporary note.', title: 'Temp' })
 
     const result = engine.forget(entry.id)
     expect(result.ok).toBe(true)
     expect(engine.get(entry.id)?.status).toBe('superseded')
-    expect(engine.recall('temporary note').items).toHaveLength(0)
+    expect((await engine.recall('temporary note')).items).toHaveLength(0)
     expect(engine.forget(entry.id).ok).toBe(true)
     expect(engine.forget('m_missing').ok).toBe(false)
   })

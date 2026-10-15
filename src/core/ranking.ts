@@ -112,6 +112,10 @@ export function rankItems(
 /**
  * Hybrid re-rank: BM25 (from FTS5) fused with metadata scoring using
  * Reciprocal Rank Fusion.
+ *
+ * `vectorRanks` adds the semantic leg: cosine similarity of the query against
+ * entry chunks, higher is closer. A leg that is missing for an entry simply
+ * does not contribute to its fused score.
  */
 export function rankItemsHybrid(
   items: MemoryEntry[],
@@ -119,20 +123,27 @@ export function rankItemsHybrid(
   options: RankingOptions = DEFAULT_RANKING,
   preferScope: MemoryScope | 'all',
   bm25Ranks: Map<string, number>,
+  vectorRanks?: Map<string, number>,
 ): MemoryEntry[] {
   const byBm25 = [...items].sort((a, b) => (bm25Ranks.get(b.id) ?? 0) - (bm25Ranks.get(a.id) ?? 0))
   const byMeta = [...items].sort(
     (a, b) => computeScore(b, [], options, preferScope) - computeScore(a, [], options, preferScope),
   )
+  const byVector = vectorRanks
+    ? [...items].sort((a, b) => (vectorRanks.get(b.id) ?? 0) - (vectorRanks.get(a.id) ?? 0))
+    : []
   void query
   const posBm25 = new Map(byBm25.map((item, index) => [item.id, index]))
   const posMeta = new Map(byMeta.map((item, index) => [item.id, index]))
+  const posVector = new Map(byVector.map((item, index) => [item.id, index]))
   const rrf = (item: MemoryEntry): number => {
     let score = 0
     const a = posBm25.get(item.id)
     if (a !== undefined) score += 1 / (options.rrfK + a + 1)
     const b = posMeta.get(item.id)
     if (b !== undefined) score += 1 / (options.rrfK + b + 1)
+    const c = posVector.get(item.id)
+    if (c !== undefined && vectorRanks?.has(item.id)) score += 1 / (options.rrfK + c + 1)
     return score
   }
   return [...items].sort((a, b) => rrf(b) - rrf(a))

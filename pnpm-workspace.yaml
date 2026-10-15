@@ -1,5 +1,12 @@
 packages:
   - '.'
 
+# Build scripts are denied explicitly: `onnxruntime-node` ships its prebuilt
+# `libonnxruntime.so` inside the package (bin/napi-v6/<platform>/<arch>/), so its
+# postinstall is not needed, and `protobufjs` only runs a version check. Denying
+# them keeps `pnpm install` offline and deterministic; on a platform without a
+# bundled binary the embedding provider reports it and memory falls back to FTS5.
 allowBuilds:
   esbuild: true
+  onnxruntime-node: false
+  protobufjs: false

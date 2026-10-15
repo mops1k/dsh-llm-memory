@@ -190,3 +190,131 @@ export interface RankingOptions {
   /** Smoothing constant for Reciprocal Rank Fusion. */
   rrfK: number
 }
+
+/**
+ * Which source produces embeddings for semantic retrieval.
+ *
+ * `off` disables the vector leg entirely (lexical FTS5 only), `local` runs a
+ * multilingual ONNX model in-process and `http` calls an OpenAI-compatible
+ * embeddings endpoint.
+ */
+export type EmbeddingProviderMode = 'off' | 'local' | 'http'
+
+/**
+ * Where the chunk vectors live.
+ *
+ * `js` keeps them in a plain SQLite table and scans them in-process, `sqlite-vec`
+ * uses the `vec0` virtual table of the sqlite-vec extension (KNN in SQL).
+ */
+export type VectorBackend = 'off' | 'js' | 'sqlite-vec'
+
+/**
+ * Role of a text handed to an embedding model.
+ *
+ * Asymmetric models (the e5 family) prefix queries and stored passages
+ * differently, and mixing the roles up degrades recall.
+ */
+export type EmbeddingRole = 'query' | 'passage'
+
+/** One batch of embeddings, row-aligned with the texts that produced it. */
+export interface EmbeddingBatch {
+  /** `vectors[i]` embeds `texts[i]`. */
+  vectors: Float32Array[]
+  /** Model identifier the vectors were produced with. */
+  model: string
+  /** Vector length of every returned vector. */
+  dim: number
+}
+
+/** Produces embeddings for queries and stored passages. */
+export interface EmbeddingProvider {
+  /** Stable provider id (`local`, `http`, ...) used in logs and stats. */
+  readonly id: string
+  /** Model identifier stored next to every vector. */
+  readonly model: string
+  /** Vector length the model produces. */
+  readonly dim: number
+  /** Whether the model is loaded; `prewarm` makes it true. */
+  readonly ready: boolean
+  /** Load the model ahead of the first embedding call, best effort. */
+  prewarm(): Promise<void>
+  /** Embed a batch of texts in the given role. */
+  embed(texts: string[], role: EmbeddingRole): Promise<EmbeddingBatch>
+  /** Release resources (a worker thread, for example). */
+  close?(): void
+}
+
+/** One indexed chunk of a memory entry. */
+export interface VectorRecord {
+  entryId: string
+  /** Zero-based chunk position inside the entry. */
+  chunkIndex: number
+  /** Metadata copied from the entry so a backend can filter without a join. */
+  scope: MemoryScope
+  project: string
+  kind: MemoryKind
+  tier: MemoryTier
+  status: MemoryStatus
+  /** Hash of the embedded text plus model id; a change means re-embedding. */
+  hash: string
+  /** Normalized embedding of the chunk. */
+  vector: Float32Array
+}
+
+/** A vector search request. */
+export interface VectorQuery {
+  /** Normalized query embedding. */
+  vector: Float32Array
+  /** Maximum number of chunk hits to return. */
+  limit: number
+  /** Restricts hits by entry metadata; only scope/project/kind/tier/status are used. */
+  filter?: MemoryFilter
+  /** Restricts hits to chunks of these entries (entry-level retrieval path). */
+  entryIds?: readonly string[]
+  /** Minimum cosine similarity; lower-scoring hits are dropped. */
+  minScore?: number
+}
+
+/** One vector search hit. */
+export interface VectorMatch {
+  entryId: string
+  chunkIndex: number
+  /** Cosine similarity in -1..1, higher is closer. */
+  score: number
+}
+
+/** Counters reported by a vector index. */
+export interface VectorIndexStats {
+  backend: VectorBackend
+  /** Indexed chunks. */
+  chunks: number
+  /** Distinct entries with at least one chunk. */
+  entries: number
+  /** Model the stored vectors were produced with (empty when there are none). */
+  model: string
+  dim: number
+  /** Approximate size of the stored vectors in bytes. */
+  bytes: number
+}
+
+/** Nearest-neighbour index over entry chunks. */
+export interface VectorIndex {
+  readonly backend: VectorBackend
+  /** Number of indexed chunks. */
+  size(): number
+  /** Insert or replace chunks. */
+  upsert(records: readonly VectorRecord[]): void
+  /** Drop every chunk of one entry. */
+  remove(entryId: string): void
+  /** Drop every stored vector; with `model`, only the vectors of other models. */
+  clear(model?: string): void
+  /**
+   * Chunk hashes stored for one entry, keyed by chunk index. The queue compares
+   * them with freshly computed hashes to skip unchanged chunks.
+   */
+  storedHashes(entryId: string): Map<number, string>
+  /** Nearest chunks for a query, best first. */
+  search(query: VectorQuery): VectorMatch[]
+  /** Counters for the settings UI and logs. */
+  stats(): VectorIndexStats
+}

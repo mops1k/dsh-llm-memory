@@ -188,3 +188,26 @@ tests/             vitest suites
 - Running several dsh instances at once can rewrite the same state; keep one
   process. After a hard stop, remove a stale `~/.dsh/.credentials.yaml.lock` if
   the next start fails to boot.
+
+## Vector search (RAG v2): baseline measurements
+
+Measured on 2026-10-15 (WSL2, Linux x64, Node v24.20.0, CPU, no Ollama) as the
+baseline for vector RAG; the numbers stay as a reference after it lands.
+
+- SQLite has no vectors of its own: `sqlite-vec` (0.1.9) is required. In
+  `node:sqlite` it loads only when the database is opened as `new
+  DatabaseSync(path, { allowExtension: true })`; a default connection blocks
+  extension loading.
+- Latency over 1050 vectors × 384 dimensions: 33 ms to insert; KNN `k=10` with a
+  partition/metadata filter — 0.15 ms (sqlite-vec); a cosine scan in JS — 1.47 ms.
+- Local embeddings (`@huggingface/transformers` + `Xenova/multilingual-e5-small`,
+  q8, 384 dimensions, offline): 12.1 s to load the model, 19 ms per short query,
+  218 ms per page to backfill (~229 s for 1050 pages).
+- e5 cosine is compressed (relevant 0.914, partly relevant 0.816, unrelated
+  0.742), so neighbours are chosen by relative ranking rather than an absolute
+  threshold.
+- 90 % of the memory pages (943 of 1050) contain Cyrillic, so the model must be
+  multilingual; the DeepSeek API has no embeddings endpoint.
+- Both dependencies are optional (`optionalDependencies`): without them, or when
+  the extension fails to load, search runs on FTS5. The install adds about 430 MB
+  (`onnxruntime-node` 288 MB + `@huggingface/transformers` 143 MB).

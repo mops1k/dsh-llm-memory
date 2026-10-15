@@ -1095,6 +1095,58 @@ window.__ModuleLoader__.load({
      * conversation.view — Status and Lint
      * ------------------------------------------------------------------ */
 
+    function formatByteSize(value) {
+      const bytes = typeof value === "number" ? value : 0;
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " kB";
+      return (bytes / 1024 / 1024).toFixed(2) + " MB";
+    }
+
+    function VectorPanel(props) {
+      const vectors = props.vectors;
+      if (!vectors) {
+        return h(
+          "div",
+          null,
+          h("h3", { style: S.sectionTitle }, "Semantic index"),
+          h(
+            "p",
+            { style: S.hint },
+            "Vectors are off: recall uses lexical search (FTS5) only. Turn them on in Settings \u2192 LLM Memory \u2192 embeddings.",
+          ),
+        );
+      }
+      const meta =
+        "model: " +
+        vectors.model +
+        " \u00b7 backend: " +
+        vectors.backend +
+        "\nindexed: " +
+        vectors.entries +
+        " entries / " +
+        vectors.chunks +
+        " chunks \u00b7 " +
+        formatByteSize(vectors.bytes) +
+        " of vectors" +
+        (vectors.disabled ? "\nindexing disabled after repeated failures" : "") +
+        (vectors.running ? "\nindexing in progress" : "") +
+        (vectors.lastError ? "\nlast error: " + vectors.lastError : "");
+      return h(
+        "div",
+        null,
+        h("h3", { style: S.sectionTitle }, "Semantic index"),
+        h(
+          "div",
+          { style: S.kpis },
+          h(Kpi, { value: vectors.entries, label: "Embedded entries" }),
+          h(Kpi, { value: vectors.chunks, label: "Vectors" }),
+          h(Kpi, { value: vectors.pending, label: "Queue" }),
+          h(Kpi, { value: vectors.embedded, label: "Embedded this run" }),
+        ),
+        h("div", { style: S.meta }, meta),
+      );
+    }
+
     function StatusPanel(props) {
       const [report, setReport] = React.useState(null);
       const [error, setError] = React.useState("");
@@ -1134,6 +1186,7 @@ window.__ModuleLoader__.load({
         h(Bars, { title: "By scope", counts: report.byScope }),
         h(Bars, { title: "By status", counts: report.byStatus }),
         h(Bars, { title: "By project", counts: report.byProject }),
+        h(VectorPanel, { vectors: report.vectors }),
       );
     }
 
@@ -1242,6 +1295,15 @@ window.__ModuleLoader__.load({
           return "Heal finished.";
         });
 
+      const rebuildVectors = () =>
+        run("Rebuilding vectors\u2026", async () => {
+          const data = await apiPost(props.base, "/api/vectors/rebuild", {});
+          const vectors = data && data.vectors ? data.vectors : null;
+          setVersion((value) => value + 1);
+          if (!vectors) return "Vectors are off: enable the embeddings provider in Settings.";
+          return "Vector rebuild queued: " + vectors.pending + " entries waiting.";
+        });
+
       const syncWorkspaces = () =>
         run("Syncing workspaces\u2026", async () => {
           const data = await apiPost(props.base, "/api/workspaces/sync", {});
@@ -1285,6 +1347,7 @@ window.__ModuleLoader__.load({
             { style: S.row },
             h("button", { type: "button", style: S.primary, disabled: busy, onClick: () => setVersion((v) => v + 1) }, "Run lint"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: heal }, "Heal"),
+            h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildVectors }, "Rebuild vectors"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: props.onPreviewRules }, "Preview rules"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: syncWorkspaces }, "Sync workspaces"),
             h(

@@ -339,7 +339,8 @@ function importResponse(reports: ReturnType<typeof runImport>): Record<string, u
  * `GET /api/items?query=&kind=&scope=&project=&status=&limit=&offset=`,
  * `GET /api/item?id=`, `POST /api/save`, `POST /api/forget`,
  * `POST /api/delete`, `POST /api/import`, `POST /api/workspaces/sync`,
- * `POST /api/heal`, `GET|POST /api/rules/preview`, `POST /api/rules/export`.
+ * `POST /api/heal`, `POST /api/vectors/rebuild`, `GET|POST /api/rules/preview`,
+ * `POST /api/rules/export`.
  */
 export function createWebHandler(
   engine: MemoryEngine,
@@ -503,6 +504,12 @@ export function createWebHandler(
     if (rel === '/api/heal') {
       await readJsonBody(req, MAX_BODY_BYTES)
       sendJson(res, 200, engine.heal())
+      return
+    }
+    if (rel === '/api/vectors/rebuild') {
+      await readJsonBody(req, MAX_BODY_BYTES)
+      engine.rebuildVectors()
+      sendJson(res, 200, { vectors: engine.vectorStatus() })
       return
     }
     if (rel === '/api/rules/preview') {
