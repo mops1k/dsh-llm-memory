@@ -68,7 +68,8 @@
     "check:dsh": "node scripts/check-dsh-compat.mjs"
   },
   "dependencies": {
-    "@llm-memory/core": "workspace:^"
+    "@llm-memory/core": "workspace:^",
+    "@llm-memory/ui": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4",

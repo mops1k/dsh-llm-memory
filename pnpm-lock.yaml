@@ -11,6 +11,9 @@ importers:
       '@llm-memory/core':
         specifier: workspace:^
         version: link:packages/core
+      '@llm-memory/ui':
+        specifier: workspace:^
+        version: link:packages/ui
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.4

@@ -1,8 +1,24 @@
 {
   "name": "@llm-memory/ui",
-  "version": "0.0.0",
-  "private": true,
+  "version": "1.4.0",
+  "private": false,
   "type": "module",
-  "main": "src/index.ts",
-  "exports": { ".": "./src/index.ts" }
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./*.js": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    },
+    "./*": {
+      "types": "./lib/*.d.ts",
+      "default": "./lib/*.js"
+    }
+  },
+  "files": [
+    "lib"
+  ]
 }
