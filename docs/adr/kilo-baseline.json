@@ -1,0 +1,60 @@
+{
+  "capturedAt": "2026-10-19",
+  "host": "Windows (C:\\Users\\Kvintilyanov), доступ из WSL2",
+  "kilo": {
+    "configRoot": "C:\\Users\\Kvintilyanov\\.config\\kilo",
+    "pluginRuntime": "@kilocode/plugin 7.4.22",
+    "pluginEntry": "plugin/kilo-memory.ts",
+    "pluginLibrary": "kilo-memory-lib/*.ts",
+    "configFile": "kilo-memory.json",
+    "defaultWebPort": 8787,
+    "memory": {
+      "dbPath": "memory/db/memory.db",
+      "dbBytes": 5607424,
+      "entries": 351,
+      "active": 301,
+      "byScope": { "global": 101, "project": 250 },
+      "byKind": { "facts": 174, "decisions": 94, "architecture": 56, "preferences": 19, "rules": 8 },
+      "ftsRows": 301,
+      "distinctFiles": 351,
+      "pageFiles": 101,
+      "pagesBytes": "404K",
+      "rawBytes": "1.7M",
+      "integrityCheck": "ok",
+      "tables": ["memories", "memories_fts", "memory_entities", "memory_edges"],
+      "sourceValues": ["user"]
+    },
+    "hashes": {
+      "memory/db/memory.db": "62745b9f09ab57943e081cc792d45109b87dbab2641ccf429f6f0a72446eddf0",
+      "memory/db/memory.db.bak-1788738822857": "692854720022f7359768",
+      "kilo-memory.json": "6635e9d797a682c8474ee011d8cc77991d95c07b955c449f3ba3ad8bf049f52b",
+      "kilo.json": "c05b463e1f4ab227606a8d89be55f076190a13bca5c8c691e622a0e84e17bd17",
+      "kilo.jsonc": "a9805d9e206c28dee0abd05cda83af73bb4240ce06d9418d605dcea092757687",
+      "plugin/kilo-memory.ts": "582ca6671550be5d0d5072c6f1f511caf5d3e0c4ed932c397dc3fd0aeefb93e8",
+      "kilo-memory-lib/bun.d.ts": "d784ec9b336faeea0e70ed3dafc6d3d03dc04ff470f71242327d26884c7cce90",
+      "kilo-memory-lib/config.ts": "583da804aac2ce143534caf06127fd8ddb420520fbfb1bedf5a36986efb54640",
+      "kilo-memory-lib/frontmatter.ts": "04375e1ee7b1034f3e51b63a35fb672be38b141b207bb5d79284d91db091eb98",
+      "kilo-memory-lib/hooks.ts": "fcf652601ca516299bcc643db18dae77001a3699dc2d21043a57451e4a7afed9",
+      "kilo-memory-lib/log.ts": "afa9c2c87abe00672328c4dbae93f2fe0840522572f62cc8e66a233fcc8450d3",
+      "kilo-memory-lib/memory-core.ts": "dcbe190cb200cde750984557e6b33ab7de38e8dba9b55cd2ebf22668424b70e2",
+      "kilo-memory-lib/paths.ts": "e1a9f6fd8f563411f9bdd67d43a5018d5f8c1750a4ed531d638cb74d181c62db",
+      "kilo-memory-lib/ranking.ts": "d976e6e01a1ef39a670565adbdcd413e83a7459bddfb71e3077240ce44ab40f3",
+      "kilo-memory-lib/store.ts": "8eaa0c7ec64e522bba7116f0a6db99b3b4204d6f2833cf717f5f81e2365e585a",
+      "kilo-memory-lib/tools.ts": "25836020d9816fd1b1a2bc6a0d5c987e77bf338222665b1b76b454c9fa8e4d05",
+      "kilo-memory-lib/types.ts": "b503ef421496350c64e4c37409be1cfb050f57d7e57e5290ecc60ca62457aed6",
+      "kilo-memory-lib/web-server.ts": "38873f88bbf408408713f9b91be95577b409cc90efdfd09d89e034813e175982",
+      "kilo-memory-lib/wiki.ts": "279c8abda79ffbc5d8ce331c7d9de7e6abfef8b5dc1e1a9b904acda646062a9b"
+    },
+    "schemaColumns": [
+      "id", "scope", "kind", "tier", "status", "title", "content", "tags", "keywords",
+      "importance", "source", "supersedes", "supersededBy", "related", "createdAt",
+      "updatedAt", "lastAccess", "accessCount", "file", "mtimeMs", "project_root",
+      "confidence", "consolidation"
+    ],
+    "notes": [
+      "В плане указано 336 записей — фактически 351 на 19.10.2026; инвариант миграции формулируется как 'ни одна запись не потеряна', а не '336 → 336'.",
+      "FTS5 индексирует только активные записи (301 = active).",
+      "Страниц 101: по одной на global-запись; project-записи лежат в <repo>/.kilo/memory."
+    ]
+  }
+}
