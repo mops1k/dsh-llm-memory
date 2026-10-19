@@ -21,6 +21,32 @@ export const DEFAULT_RANKING_WEIGHTS: RankingWeights = {
   tier: 0.4,
   kind: 0.15,
   scope: 0.25,
+  // Kilo parity factors are opt-in: 0 keeps the previous DSH ordering.
+  consolidation: 0,
+  conflict: 0,
+}
+
+/** Kilo-style weights: consolidation counts, conflicts are penalized. */
+export const KILO_RANKING_WEIGHTS: RankingWeights = {
+  ...DEFAULT_RANKING_WEIGHTS,
+  consolidation: 0.25,
+  conflict: 0.3,
+}
+
+function consolidationFactor(entry: MemoryEntry): number {
+  if (entry.consolidation === 'procedural') return 1
+  if (entry.consolidation === 'semantic') return 0.66
+  if (entry.consolidation === 'episodic') return 0.33
+  return 0
+}
+
+function accessFactor(entry: MemoryEntry): number {
+  const count = entry.accessCount ?? 0
+  return Math.min(Math.log2(1 + count), 3) / 3
+}
+
+function conflictFactor(entry: MemoryEntry): number {
+  return entry.supersededBy.length > 0 ? 1 : 0
 }
 
 /** Default ranking options (mirrors the kilo-memory memory defaults). */
@@ -121,11 +147,12 @@ export function computeScore(
   const rel = relevance(entry, terms)
   const recency = recencyFactor(entry.updatedAt, options.recencyHalfLifeDays)
   const importance = entry.importance / 5
-  // The current entry model has no access counter yet; the weight is reserved.
-  const access = 0
+  const access = accessFactor(entry)
   const confidence = confidenceFactor(entry.confidence ?? 0.5, entry.updatedAt, options)
   const tier = entry.tier === 'immutable' ? 1 : entry.tier === 'important' ? 0.6 : 0
   const kind = entry.kind === 'rules' || entry.kind === 'preferences' ? 1 : 0
+  const consolidation = consolidationFactor(entry)
+  const conflict = conflictFactor(entry)
   let scope = 0
   if (preferScope && preferScope !== 'all' && entry.scope === preferScope) scope = 1
 
@@ -137,7 +164,9 @@ export function computeScore(
     weights.conf * confidence +
     weights.tier * tier +
     weights.kind * kind +
-    weights.scope * scope
+    weights.scope * scope +
+    weights.consolidation * consolidation -
+    weights.conflict * conflict
   )
 }
 

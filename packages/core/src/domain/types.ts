@@ -197,11 +197,16 @@ export interface RankingWeights {
   rel: number
   age: number
   imp: number
+  /** Read counter factor (Kilo `accessCount`): log2(1+acc)/3. */
   acc: number
   conf: number
   tier: number
   kind: number
   scope: number
+  /** Kilo consolidation level (episodic .33 / semantic .66 / procedural 1). */
+  consolidation: number
+  /** Penalty for entries that already have a replacement (`supersededBy`). */
+  conflict: number
 }
 
 /** Options accepted by the ranking helpers. */
