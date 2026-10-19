@@ -141,7 +141,7 @@ describe('createWebHandler', () => {
     const res = await call('GET', '/llm-memory/ui')
     expect(res.statusCode).toBe(200)
     expect(res.headers['content-type']).toContain('text/html')
-    expect(res.body).toContain('LLM Memory')
+    expect(res.body).toContain('/ui/web-ui.js')
   })
 
   it('lists entries and reads a single item', async () => {

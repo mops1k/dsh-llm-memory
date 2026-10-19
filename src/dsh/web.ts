@@ -190,7 +190,7 @@ const HEADLESS_UI_HTML = `<!doctype html>
 <body><div id="root"></div>
 <script type="module">
   import { mount } from '/ui/web-ui.js'
-  const base = location.pathname.replace(/\/ui$/, '')
+  const base = location.pathname.replace(/\/ui$/, ''
   const request = async (operation, input) => {
     const response = await fetch(base + '/api/ui', {
       method: 'POST',
@@ -225,9 +225,6 @@ function loadWebBundle(): string | null {
   return null
 }
 
-function loadUiHtml(): string {
-  return readFileSync(new URL('../../ui/web-ui.html', import.meta.url), 'utf8')
-}
 
 /** Build the create/update payload accepted by the save route. */
 function saveInputFrom(body: Record<string, unknown>): SaveInput {
