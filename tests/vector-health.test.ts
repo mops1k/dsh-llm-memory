@@ -12,7 +12,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { MemoryEngine } from '@llm-memory/core/engine'
+import { MemoryEngine } from '@llm-memory/core/application/engine'
 import { FakeEmbeddingProvider } from './helpers/fake-embeddings'
 
 const roots: string[] = []

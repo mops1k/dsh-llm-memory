@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { mergeConfig } from '@llm-memory/core/config'
+import { mergeConfig } from '@llm-memory/core/domain/config'
 import {
   RULES_BLOCK_BEGIN,
   RULES_BLOCK_END,

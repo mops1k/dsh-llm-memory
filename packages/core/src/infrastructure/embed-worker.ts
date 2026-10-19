@@ -14,7 +14,7 @@ import { parentPort, workerData } from 'node:worker_threads'
 import { debug } from './log.js'
 import { LocalEmbeddingProvider } from './embeddings.js'
 import type { EmbedWorkerData, EmbedWorkerRequest } from './embeddings.js'
-import type { EmbeddingRole } from './types.js'
+import type { EmbeddingRole } from '../domain/types.js'
 
 const port = parentPort
 if (!port) throw new Error('embed-worker must be started as a worker thread')

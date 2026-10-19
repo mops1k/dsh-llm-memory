@@ -22,9 +22,9 @@ import {
   resolveStorageRoot,
   sanitizeProjectKey,
   writeProjectsRegistry,
-} from './paths.js'
-import { tokenize } from './ranking.js'
-import { clampImportance, isMemoryKind, isMemoryScope, isMemoryStatus, isMemoryTier } from './types.js'
+} from '../layout/paths.js'
+import { tokenize } from '../application/ranking.js'
+import { clampImportance, isMemoryKind, isMemoryScope, isMemoryStatus, isMemoryTier } from '../domain/types.js'
 import type {
   MemoryEntry,
   MemoryEntryInit,
@@ -34,7 +34,7 @@ import type {
   VectorBackend,
   VectorIndex,
   VectorQuantization,
-} from './types.js'
+} from '../domain/types.js'
 import { VECTOR_TABLE_DDL, VECTOR_TABLE_INDEX_DDL, createVectorIndex } from './vector-index.js'
 import {
   decodePage,
@@ -43,7 +43,7 @@ import {
   migrateFlatPages,
   readAllPages,
   writeItemPage,
-} from './wiki.js'
+} from '../application/wiki.js'
 
 /** Values accepted by prepared statement parameters in this module. */
 type SqlParam = string | number | null

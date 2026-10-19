@@ -10,9 +10,9 @@
 import { existsSync } from 'node:fs'
 import type { DatabaseSync } from 'node:sqlite'
 
-import { projectKeyFromCwd } from '../paths.js'
-import { genMemoryId } from '../store.js'
-import type { MemoryEntry } from '../types.js'
+import { projectKeyFromCwd } from '@llm-memory/core/layout/paths.js'
+import { genMemoryId } from '@llm-memory/core/infrastructure/store.js'
+import type { MemoryEntry } from '@llm-memory/core/domain/types.js'
 import {
   addImportedProject,
   asNumber,
@@ -28,7 +28,7 @@ import {
   toStringList,
   type ImportedProject,
   type ReadOnlyDatabase,
-} from './common.js'
+} from '@llm-memory/core/infrastructure/importing.js'
 import { listMnemonDbPaths } from './paths.js'
 
 export interface MnemonImportResult {

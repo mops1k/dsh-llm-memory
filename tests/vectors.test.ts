@@ -11,10 +11,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { EmbeddingQueue } from '@llm-memory/core/embed-queue'
-import { MemoryEngine } from '@llm-memory/core/engine'
-import { MemoryStore, newMemoryEntry } from '@llm-memory/core/store'
-import type { EmbeddingBatch, EmbeddingProvider, EmbeddingRole, VectorRecord } from '@llm-memory/core/types'
+import { EmbeddingQueue } from '@llm-memory/core/infrastructure/embed-queue'
+import { MemoryEngine } from '@llm-memory/core/application/engine'
+import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
+import type { EmbeddingBatch, EmbeddingProvider, EmbeddingRole, VectorRecord } from '@llm-memory/core/domain/types'
 
 /** Word groups: a text gets 1 in dimension i when it contains a word of group i. */
 const VOCABULARY: string[][] = [

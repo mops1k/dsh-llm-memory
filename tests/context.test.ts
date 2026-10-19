@@ -5,8 +5,8 @@ import type { CommandDefinition, CommandInvocation, CommandResult } from '@deeps
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { PromptSection } from '@deepseek-ai/dsh-system-prompt'
 
-import { DEFAULT_SYSTEM_PROMPT, mergeConfig } from '@llm-memory/core/config'
-import type { MemoryEngine } from '@llm-memory/core/engine'
+import { DEFAULT_SYSTEM_PROMPT, mergeConfig } from '@llm-memory/core/domain/config'
+import type { MemoryEngine } from '@llm-memory/core/application/engine'
 import {
   contentText,
   digestBlock,

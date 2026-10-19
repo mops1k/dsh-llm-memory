@@ -10,7 +10,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import { hasSqliteTable } from './common.js'
+import { hasSqliteTable } from '@llm-memory/core/infrastructure/importing.js'
 
 /** Options that control root discovery (mirrors the plugin config block). */
 export interface ImportRootsOptions {

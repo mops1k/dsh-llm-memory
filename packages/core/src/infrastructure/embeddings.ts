@@ -19,10 +19,10 @@
  */
 import { Worker } from 'node:worker_threads'
 
-import type { EmbeddingConfig } from './config.js'
+import type { EmbeddingConfig } from '../domain/config.js'
 import { createProgressTracker, type ModelDownloadProgress } from './model-cache.js'
-import { ensureDir } from './paths.js'
-import type { EmbeddingBatch, EmbeddingProvider, EmbeddingRole } from './types.js'
+import { ensureDir } from '../layout/paths.js'
+import type { EmbeddingBatch, EmbeddingProvider, EmbeddingRole } from '../domain/types.js'
 
 /** Options accepted by {@link createEmbeddingProvider}. */
 export interface EmbeddingProviderOptions {

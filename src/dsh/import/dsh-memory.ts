@@ -17,9 +17,9 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 
-import { USER_DIR, sanitizeProjectKey } from '../paths.js'
-import { genMemoryId } from '../store.js'
-import type { MemoryEntry, MemoryScope } from '../types.js'
+import { USER_DIR, sanitizeProjectKey } from '@llm-memory/core/layout/paths.js'
+import { genMemoryId } from '@llm-memory/core/infrastructure/store.js'
+import type { MemoryEntry, MemoryScope } from '@llm-memory/core/domain/types.js'
 import {
   addImportedProject,
   asNumber,
@@ -32,7 +32,7 @@ import {
   toIsoString,
   type ImportedProject,
   type ReadOnlyDatabase,
-} from './common.js'
+} from '@llm-memory/core/infrastructure/importing.js'
 import { dshMemoryDbPaths, isDshMemoryRoot } from './paths.js'
 
 export interface DshMemoryImportResult {

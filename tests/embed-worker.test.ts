@@ -11,8 +11,8 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { mergeConfig } from '@llm-memory/core/config'
-import { WorkerEmbeddingProvider } from '@llm-memory/core/embeddings'
+import { mergeConfig } from '@llm-memory/core/domain/config'
+import { WorkerEmbeddingProvider } from '@llm-memory/core/infrastructure/embeddings'
 
 const workerPath = new URL('./helpers/stub-embed-worker.mjs', import.meta.url)
 let roots: string[] = []

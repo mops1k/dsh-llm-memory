@@ -8,8 +8,8 @@
 import { existsSync, renameSync } from 'node:fs'
 import { basename, join, relative, resolve } from 'node:path'
 
-import { entryFromPage, pageToText } from './frontmatter.js'
-import { appendLog, debug } from './log.js'
+import { entryFromPage, pageToText } from '../infrastructure/frontmatter.js'
+import { appendLog, debug } from '../infrastructure/log.js'
 import {
   DB_DIR,
   DIGEST_DIR,
@@ -26,7 +26,7 @@ import {
   removeFileIfExists,
   sanitizeProjectKey,
   writeFileAtomic,
-} from './paths.js'
+} from '../layout/paths.js'
 import { significantOverlapPairs, type OverlapOptions, type SemanticPair } from './ranking.js'
 import type {
   MemoryEdgeType,
@@ -35,8 +35,8 @@ import type {
   MemoryGraphEdge,
   MemoryGraphEntity,
   MemoryScope,
-} from './types.js'
-import { MEMORY_KINDS } from './types.js'
+} from '../domain/types.js'
+import { MEMORY_KINDS } from '../domain/types.js'
 
 export interface PageOnDisk {
   file: string

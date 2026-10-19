@@ -3,9 +3,9 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { entryFilePath } from '@llm-memory/core/paths'
-import { MemoryStore, newMemoryEntry } from '@llm-memory/core/store'
-import { buildGraph, initMemoryRoot, readAllPages, regenerateIndex, writeItemPage } from '@llm-memory/core/wiki'
+import { entryFilePath } from '@llm-memory/core/layout/paths'
+import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
+import { buildGraph, initMemoryRoot, readAllPages, regenerateIndex, writeItemPage } from '@llm-memory/core/application/wiki'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 let root: string

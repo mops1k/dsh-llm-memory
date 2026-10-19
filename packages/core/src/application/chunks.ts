@@ -15,8 +15,8 @@
  */
 import { createHash } from 'node:crypto'
 
-import type { EmbeddingConfig } from './config.js'
-import type { MemoryEntry } from './types.js'
+import type { EmbeddingConfig } from '../domain/config.js'
+import type { MemoryEntry } from '../domain/types.js'
 
 /** Window sizes used by {@link chunkText}. */
 export interface ChunkOptions {

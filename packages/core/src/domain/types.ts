@@ -5,7 +5,7 @@
  * as a derived cache. Entries are partitioned into a per-project layer
  * (`scope: 'project'`) and a cross-project user layer (`scope: 'user'`).
  */
-import type { ModelDownloadProgress } from './model-cache.js'
+import type { ModelDownloadProgress } from '../infrastructure/model-cache.js'
 
 /** Category of a memory entry. */
 export type MemoryKind =

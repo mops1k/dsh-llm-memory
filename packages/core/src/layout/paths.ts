@@ -26,7 +26,7 @@ import {
 import { homedir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 
-import type { MemoryEntry, MemoryScope } from './types.js'
+import type { MemoryEntry, MemoryScope } from '../domain/types.js'
 
 /** Environment variable holding the dsh home directory. */
 export const DSH_HOME_ENV = 'DSH_HOME'

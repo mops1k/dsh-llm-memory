@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { MemoryEngine } from '@llm-memory/core/engine'
-import { pageToText } from '@llm-memory/core/frontmatter'
-import { entryFilePath, writeFileAtomic } from '@llm-memory/core/paths'
+import { MemoryEngine } from '@llm-memory/core/application/engine'
+import { pageToText } from '@llm-memory/core/infrastructure/frontmatter'
+import { entryFilePath, writeFileAtomic } from '@llm-memory/core/layout/paths'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 let root: string

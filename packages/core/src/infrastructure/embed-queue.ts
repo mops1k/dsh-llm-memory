@@ -14,8 +14,8 @@
  *
  * @module dsh-llm-memory/core/embed-queue
  */
-import { chunksUnchanged, entryChunks } from './chunks.js'
-import type { EmbeddingConfig } from './config.js'
+import { chunksUnchanged, entryChunks } from '../application/chunks.js'
+import type { EmbeddingConfig } from '../domain/config.js'
 import type { MemoryStore } from './store.js'
 import type {
   EmbeddingProvider,
@@ -23,7 +23,7 @@ import type {
   VectorBackend,
   VectorIndex,
   VectorRecord,
-} from './types.js'
+} from '../domain/types.js'
 
 /** Progress and health of the queue, reported to the settings UI and logs. */
 export interface EmbeddingQueueStatus {

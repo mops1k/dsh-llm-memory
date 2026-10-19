@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { Config, inject, name } from '../src/index'
-import { DEFAULT_SYSTEM_PROMPT } from '@llm-memory/core/config'
+import { DEFAULT_SYSTEM_PROMPT } from '@llm-memory/core/domain/config'
 import { MemorySettingsSchema, unwrapSettings } from '../src/dsh/settings'
 
 describe('dsh-llm-memory plugin', () => {

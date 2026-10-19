@@ -15,7 +15,7 @@ import {
   isMemoryTier,
   type MemoryEntry,
   type MemoryScope,
-} from './types.js'
+} from '../domain/types.js'
 
 /** Order of keys in the serialized frontmatter (readability first). */
 const KEY_ORDER = [

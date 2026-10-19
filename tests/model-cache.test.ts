@@ -17,7 +17,7 @@ import {
   scanModelCache,
   sweepModelTempFiles,
   type ModelDownloadProgress,
-} from '@llm-memory/core/model-cache'
+} from '@llm-memory/core/infrastructure/model-cache'
 
 const MODEL = 'Xenova/multilingual-e5-small'
 let roots: string[] = []

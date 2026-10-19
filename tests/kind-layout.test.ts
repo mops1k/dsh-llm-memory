@@ -4,16 +4,16 @@ import { DatabaseSync } from 'node:sqlite'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { MemoryEngine } from '@llm-memory/core/engine'
-import { pageToText } from '@llm-memory/core/frontmatter'
+import { MemoryEngine } from '@llm-memory/core/application/engine'
+import { pageToText } from '@llm-memory/core/infrastructure/frontmatter'
 import {
   USER_DIR,
   entryFileName,
   projectMemoryRoot,
   writeFileAtomic,
-} from '@llm-memory/core/paths'
-import { MemoryStore, newMemoryEntry } from '@llm-memory/core/store'
-import { migrateFlatPages } from '@llm-memory/core/wiki'
+} from '@llm-memory/core/layout/paths'
+import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
+import { migrateFlatPages } from '@llm-memory/core/application/wiki'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 /** Flat `*.md` files directly inside a directory (the legacy layout). */

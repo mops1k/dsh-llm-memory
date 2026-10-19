@@ -41,7 +41,7 @@ import type {
   VectorQuantization,
   VectorQuery,
   VectorRecord,
-} from './types.js'
+} from '../domain/types.js'
 
 /** Values accepted by prepared statement parameters in this module. */
 type SqlParam = string | number | null

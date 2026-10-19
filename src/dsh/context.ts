@@ -28,10 +28,10 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
-import type { MemoryConfig } from '@llm-memory/core/config.js'
-import type { MemoryEngine } from '@llm-memory/core/engine.js'
-import { detectImportProjects, mergeImportedProjects, runImport } from '@llm-memory/core/import/index.js'
-import { DIGEST_DIR, projectKeyFromCwd } from '@llm-memory/core/paths.js'
+import type { MemoryConfig } from '@llm-memory/core/domain/config.js'
+import type { MemoryEngine } from '@llm-memory/core/application/engine.js'
+import { detectImportProjects, mergeImportedProjects, runImport } from './import/index.js'
+import { DIGEST_DIR, projectKeyFromCwd } from '@llm-memory/core/layout/paths.js'
 import { exportRulesToDshAgents } from './rules-export.js'
 import { registerProjectRoots } from './workspaces.js'
 

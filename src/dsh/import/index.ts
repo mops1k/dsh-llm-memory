@@ -6,8 +6,8 @@
  * `dsh-memory:<scope>:<name>`): re-running an import updates changed entries and
  * skips unchanged ones instead of creating duplicates.
  */
-import type { MemoryStore } from '../store.js'
-import type { MemoryEntry } from '../types.js'
+import type { MemoryStore } from '@llm-memory/core/infrastructure/store.js'
+import type { MemoryEntry } from '@llm-memory/core/domain/types.js'
 import {
   buildExternalIdMap,
   mergeImportedProjects,
@@ -15,7 +15,7 @@ import {
   sameImportedEntry,
   type ExternalIdResolution,
   type ImportedProject,
-} from './common.js'
+} from '@llm-memory/core/infrastructure/importing.js'
 import { importDshMemory } from './dsh-memory.js'
 import { importKilo } from './kilo.js'
 import { importMnemon } from './mnemon.js'
@@ -178,5 +178,5 @@ export * from './paths.js'
 export * from './kilo.js'
 export * from './mnemon.js'
 export * from './dsh-memory.js'
-export { addImportedProject, mergeImportedProjects } from './common.js'
-export type { ImportedProject } from './common.js'
+export { addImportedProject, mergeImportedProjects } from '@llm-memory/core/infrastructure/importing.js'
+export type { ImportedProject } from '@llm-memory/core/infrastructure/importing.js'

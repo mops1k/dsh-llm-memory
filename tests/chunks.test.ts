@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { chunksUnchanged, chunkText, entryChunks, hashText } from '@llm-memory/core/chunks'
-import { mergeConfig } from '@llm-memory/core/config'
+import { chunksUnchanged, chunkText, entryChunks, hashText } from '@llm-memory/core/application/chunks'
+import { mergeConfig } from '@llm-memory/core/domain/config'
 
 const config = mergeConfig({ embeddings: { chunkChars: 300, chunkOverlap: 60 } }).embeddings
 

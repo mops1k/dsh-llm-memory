@@ -7,7 +7,7 @@
  * rules/preferences injection, and the idf-weighted overlap metric used by
  * wiki graph edges and lint.
  */
-import type { MemoryEntry, MemoryScope, RankingOptions, RankingWeights } from './types.js'
+import type { MemoryEntry, MemoryScope, RankingOptions, RankingWeights } from '../domain/types.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 

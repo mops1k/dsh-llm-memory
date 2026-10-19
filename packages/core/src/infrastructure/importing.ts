@@ -21,7 +21,7 @@ import {
   type MemoryKind,
   type MemoryStatus,
   type MemoryTier,
-} from '../types.js'
+} from '../domain/types.js'
 
 /** A project discovered while importing a foreign store. */
 export interface ImportedProject {

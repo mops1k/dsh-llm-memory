@@ -7,9 +7,9 @@
  * read-only with `query_only` so the Kilo files (including `-wal`/`-shm`) are
  * never created or modified.
  */
-import { NO_CWD_KEY, projectKeyFromCwd } from '../paths.js'
-import { genMemoryId } from '../store.js'
-import type { MemoryEntry, MemoryScope } from '../types.js'
+import { NO_CWD_KEY, projectKeyFromCwd } from '@llm-memory/core/layout/paths.js'
+import { genMemoryId } from '@llm-memory/core/infrastructure/store.js'
+import type { MemoryEntry, MemoryScope } from '@llm-memory/core/domain/types.js'
 import {
   addImportedProject,
   asNumber,
@@ -27,7 +27,7 @@ import {
   toStringList,
   type ImportedProject,
   type ReadOnlyDatabase,
-} from './common.js'
+} from '@llm-memory/core/infrastructure/importing.js'
 import { kiloMemoryDbPath } from './paths.js'
 
 export interface KiloImportResult {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { newMemoryEntry } from '@llm-memory/core/store'
-import { renderRecall } from '@llm-memory/core/engine'
+import { newMemoryEntry } from '@llm-memory/core/infrastructure/store'
+import { renderRecall } from '@llm-memory/core/application/engine'
 import {
   DEFAULT_RANKING,
   IDENTIFIER_RANKING,
@@ -12,7 +12,7 @@ import {
   rankRulesBase,
   significantOverlapPairs,
   tokenize,
-} from '@llm-memory/core/ranking'
+} from '@llm-memory/core/application/ranking'
 
 describe('identifier queries', () => {
   it('recognises literals and leaves phrases alone', () => {

@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_EMBEDDINGS, mergeConfig } from '@llm-memory/core/config'
+import { DEFAULT_EMBEDDINGS, mergeConfig } from '@llm-memory/core/domain/config'
 import {
   MemoryPluginConfigSchema,
   MemorySettingsSchema,

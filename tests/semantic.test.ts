@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { MemoryEngine } from '@llm-memory/core/engine'
-import { semanticPairs } from '@llm-memory/core/ranking'
+import { MemoryEngine } from '@llm-memory/core/application/engine'
+import { semanticPairs } from '@llm-memory/core/application/ranking'
 import { FakeEmbeddingProvider, VOCABULARY } from './helpers/fake-embeddings'
 
 const roots: string[] = []

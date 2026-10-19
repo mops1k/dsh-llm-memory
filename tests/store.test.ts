@@ -3,9 +3,9 @@ import { DatabaseSync } from 'node:sqlite'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { pageToText } from '@llm-memory/core/frontmatter'
-import { entryFilePath, removeFileIfExists, writeFileAtomic } from '@llm-memory/core/paths'
-import { MemoryStore, newMemoryEntry } from '@llm-memory/core/store'
+import { pageToText } from '@llm-memory/core/infrastructure/frontmatter'
+import { entryFilePath, removeFileIfExists, writeFileAtomic } from '@llm-memory/core/layout/paths'
+import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 let root: string

@@ -19,19 +19,19 @@ import {
   type RecallFormat,
   type RecallScope,
   type RulesPromptScope,
-} from './config.js'
+} from '../domain/config.js'
 import { entryChunks } from './chunks.js'
-import { EmbeddingQueue, type EmbeddingQueueStatus } from './embed-queue.js'
-import { createEmbeddingProvider } from './embeddings.js'
+import { EmbeddingQueue, type EmbeddingQueueStatus } from '../infrastructure/embed-queue.js'
+import { createEmbeddingProvider } from '../infrastructure/embeddings.js'
 import {
   removeModelCache,
   scanModelCache,
   sweepModelTempFiles,
   type ModelCacheStatus,
   type ModelDownloadProgress,
-} from './model-cache.js'
-import { appendLog, debug } from './log.js'
-import { sanitizeProjectKey } from './paths.js'
+} from '../infrastructure/model-cache.js'
+import { appendLog, debug } from '../infrastructure/log.js'
+import { sanitizeProjectKey } from '../layout/paths.js'
 import {
   DEFAULT_RANKING,
   IDENTIFIER_RANKING,
@@ -44,14 +44,14 @@ import {
 } from './ranking.js'
 import type { RankProvenance } from './ranking.js'
 import type { SemanticPair } from './ranking.js'
-import { MemoryStore, genMemoryId, newMemoryEntry } from './store.js'
+import { MemoryStore, genMemoryId, newMemoryEntry } from '../infrastructure/store.js'
 import { buildGraph } from './wiki.js'
 import {
   buildExternalIdMap,
   remapRelationIds,
   sameImportedEntry,
   type ExternalIdResolution,
-} from './import/common.js'
+} from '../infrastructure/importing.js'
 import type {
   EmbeddingProvider,
   MemoryEntry,
@@ -67,8 +67,8 @@ import type {
   VectorMap,
   VectorMapPoint,
   VectorMapQuery,
-} from './types.js'
-import { clampImportance } from './types.js'
+} from '../domain/types.js'
+import { clampImportance } from '../domain/types.js'
 import { projectInto, projectVectors, type VectorProjection } from './projection.js'
 
 /** Output format of `recall`; the list itself lives in the config module. */

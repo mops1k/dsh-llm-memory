@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_CONFIG, DEFAULT_EMBEDDINGS, DEFAULT_SYSTEM_PROMPT, mergeConfig } from '@llm-memory/core/config'
+import { DEFAULT_CONFIG, DEFAULT_EMBEDDINGS, DEFAULT_SYSTEM_PROMPT, mergeConfig } from '@llm-memory/core/domain/config'
 
 describe('mergeConfig', () => {
   it('returns the defaults for empty input', () => {
