@@ -11,6 +11,8 @@
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { createDshBridge } from './ui-bridge.js'
+import { resolveStorageRoot } from '@llm-memory/core/layout/paths.js'
 import { listBackups } from '@llm-memory/core/infrastructure/backup'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
@@ -182,6 +184,47 @@ function param(url: URL, name: string): string | undefined {
 }
 
 /** The UI page is read relative to the compiled module so it ships in `ui/`. */
+const HEADLESS_UI_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>llm-memory</title>
+<style>body{margin:0;font-family:system-ui,sans-serif}</style></head>
+<body><div id="root"></div>
+<script type="module">
+  import { mount } from '/ui/web-ui.js'
+  const base = location.pathname.replace(/\/ui$/, '')
+  const request = async (operation, input) => {
+    const response = await fetch(base + '/api/ui', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ operation, input }),
+    })
+    if (!response.ok) throw new Error(operation + ' failed: HTTP ' + response.status)
+    return response.json()
+  }
+  const host = {
+    kind: 'dsh',
+    request,
+    locale: () => 'en',
+    theme: () => ({
+      colorBg: '#fff', colorSurface: '#f5f6f8', colorBorder: '#d9dce1', colorText: '#1c1f24',
+      colorMuted: '#6b7280', colorAccent: '#6d4aff', colorDanger: '#d14343',
+      radius: '8px', spacing: '8px', fontFamily: 'system-ui, sans-serif', fontSize: '14px',
+    }),
+    t: key => key,
+  }
+  mount(document.getElementById('root'), host)
+</script></body></html>`
+
+function loadWebBundle(): string | null {
+  for (const url of ['../../lib/web-ui.js', '../../packages/ui/lib/web.js']) {
+    try {
+      return readFileSync(new URL(url, import.meta.url), 'utf8')
+    } catch {
+      // Try the next location (dev tree vs published package).
+    }
+  }
+  return null
+}
+
 function loadUiHtml(): string {
   return readFileSync(new URL('../../ui/web-ui.html', import.meta.url), 'utf8')
 }
@@ -367,7 +410,19 @@ export function createWebHandler(
 
   const handleGet = (rel: string, url: URL, res: ServerResponse): void => {
     if (rel === '/ui') {
-      sendHtml(res, loadUiHtml())
+      sendHtml(res, HEADLESS_UI_HTML)
+      return
+    }
+    if (rel === '/ui/web-ui.js') {
+      const bundle = loadWebBundle()
+      if (bundle === null) {
+        sendJson(res, 404, { error: 'web UI bundle is not built' })
+        return
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/javascript; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-store')
+      res.end(bundle)
       return
     }
     if (rel === '/api/status') {
@@ -452,7 +507,24 @@ export function createWebHandler(
     sendJson(res, 404, { error: 'Not found' })
   }
 
+  const bridgeFor = (): ReturnType<typeof createDshBridge> => {
+    const root = options.storageRoot ?? resolveStorageRoot(config.storageRoot)
+    return createDshBridge({ engine, storageRoot: root })
+  }
+  let cachedBridge: ReturnType<typeof createDshBridge> | null = null
+  const bridge = (): ReturnType<typeof createDshBridge> => {
+    cachedBridge ??= bridgeFor()
+    return cachedBridge
+  }
+
   const handlePost = async (rel: string, req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    if (rel === '/api/ui') {
+      const body = await readJsonBody(req, MAX_BODY_BYTES)
+      const operation = asString(body.operation)
+      if (!operation) throw new HttpError(400, 'operation is required')
+      sendJson(res, 200, await bridge().request(operation as Parameters<ReturnType<typeof createDshBridge>['request']>[0], body.input))
+      return
+    }
     if (rel === '/api/save') {
       const body = await readJsonBody(req, MAX_BODY_BYTES)
       const id = asString(body.id)?.trim() ?? ''
