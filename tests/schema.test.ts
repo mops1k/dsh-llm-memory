@@ -78,8 +78,12 @@ describe('schema v2 migration', () => {
     const source = new DatabaseSync(path, { readOnly: true })
     const expected = source.prepare("SELECT COUNT(*) AS entries, SUM(status='active') AS active FROM memories").get()
     source.close()
+    const probe = new DatabaseSync(path, { readOnly: true })
+    const existing = new Set(probe.prepare('PRAGMA table_info(memories)').all().map(row => row.name))
+    probe.close()
+    const expectedAdded = SCHEMA_V2_COLUMNS.filter(column => !existing.has(column.name)).length
     const { first, second, counts: after } = migrate(path)
-    expect(first.addedColumns.length).toBe(SCHEMA_V2_COLUMNS.length)
+    expect(first.addedColumns.length).toBe(expectedAdded)
     expect(second.addedColumns).toEqual([])
     expect(after).toEqual(expected)
   })
