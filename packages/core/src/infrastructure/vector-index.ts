@@ -24,7 +24,7 @@
  * @module dsh-llm-memory/core/vector-index
  */
 import { createRequire } from 'node:module'
-import type { DatabaseSync } from 'node:sqlite'
+import type { SqliteDatabase } from '../port/sqlite.js'
 
 import type {
   MemoryFilter,
@@ -76,7 +76,7 @@ export const VECTOR_TABLE_INDEX_DDL = 'CREATE INDEX IF NOT EXISTS idx_memory_vec
 
 /** Options shared by the vector index backends. */
 export interface VectorIndexOptions {
-  db: DatabaseSync
+  db: SqliteDatabase
   /** Model whose vectors this index serves; rows of other models are ignored. */
   model: string
   dim: number
@@ -211,7 +211,7 @@ export function createVectorIndex(backend: VectorBackend, options: VectorIndexOp
  * switch never re-embeds anything: the derived table is rebuilt from here.
  */
 class VectorCache {
-  private readonly db: DatabaseSync
+  private readonly db: SqliteDatabase
   private readonly model: string
   private readonly dim: number
 
@@ -534,7 +534,7 @@ export class SqliteVecIndex implements VectorIndex {
   readonly backend: VectorBackend = 'sqlite-vec'
   readonly quantization: VectorQuantization
   readonly version: string
-  private readonly db: DatabaseSync
+  private readonly db: SqliteDatabase
   private readonly cache: VectorCache
   private readonly model: string
   private readonly dim: number

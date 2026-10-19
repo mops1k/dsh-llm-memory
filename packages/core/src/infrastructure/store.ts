@@ -8,7 +8,7 @@
  */
 import { randomBytes } from 'node:crypto'
 import { dirname } from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
+import { openDatabase, type SqliteDatabase } from './sqlite/index.js'
 
 import { appendLog, debug } from './log.js'
 import {
@@ -260,7 +260,7 @@ export interface ReconcileReport {
 export class MemoryStore {
   readonly root: string
   readonly dbPath: string
-  private db: DatabaseSync | null = null
+  private db: SqliteDatabase | null = null
   private ftsAvailable = false
   private ready = false
   /** Cached `key -> absolute project root` registry (`projects.json`). */
@@ -372,11 +372,9 @@ export class MemoryStore {
   open(): void {
     if (this.db) return
     ensureDir(dirname(this.dbPath))
-    // `DatabaseSync` rejects an explicit `undefined` options argument, so the
-    // flag has to switch between two constructor calls.
     const db = this.allowExtension
-      ? new DatabaseSync(this.dbPath, { allowExtension: true })
-      : new DatabaseSync(this.dbPath)
+      ? openDatabase(this.dbPath, { allowExtension: true })
+      : openDatabase(this.dbPath)
     try {
       db.exec('PRAGMA journal_mode = WAL;')
       db.exec('PRAGMA busy_timeout = 5000;')
@@ -387,7 +385,7 @@ export class MemoryStore {
     this.ensureSchema()
   }
 
-  private requireDb(): DatabaseSync {
+  private requireDb(): SqliteDatabase {
     if (!this.db) throw new Error('MemoryStore is not open')
     return this.db
   }
