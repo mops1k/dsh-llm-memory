@@ -83,6 +83,12 @@ export function newMemoryEntry(init: MemoryEntryInit = {}): MemoryEntry {
     createdAt: init.createdAt ?? now,
     updatedAt: init.updatedAt ?? now,
     ...(init.confidence !== undefined ? { confidence: init.confidence } : {}),
+    ...(init.origin !== undefined ? { origin: init.origin } : {}),
+    ...(init.lastAccess !== undefined ? { lastAccess: init.lastAccess } : {}),
+    ...(init.accessCount !== undefined ? { accessCount: init.accessCount } : {}),
+    ...(init.consolidation !== undefined ? { consolidation: init.consolidation } : {}),
+    ...(init.contentHash !== undefined ? { contentHash: init.contentHash } : {}),
+    ...(init.extra !== undefined ? { extra: { ...init.extra } } : {}),
   }
 }
 

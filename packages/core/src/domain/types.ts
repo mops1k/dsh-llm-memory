@@ -24,6 +24,8 @@ export type MemoryStatus = 'active' | 'superseded' | 'archived'
 
 /** Storage layer an entry belongs to. */
 export type MemoryScope = 'project' | 'user'
+/** Accepted scope spellings across harnesses; `global` is the Kilo name of the user layer. */
+export type MemoryScopeInput = MemoryScope | 'global'
 
 /** Importance on a 1..5 scale. */
 export type MemoryImportance = 1 | 2 | 3 | 4 | 5
@@ -99,6 +101,18 @@ export interface MemoryEntry {
   createdAt: string
   updatedAt: string
   confidence?: number
+  /** Harness the entry came from (`kilo`, `dsh`, ...), when known. */
+  origin?: string
+  /** Last read time (Kilo `lastAccess`, DSH `last_access`). */
+  lastAccess?: string
+  /** Read counter (Kilo `accessCount`). */
+  accessCount?: number
+  /** Consolidation level (Kilo `consolidation`). */
+  consolidation?: 'episodic' | 'semantic' | 'procedural'
+  /** Hash of the body for incremental reconcile (`content_hash`). */
+  contentHash?: string
+  /** Unknown frontmatter/DB fields kept verbatim (dual-read passthrough). */
+  extra?: Record<string, unknown>
 }
 
 /** Partial input accepted by {@link newMemoryEntry}. */
