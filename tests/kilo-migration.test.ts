@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { migrateKiloStore } from '@llm-memory/adapter/kilo/migrate'
+import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
 
 const temps: string[] = []
 afterEach(() => {
@@ -75,5 +76,19 @@ describe('kilo store migration', () => {
     const report = migrateKiloStore({ dbPath: db, apply: true, backupDir: join(dir, 'backups') })
     expect(report.after).toEqual(expected)
     expect(report.integrityCheck).toBe('ok')
+  })
+
+  it('accepts store writes after migration (origin is nullable)', () => {
+    const { db } = copyFixture('memory.db')
+    migrateKiloStore({ dbPath: db, apply: true })
+    const store = new MemoryStore({ storageRoot: join(db, '..'), dbPath: db })
+    store.open()
+    try {
+      const entry = newMemoryEntry({ text: 'post-migration write', scope: 'user', kind: 'facts' })
+      expect(() => store.upsert(entry)).not.toThrow()
+      expect(store.get(entry.id)?.text).toBe('post-migration write')
+    } finally {
+      store.close()
+    }
   })
 })

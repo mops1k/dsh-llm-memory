@@ -299,6 +299,11 @@ export class MemoryStore {
    * subscribes to it, which is why a write never has to know about embeddings.
    */
   onEntryChanged: ((id: string) => void) | null = null
+  /** Kilo-created tables keep `content NOT NULL`; mirror `text` into it. */
+  /** Kilo keeps camelCase columns with NOT NULL; mirror core fields into them. */
+  private kiloMirror: string[] = []
+  /** Columns that reject NULL and have no default (Kilo keeps `source NOT NULL`). */
+  private notNullNoDefault = new Set<string>()
 
   constructor(options: MemoryStoreOptions = {}) {
     const paths = resolveStoragePaths(resolveStorageRoot(options.storageRoot))
@@ -515,6 +520,12 @@ export class MemoryStore {
     add('last_access', 'last_access TEXT')
     add('consolidation', 'consolidation TEXT')
     add('origin', 'origin TEXT')
+    this.kiloMirror = ['content', 'createdAt', 'updatedAt', 'lastAccess', 'accessCount'].filter(name => columns.has(name))
+    this.notNullNoDefault = new Set(
+      (db.prepare('PRAGMA table_info(memories)').all() as Array<Record<string, unknown>>)
+        .filter(row => Number(row['notnull']) === 1 && row['dflt_value'] === null)
+        .map(row => asString(row['name'])),
+    )
   }
 
   /** Create the FTS5 table, rebuilding it when it lacks the required `id` column. */
@@ -581,8 +592,8 @@ export class MemoryStore {
       `INSERT INTO memories (
          id, scope, project, kind, tier, status, title, text, tags, keywords, importance,
          supersedes, superseded_by, related, source, ext_key, path, created_at, updated_at, confidence,
-         file_mtime_ms, file_size, access_count, last_access, consolidation, origin
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         file_mtime_ms, file_size, access_count, last_access, consolidation, origin${this.kiloMirror.length > 0 ? `, ${this.kiloMirror.join(', ')}` : ''}
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${this.kiloMirror.map(() => ', ?').join('')})
        ON CONFLICT(id) DO UPDATE SET
          scope = excluded.scope,
          project = excluded.project,
@@ -608,7 +619,7 @@ export class MemoryStore {
          access_count = excluded.access_count,
          last_access = excluded.last_access,
          consolidation = excluded.consolidation,
-         origin = excluded.origin`,
+         origin = excluded.origin${this.kiloMirror.map(name => `, ${name} = excluded.${name}`).join('')}`,
     ).run(
       entry.id,
       entry.scope,
@@ -624,21 +635,32 @@ export class MemoryStore {
       JSON.stringify(entry.supersedes),
       JSON.stringify(entry.supersededBy),
       JSON.stringify(entry.related),
-      entry.source ?? null,
-      entry.extKey ?? null,
+      entry.source ?? (this.notNullNoDefault.has('source') ? '' : null),
+      entry.extKey ?? (this.notNullNoDefault.has('ext_key') ? '' : null),
       file,
       entry.createdAt,
       entry.updatedAt,
-      entry.confidence ?? null,
+      entry.confidence ?? (this.kiloMirror.includes('content') ? 0.5 : null),
       stat?.mtimeMs ?? null,
       stat?.size ?? null,
       entry.accessCount ?? null,
       entry.lastAccess ?? null,
-      entry.consolidation ?? null,
-      entry.origin ?? null,
+      entry.consolidation ?? (this.kiloMirror.includes('content') ? 'episodic' : null),
+      entry.origin ?? '',
+      ...this.kiloMirror.map(name => this.kiloMirrorValue(name, entry)),
     )
     this.syncFts(entry)
     this.onEntryChanged?.(entry.id)
+  }
+
+  /** Value written into a Kilo camelCase mirror column. */
+  private kiloMirrorValue(name: string, entry: MemoryEntry): SqlParam {
+    if (name === 'content') return entry.text
+    if (name === 'createdAt') return entry.createdAt
+    if (name === 'updatedAt') return entry.updatedAt
+    if (name === 'lastAccess') return entry.lastAccess ?? entry.updatedAt
+    if (name === 'accessCount') return entry.accessCount ?? 0
+    return null
   }
 
   private getRow(id: string): Record<string, unknown> | null {

@@ -19,7 +19,7 @@ export interface ColumnSpec {
 export const SCHEMA_V2_COLUMNS: readonly ColumnSpec[] = [
   { name: 'project', ddl: "TEXT NOT NULL DEFAULT ''" },
   { name: 'ext_key', ddl: 'TEXT' },
-  { name: 'origin', ddl: "TEXT NOT NULL DEFAULT 'kilo'" },
+  { name: 'origin', ddl: 'TEXT' },
   { name: 'path', ddl: "TEXT NOT NULL DEFAULT ''" },
   { name: 'content_hash', ddl: 'TEXT' },
   { name: 'file_size', ddl: 'INTEGER' },
