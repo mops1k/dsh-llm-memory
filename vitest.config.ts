@@ -15,5 +15,5 @@ export default defineConfig({
       { find: /^@llm-memory\/testkit$/, replacement: testkitSrc + 'index.ts' },
     ],
   },
-  test: { include: ['tests/**/*.test.ts'] },
+  test: { include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'] },
 })
