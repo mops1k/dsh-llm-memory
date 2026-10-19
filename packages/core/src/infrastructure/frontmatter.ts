@@ -37,7 +37,52 @@ const KEY_ORDER = [
   'related',
   'createdAt',
   'updatedAt',
+  'consolidation',
+  'accessCount',
+  'lastAccess',
 ] as const
+
+/** Kilo spells the same fields in snake_case and writes pages that way. */
+const KILO_KEY_ORDER = [
+  'id',
+  'scope',
+  'project',
+  'kind',
+  'tier',
+  'status',
+  'title',
+  'importance',
+  'confidence',
+  'source',
+  'ext_key',
+  'tags',
+  'keywords',
+  'supersedes',
+  'superseded_by',
+  'related',
+  'created_at',
+  'updated_at',
+  'consolidation',
+  'access_count',
+  'last_access',
+] as const
+
+/** Keys the codec understands itself; everything else is kept in `extra`. */
+const KNOWN_KEYS = new Set([
+  ...KEY_ORDER,
+  ...KILO_KEY_ORDER,
+  'text',
+  'projectRoot',
+  'project_root',
+  'extKey',
+  'supersededBy',
+  'created_at',
+  'updated_at',
+  'access_count',
+  'last_access',
+  'ext_key',
+  'origin',
+])
 
 /** Serialize a scalar or an inline string array as a YAML value. */
 function yamlValue(value: unknown): string {
@@ -124,7 +169,10 @@ export function parsePage(text: string): { data: Record<string, unknown> | null;
 }
 
 /** Serialize the frontmatter block (without the `---` fences). */
-export function serializeFrontmatter(entry: Partial<MemoryEntry> & { id: string }): string {
+export function serializeFrontmatter(
+  entry: Partial<MemoryEntry> & { id: string },
+  dialect: 'dsh' | 'kilo' = 'dsh',
+): string {
   const fields: Record<string, unknown> = {
     id: entry.id,
     scope: entry.scope ?? 'project',
@@ -145,19 +193,47 @@ export function serializeFrontmatter(entry: Partial<MemoryEntry> & { id: string 
   if (typeof entry.confidence === 'number') fields.confidence = entry.confidence
   if (typeof entry.source === 'string' && entry.source.length > 0) fields.source = entry.source
   if (typeof entry.extKey === 'string' && entry.extKey.length > 0) fields.extKey = entry.extKey
+  if (entry.consolidation !== undefined) fields.consolidation = entry.consolidation
+  if (typeof entry.accessCount === 'number') fields.accessCount = entry.accessCount
+  if (typeof entry.lastAccess === 'string' && entry.lastAccess.length > 0) fields.lastAccess = entry.lastAccess
 
   const lines: string[] = []
-  for (const key of KEY_ORDER) {
-    if (!(key in fields)) continue
-    lines.push(`${key}: ${yamlValue(fields[key])}`)
+  if (dialect === 'kilo') {
+    const renamed: Record<string, unknown> = {
+      ...fields,
+      ext_key: fields.extKey,
+      superseded_by: fields.supersededBy,
+      created_at: fields.createdAt,
+      updated_at: fields.updatedAt,
+      access_count: fields.accessCount,
+      last_access: fields.lastAccess,
+    }
+    delete renamed.extKey
+    delete renamed.supersededBy
+    delete renamed.createdAt
+    delete renamed.updatedAt
+    delete renamed.accessCount
+    delete renamed.lastAccess
+    for (const key of KILO_KEY_ORDER) {
+      if (!(key in renamed)) continue
+      lines.push(`${key}: ${yamlValue(renamed[key])}`)
+    }
+  } else {
+    for (const key of KEY_ORDER) {
+      if (!(key in fields)) continue
+      lines.push(`${key}: ${yamlValue(fields[key])}`)
+    }
+  }
+  for (const key of Object.keys(entry.extra ?? {}).sort()) {
+    lines.push(`${key}: ${yamlValue((entry.extra ?? {})[key])}`)
   }
   return lines.join('\n')
 }
 
 /** Build a full markdown page from an entry. */
-export function pageToText(entry: Partial<MemoryEntry> & { id: string }): string {
+export function pageToText(entry: Partial<MemoryEntry> & { id: string }, dialect: 'dsh' | 'kilo' = 'dsh'): string {
   const body = (entry.text ?? '').trimEnd()
-  return `---\n${serializeFrontmatter(entry)}\n---\n${body}\n`
+  return `---\n${serializeFrontmatter(entry, dialect)}\n---\n${body}\n`
 }
 
 export interface EntryPageDefaults {
@@ -205,7 +281,11 @@ export function entryFromPage(text: string, defaults: EntryPageDefaults = {}): M
   if (!id) return null
 
   const scopeRaw = pickString(data, ['scope'])
-  const scope: MemoryScope = isMemoryScope(scopeRaw) ? scopeRaw : defaults.scope ?? 'project'
+  const scope: MemoryScope = isMemoryScope(scopeRaw)
+    ? scopeRaw
+    : scopeRaw === 'global'
+      ? 'user'
+      : defaults.scope ?? 'project'
   const project = pickString(data, ['project', 'project_root', 'projectRoot']) ?? defaults.project ?? ''
   const kindRaw = pickString(data, ['kind'])
   const tierRaw = pickString(data, ['tier'])
@@ -217,6 +297,18 @@ export function entryFromPage(text: string, defaults: EntryPageDefaults = {}): M
   const createdAt = pickString(data, ['createdAt', 'created_at'])
   const updatedAt = pickString(data, ['updatedAt', 'updated_at'])
   const confidence = pickNumber(data, ['confidence'])
+  const consolidationRaw = pickString(data, ['consolidation'])
+  const consolidation =
+    consolidationRaw === 'raw' || consolidationRaw === 'episodic' || consolidationRaw === 'semantic' || consolidationRaw === 'procedural'
+      ? consolidationRaw
+      : undefined
+  const accessCount = pickNumber(data, ['accessCount', 'access_count'])
+  const lastAccess = pickString(data, ['lastAccess', 'last_access'])
+  const origin = pickString(data, ['origin'])
+  const extra: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(data)) {
+    if (!KNOWN_KEYS.has(key)) extra[key] = value
+  }
   const now = new Date().toISOString()
 
   return {
@@ -239,5 +331,10 @@ export function entryFromPage(text: string, defaults: EntryPageDefaults = {}): M
     createdAt: createdAt ?? now,
     updatedAt: updatedAt ?? now,
     ...(confidence !== undefined ? { confidence } : {}),
+    ...(consolidation !== undefined ? { consolidation } : {}),
+    ...(accessCount !== undefined ? { accessCount } : {}),
+    ...(lastAccess !== undefined ? { lastAccess } : {}),
+    ...(origin !== undefined ? { origin } : {}),
+    ...(Object.keys(extra).length > 0 ? { extra } : {}),
   }
 }
