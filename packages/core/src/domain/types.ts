@@ -108,7 +108,7 @@ export interface MemoryEntry {
   /** Read counter (Kilo `accessCount`). */
   accessCount?: number
   /** Consolidation level (Kilo `consolidation`). */
-  consolidation?: 'episodic' | 'semantic' | 'procedural'
+  consolidation?: 'raw' | 'episodic' | 'semantic' | 'procedural'
   /** Hash of the body for incremental reconcile (`content_hash`). */
   contentHash?: string
   /** Unknown frontmatter/DB fields kept verbatim (dual-read passthrough). */

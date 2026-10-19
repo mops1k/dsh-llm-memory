@@ -57,7 +57,7 @@ function status(value: unknown): MemoryEntry['status'] {
 }
 
 function consolidation(value: unknown): MemoryEntry['consolidation'] {
-  return value === 'episodic' || value === 'semantic' || value === 'procedural' ? value : undefined
+  return value === 'raw' || value === 'episodic' || value === 'semantic' || value === 'procedural' ? value : undefined
 }
 
 function lastSegment(path: string | undefined): string {
