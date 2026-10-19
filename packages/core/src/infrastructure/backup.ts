@@ -497,7 +497,7 @@ export function restoreBackup(options: RestoreOptions & { _skipPreBackup?: boole
     integrityCheck: 'unknown',
     rolledBack: false,
   }
-  if (!options._skipPreBackup) {
+  if (!options._skipPreBackup && existsSync(options.dbPath)) {
     preRestoreBackup = createBackup({
       harness: options.harness,
       storeDir: options.storeDir,

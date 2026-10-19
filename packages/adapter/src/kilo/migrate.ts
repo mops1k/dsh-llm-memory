@@ -41,10 +41,36 @@ function columns(db: SqliteDatabase): string[] {
   return db.prepare('PRAGMA table_info(memories)').all<{ name: string }>().map(row => row.name)
 }
 
+/** Core base columns absent in a Kilo-created table (Kilo uses content/updatedAt/…). */
+const BASE_COLUMNS: Array<{ name: string; ddl: string }> = [
+  { name: 'text', ddl: "text TEXT NOT NULL DEFAULT ''" },
+  { name: 'project', ddl: "project TEXT NOT NULL DEFAULT ''" },
+  { name: 'created_at', ddl: "created_at TEXT NOT NULL DEFAULT ''" },
+  { name: 'updated_at', ddl: "updated_at TEXT NOT NULL DEFAULT ''" },
+  { name: 'superseded_by', ddl: "superseded_by TEXT NOT NULL DEFAULT '[]'" },
+]
+
+function translateBaseColumns(db: SqliteDatabase): string[] {
+  const present = new Set(columns(db))
+  const added: string[] = []
+  for (const column of BASE_COLUMNS) {
+    if (present.has(column.name)) continue
+    db.exec(`ALTER TABLE memories ADD COLUMN ${column.ddl}`)
+    added.push(column.name)
+  }
+  // Backfill from the Kilo names so the core store can read the same rows.
+  db.exec("UPDATE memories SET text = content WHERE text = '' AND content <> ''")
+  db.exec("UPDATE memories SET created_at = createdAt WHERE created_at = '' AND createdAt <> ''")
+  db.exec("UPDATE memories SET updated_at = updatedAt WHERE updated_at = '' AND updatedAt <> ''")
+  db.exec("UPDATE memories SET superseded_by = supersededBy WHERE superseded_by = '[]' AND supersededBy <> '[]'")
+  db.exec("UPDATE memories SET project = project_root WHERE project = '' AND project_root <> ''")
+  return added
+}
+
 /** Columns from SCHEMA_V2 that the given table still lacks. */
 function missing(db: SqliteDatabase): string[] {
   const present = new Set(columns(db))
-  return ['project', 'ext_key', 'origin', 'path', 'content_hash', 'file_size', 'file_mtime_ms', 'namespace', 'revision', 'device_id', 'updated_by', 'deleted_at', 'sync_state'].filter(
+  return [...BASE_COLUMNS.map(column => column.name), 'ext_key', 'origin', 'path', 'content_hash', 'file_size', 'file_mtime_ms', 'namespace', 'revision', 'device_id', 'updated_by', 'deleted_at', 'sync_state'].filter(
     name => !present.has(name),
   )
 }
@@ -85,9 +111,20 @@ export function migrateKiloStore(options: MigrateOptions): MigrateReport {
     }
     const stamp = (options.now?.() ?? new Date()).toISOString().replace(/[:.]/g, '-')
     report.backupPath = options.backupDir ? backup(options.dbPath, options.backupDir, stamp) : null
+    // Kilo's FTS table stores content as its own column and is incompatible with
+    // the core schema: drop it so core-store recreates and rebuilds the index.
+    const ftsColumns = (() => {
+      try {
+        return db.prepare('PRAGMA table_info(memories_fts)').all<{ name: string }>().map(row => row.name)
+      } catch {
+        return []
+      }
+    })()
+    if (ftsColumns.length > 0 && !ftsColumns.includes('text')) db.exec('DROP TABLE memories_fts;')
+    const baseAdded = translateBaseColumns(db)
     const migration = ensureSchemaV2(db)
     ensureRevisionsTable(db)
-    report.addedColumns = migration.addedColumns
+    report.addedColumns = [...baseAdded, ...migration.addedColumns]
     report.createdIndexes = migration.createdIndexes
     report.after = counts(db)
     report.integrityCheck = db.prepare('PRAGMA integrity_check').get<{ integrity_check: string }>()?.integrity_check ?? 'unknown'

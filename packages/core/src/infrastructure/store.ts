@@ -476,6 +476,16 @@ export class MemoryStore {
     this.ftsAvailable = this.ensureFts()
   }
 
+  /** Rebuild the FTS index from the rows (used after schema translation). */
+  rebuildFts(): number {
+    this.ensureReady()
+    const db = this.requireDb()
+    db.exec('DELETE FROM memories_fts;')
+    const rows = db.prepare('SELECT * FROM memories').all() as Array<Record<string, unknown>>
+    for (const row of rows) this.syncFts(rowToEntry(row))
+    return rows.length
+  }
+
   /** Add columns that may be missing in databases created by older versions. */
   private ensureColumns(): void {
     const db = this.requireDb()

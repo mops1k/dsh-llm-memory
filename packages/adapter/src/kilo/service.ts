@@ -74,7 +74,8 @@ export class KiloService {
     this.projectRoot = options.projectRoot
     this.layout = options.layout ?? createKiloLayout()
     const root = options.config.memory.storageRoot || this.layout.userRoot()
-    this.store = new MemoryStore({ storageRoot: root })
+    // Kilo keeps its database in <store>/db/memory.db (not the core _db dialect).
+    this.store = new MemoryStore({ storageRoot: root, dbPath: join(root, 'db', 'memory.db') })
   }
 
   /** Validate paths, create the wiki root and open the store. */

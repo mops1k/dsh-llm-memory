@@ -34,7 +34,7 @@ describe('kilo store migration', () => {
     const { db } = copyFixture('memory.db')
     const report = migrateKiloStore({ dbPath: db })
     expect(report.apply).toBe(false)
-    expect(report.wouldAddColumns).toHaveLength(13)
+    expect(report.wouldAddColumns).toHaveLength(17)
     expect(report.addedColumns).toEqual([])
     expect(report.backupPath).toBeNull()
     expect(report.before).toEqual({ entries: 24, active: 20 })
@@ -44,7 +44,7 @@ describe('kilo store migration', () => {
   it('applies the migration with a backup and keeps every row', () => {
     const { db, dir } = copyFixture('memory.db')
     const report = migrateKiloStore({ dbPath: db, apply: true, backupDir: join(dir, 'backups') })
-    expect(report.addedColumns).toHaveLength(13)
+    expect(report.addedColumns).toHaveLength(17)
     expect(report.createdIndexes).toHaveLength(3)
     expect(report.before).toEqual({ entries: 24, active: 20 })
     expect(report.after).toEqual(report.before)
