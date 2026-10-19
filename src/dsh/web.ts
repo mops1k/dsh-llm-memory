@@ -190,7 +190,7 @@ const HEADLESS_UI_HTML = `<!doctype html>
 <body><div id="root"></div>
 <script type="module">
   import { mount } from '/ui/web-ui.js'
-  const base = location.pathname.replace(/\/ui$/, ''
+  const base = location.pathname.endsWith('/ui') ? location.pathname.slice(0, -3) : location.pathname
   const request = async (operation, input) => {
     const response = await fetch(base + '/api/ui', {
       method: 'POST',
