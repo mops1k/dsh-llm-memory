@@ -191,7 +191,7 @@ const HEADLESS_UI_HTML = `<!doctype html>
 <script type="module">
   const base = location.pathname.endsWith('/ui') ? location.pathname.slice(0, -3) : location.pathname
   const request = async (operation, input) => {
-    const response = await fetch(base + '/api/ui', {
+    const response = await window.fetch(base + '/api/ui', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ operation, input }),

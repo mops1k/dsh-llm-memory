@@ -128,4 +128,20 @@ describe('backup contract', () => {
     expect(() => assertConfirmation('DELETE', 'yes')).toThrow(/type DELETE/)
     expect(() => assertConfirmation('RESTORE', 'RESTORE')).not.toThrow()
   })
+
+  it('binds the ambient fetch to globalThis (browser "Illegal invocation" guard)', async () => {
+    const original = globalThis.fetch
+    const thisValues: unknown[] = []
+    globalThis.fetch = function (this: unknown) {
+      thisValues.push(this)
+      return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+    } as typeof fetch
+    try {
+      const host = new HttpUiHost({ kind: 'kilo', baseUrl: 'http://example.test' })
+      await expect(host.request('status')).resolves.toEqual({ ok: true })
+      expect(thisValues[0]).toBe(globalThis)
+    } finally {
+      globalThis.fetch = original
+    }
+  })
 })

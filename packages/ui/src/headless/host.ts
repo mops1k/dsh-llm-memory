@@ -56,7 +56,9 @@ export class HttpUiHost implements UiHost {
     this.kind = options.kind
     this.base = options.baseUrl.replace(/\/+$/, '')
     this.localePref = options.locale
-    this.fetchImpl = options.fetchImpl ?? fetch
+    // Keep the method bound to the browser's window: an unbound `fetch` call
+    // throws "Illegal invocation" when a page script republishes window.fetch.
+    this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis)
   }
 
   async request<T>(operation: UiOperation, input?: unknown): Promise<T> {
