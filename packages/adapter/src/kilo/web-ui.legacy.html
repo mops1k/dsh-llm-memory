@@ -1,0 +1,1042 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kilo-memory — дашборд памяти</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjNWI4Y2ZmIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjOGE1YmZmIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzBiMTAyMCIvPjxnIGZpbGw9Im5vbmUiIHN0cm9rZT0idXJsKCNnKSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTE2IDdjLTEuMS0uOC0yLjYtMS0zLjgtLjQtLjkuNC0xLjYgMS4zLTEuOCAyLjMtMS4yLjEtMi4zLjgtMi44IDEuOS0uNC45LS4zIDIgLjMgMi45LS43LjctMS4xIDEuNy0xIDIuNy4yIDEuNCAxLjMgMi41IDIuNyAyLjguMyAxLjQgMS41IDIuNSAzIDIuNS41IDAgMS0uMiAxLjUtLjQuNS43IDEuMyAxLjMgMi4yIDEuMyIvPjxwYXRoIGQ9Ik0xNiA3YzEuMS0uOCAyLjYtMSAzLjgtLjQuOS40IDEuNiAxLjMgMS44IDIuMyAxLjIuMSAyLjMuOCAyLjggMS45LjQuOS4zIDItLjMgMi45LjcuNyAxLjEgMS43IDEgMi43LS4yIDEuNC0xLjMgMi41LTIuNyAyLjgtLjMgMS40LTEuNSAyLjUtMyAyLjUtLjUgMC0xLS4yLTEuNS0uNC0uNS43LTEuMyAxLjMtMi4yIDEuMyIvPjxwYXRoIGQ9Ik0xMyAxMS41bDIgMnYyLjEiLz48cGF0aCBkPSJNMTkgMTEuNWwtMiAydjIuMSIvPjxwYXRoIGQ9Ik0xNiA5djIuOCIvPjxwYXRoIGQ9Ik0xMy42IDE1LjVoNC44Ii8+PHBhdGggZD0iTTE2IDE2djMuMiIvPjxwYXRoIGQ9Ik0xNiAyM3YyLjYiLz48cGF0aCBkPSJNMTIuMyAyMS42bC0xLjUgMS43Ii8+PHBhdGggZD0iTTE5LjcgMjEuNmwxLjUgMS43Ii8+PGNpcmNsZSBjeD0iMTYiIGN5PSI5IiByPSIxIi8+PGNpcmNsZSBjeD0iMTMiIGN5PSIxMS41IiByPSIxIi8+PGNpcmNsZSBjeD0iMTkiIGN5PSIxMS41IiByPSIxIi8+PGNpcmNsZSBjeD0iMTYiIGN5PSIxOS4yIiByPSIxIi8+PC9nPjwvc3ZnPgo=">
+<style>
+  :root {
+    --bg: #0b1020; --bg2: #0e1428; --panel: rgba(22,29,48,.72); --panel-solid: #161d2e;
+    --panel2: #1d263b; --line: rgba(255,255,255,.09);
+    --text: #e8eefb; --muted: #8f9dc0; --accent: #5b8cff; --accent2: #8a5bff;
+    --danger: #f0556a; --ok: #39d98a; --warn: #f0b24c;
+    --radius: 14px; --shadow: 0 12px 34px rgba(0,0,0,.38);
+    --gnode-stroke: rgba(0,0,0,.55); --glabel-halo: rgba(0,0,0,.65); --gedge-opacity: .55;
+  }
+  body.light {
+    --bg: #f4f6fb; --bg2: #eef1f8; --panel: rgba(255,255,255,.9); --panel-solid: #fff;
+    --panel2: #f1f4fb; --line: rgba(16,24,40,.10);
+    --text: #17203a; --muted: #5b6b8c; --shadow: 0 10px 30px rgba(16,24,40,.09);
+    --gnode-stroke: rgba(255,255,255,.95); --glabel-halo: rgba(255,255,255,.92); --gedge-opacity: .72;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; font-family: system-ui, "Segoe UI", Roboto, sans-serif; font-size: 14px;
+    color: var(--text);
+    background:
+      radial-gradient(900px 500px at 100% -10%, rgba(138,91,255,.16), transparent 60%),
+      radial-gradient(800px 500px at -10% 10%, rgba(91,140,255,.14), transparent 55%),
+      var(--bg);
+    min-height: 100vh;
+  }
+  body.light { background:
+      radial-gradient(900px 500px at 100% -10%, rgba(138,91,255,.10), transparent 60%),
+      radial-gradient(800px 500px at -10% 10%, rgba(91,140,255,.10), transparent 55%),
+      var(--bg); }
+  .app { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+  .sidebar {
+    position: sticky; top: 0; height: 100vh; padding: 18px 14px;
+    background: linear-gradient(180deg, rgba(20,27,46,.92), rgba(11,16,32,.92));
+    border-right: 1px solid var(--line); backdrop-filter: blur(10px);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  body.light .sidebar { background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(244,246,251,.95)); }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 16px; font-weight: 700; font-size: 15px; }
+  .brand .brand-logo { width: 30px; height: 30px; flex: 0 0 auto; filter: drop-shadow(0 4px 12px rgba(91,140,255,.45)); }
+  .nav { display: flex; flex-direction: column; gap: 4px; }
+  .nav-btn {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: transparent; color: var(--muted); border: 1px solid transparent;
+    border-radius: 10px; padding: 9px 12px; cursor: pointer; font: inherit; font-size: 13px;
+    transition: background .12s, color .12s;
+  }
+  .nav-btn:hover { background: rgba(127,140,180,.12); color: var(--text); }
+  .nav-btn.active { background: linear-gradient(90deg, rgba(91,140,255,.20), rgba(138,91,255,.10)); color: var(--text); border-color: var(--line); }
+  .nav-btn .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .55; }
+  .nav-btn.active .dot { opacity: 1; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .sidebar .spacer { flex: 1; }
+  .sidebar .foot { color: var(--muted); font-size: 11px; padding: 8px; overflow-wrap: anywhere; }
+  .topbar {
+    position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px;
+    padding: 13px 22px; background: rgba(11,16,32,.7); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  body.light .topbar { background: rgba(244,246,251,.82); }
+  .topbar h2 { margin: 0; font-size: 17px; }
+  .topbar .sub { color: var(--muted); font-size: 12px; }
+  .proj-pick { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .proj-pick select { max-width: 260px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-items: center; }
+  .chip { font-size: 11px; color: var(--muted); background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .icon-btn {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 9px; padding: 7px 11px; cursor: pointer; font: inherit; font-size: 12px;
+  }
+  .icon-btn:hover { border-color: var(--accent); }
+  .icon-btn:disabled { opacity: .45; cursor: default; border-color: var(--line); }
+  .ic { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .ic.sm { width: 13px; height: 13px; vertical-align: -2px; }
+  .nav-btn .ic { opacity: .85; }
+  .nav-btn.active .ic { color: var(--accent); opacity: 1; }
+  .kpi .head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--muted); }
+  .kpi .head .ic { color: var(--accent); }
+  button.btn .ic, .icon-btn .ic { margin-right: 5px; }
+  main { padding: 22px; max-width: 1380px; margin: 0 auto; }
+  section { display: none; }
+  section.active { display: block; animation: fade .18s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .panel h3 { margin: 0 0 12px; font-size: 13px; letter-spacing: .3px; text-transform: uppercase; color: var(--muted); }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+  .kpi::after { content: ""; position: absolute; right: -30px; top: -30px; width: 90px; height: 90px; border-radius: 50%; background: radial-gradient(circle, rgba(91,140,255,.20), transparent 70%); }
+  .kpi .v { font-size: 27px; font-weight: 750; line-height: 1.1; }
+  .kpi .v.grad { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .kpi .l { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }
+  .bar-row { display: grid; grid-template-columns: 118px 1fr 44px; gap: 10px; align-items: center; margin: 7px 0; font-size: 12px; }
+  .bar-track { height: 8px; border-radius: 6px; background: var(--panel2); overflow: hidden; display: block; }
+  .bar { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), var(--accent2)); min-width: 2px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .row > label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  input, select, textarea { background: var(--bg2); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font: inherit; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,140,255,.16); }
+  textarea { width: 100%; min-height: 120px; resize: vertical; }
+  button.btn { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; border-radius: 9px; padding: 9px 15px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; box-shadow: 0 6px 16px rgba(91,140,255,.28); }
+  button.btn:hover { filter: brightness(1.07); }
+  button.btn.secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--line); box-shadow: none; font-weight: 500; }
+  button.btn.secondary:hover { border-color: var(--accent); }
+  button.btn.danger { background: linear-gradient(135deg, #d8435c, #f0556a); box-shadow: none; }
+  button.btn:disabled { opacity: .5; cursor: default; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: var(--panel2); border: 1px solid var(--line); white-space: nowrap; }
+  .pill.tier-normal { color: #a7b3cc; }
+  .pill.tier-important { color: #f0b24c; border-color: rgba(240,178,76,.45); background: rgba(240,178,76,.12); }
+  .pill.tier-immutable { color: #ffd479; border-color: rgba(255,212,121,.5); background: rgba(255,212,121,.13); }
+  .pill.scope-global { color: #7fb0ff; border-color: rgba(91,140,255,.45); background: rgba(91,140,255,.12); }
+  .pill.scope-project { color: #4cc9e0; border-color: rgba(76,201,224,.45); background: rgba(76,201,224,.12); }
+  .pill.kind-rules { color: #ff8a95; border-color: rgba(224,82,95,.5); background: rgba(224,82,95,.12); }
+  .pill.kind-preferences { color: #f0b24c; border-color: rgba(224,169,76,.5); background: rgba(224,169,76,.12); }
+  .pill.kind-decisions { color: #7fb0ff; border-color: rgba(76,141,255,.5); background: rgba(76,141,255,.12); }
+  .pill.kind-facts { color: #4ee39a; border-color: rgba(53,192,122,.5); background: rgba(53,192,122,.12); }
+  .pill.kind-architecture { color: #c2a6ff; border-color: rgba(160,107,255,.5); background: rgba(160,107,255,.12); }
+  .pill.kind-concepts { color: #6fd8ec; border-color: rgba(76,201,224,.5); background: rgba(76,201,224,.12); }
+  .pill.status-active { color: #4ee39a; border-color: rgba(57,217,138,.45); background: rgba(57,217,138,.12); }
+  .pill.status-superseded { color: #8f9dc0; }
+  .pill.status-archived { color: #f0b24c; border-color: rgba(240,178,76,.45); background: rgba(240,178,76,.10); }
+  body.light .pill.tier-important, body.light .pill.kind-preferences, body.light .pill.status-archived { color: #9a6a00; border-color: rgba(154,106,0,.35); background: rgba(224,169,76,.16); }
+  body.light .pill.tier-immutable { color: #8a6d00; border-color: rgba(138,109,0,.35); background: rgba(255,212,121,.3); }
+  body.light .pill.scope-global, body.light .pill.kind-decisions { color: #1f4fb8; border-color: rgba(31,79,184,.3); background: rgba(76,141,255,.14); }
+  body.light .pill.scope-project, body.light .pill.kind-concepts { color: #0b6f80; border-color: rgba(11,111,128,.3); background: rgba(76,201,224,.16); }
+  body.light .pill.kind-rules { color: #b52a3a; border-color: rgba(181,42,58,.3); background: rgba(224,82,95,.14); }
+  body.light .pill.kind-facts, body.light .pill.status-active { color: #127a4a; border-color: rgba(18,122,74,.3); background: rgba(53,192,122,.15); }
+  body.light .pill.kind-architecture { color: #6a3fd0; border-color: rgba(106,63,208,.3); background: rgba(160,107,255,.15); }
+  body.light .pill.tier-normal, body.light .pill.status-superseded { color: #5b6b8c; }
+  .muted { color: var(--muted); }
+  .modal { position: fixed; inset: 0; background: rgba(6,9,18,.62); backdrop-filter: blur(3px); display: none; align-items: flex-start; justify-content: center; padding: 30px 14px; overflow: auto; z-index: 30; }
+  .modal.open { display: flex; }
+  .modal .box { background: var(--panel-solid); border: 1px solid var(--line); border-radius: 16px; width: 840px; max-width: 100%; padding: 20px; box-shadow: var(--shadow); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid2 .full { grid-column: 1 / -1; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .toast { position: fixed; right: 16px; bottom: 16px; background: var(--panel-solid); border: 1px solid var(--line); border-left: 3px solid var(--accent); padding: 11px 15px; border-radius: 10px; max-width: 480px; display: none; white-space: pre-wrap; box-shadow: var(--shadow); z-index: 40; }
+  .toast.show { display: block; }
+  .toast.err { border-left-color: var(--danger); }
+  .report { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow: auto; max-height: 560px; }
+  .report h3 { margin: 0 0 12px; font-size: 15px; }
+  .report h4 { margin: 16px 0 8px; font-size: 13px; border-left: 3px solid var(--accent); padding-left: 9px; }
+  .report h4:first-child { margin-top: 0; }
+  .report ul { margin: 0; padding-left: 18px; }
+  .report li { margin: 4px 0; line-height: 1.5; overflow-wrap: anywhere; }
+  .report p { margin: 6px 0; line-height: 1.5; }
+  .report .empty { color: var(--muted); display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+  .report .count { display: inline-block; margin: 4px 0 8px; padding: 3px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); background: var(--panel2); }
+  .report .count.ok { color: var(--ok); border-color: rgba(57,217,138,.45); }
+  .report .count.warn { color: var(--warn); border-color: rgba(240,178,76,.45); }
+  .count { color: var(--muted); font-size: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 14px; margin-top: 12px; }
+  .item-card { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; cursor: pointer; transition: border-color .12s, transform .12s, box-shadow .12s; min-width: 0; overflow: hidden; }
+  .item-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,.28); }
+  .card-head { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; min-width: 0; }
+  .card-head .pill { flex: 0 0 auto; }
+  .card-title { font-weight: 650; line-height: 1.3; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .excerpt { margin: 6px 0 8px; color: var(--text); opacity: .88; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+  .tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; min-width: 0; }
+  .tag { font-size: 11px; color: var(--muted); background: var(--bg2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+  .card-meta { font-size: 11px; overflow-wrap: anywhere; word-break: break-word; }
+  .pager { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: space-between; margin-bottom: 12px; }
+  .pager .lbl { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .cfg-group { margin: 0 0 20px; }
+  .cfg-group > h4 { margin: 0 0 10px; font-size: 13px; border-left: 3px solid var(--accent); padding-left: 9px; }
+  .cfg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+  .field > .lbl { font-size: 12px; font-weight: 600; }
+  .field .help { color: var(--muted); font-size: 11px; line-height: 1.45; }
+  .field input[type="text"], .field input[type="number"], .field select { width: 100%; }
+  .field.check { flex-direction: row; align-items: flex-start; gap: 9px; }
+  .field.check input { margin-top: 2px; }
+  .field.check .txt { display: flex; flex-direction: column; gap: 3px; }
+  #graph-canvas { width: 100%; height: 640px; background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  #graph-canvas svg { width: 100%; height: 100%; display: block; cursor: grab; }
+  #graph-canvas svg.panning { cursor: grabbing; }
+  .gnode circle { stroke: var(--gnode-stroke); stroke-width: 1.5; cursor: pointer; }
+  .gnode circle:hover { stroke: var(--accent); stroke-width: 2; }
+  .gnode text { font-size: 11px; fill: var(--text); pointer-events: none; paint-order: stroke; stroke: var(--glabel-halo); stroke-width: 2.5px; }
+  .gedge { stroke-opacity: var(--gedge-opacity); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .legend i { display: inline-block; width: 16px; height: 3px; border-radius: 2px; }
+  .sw-rules { background: #e0525f; } .sw-preferences { background: #e0a94c; } .sw-decisions { background: #4c8dff; }
+  .sw-facts { background: #35c07a; } .sw-architecture { background: #a06bff; } .sw-concepts { background: #4cc9e0; }
+  .sw-supersedes { background: #ffd479; } .sw-related { background: #4c8dff; } .sw-depends { background: #35c07a; } .sw-contradicts { background: #e0525f; }
+  body.light .sw-preferences, body.light .sw-supersedes { background: #b8860b; }
+  body.light .sw-facts, body.light .sw-depends { background: #1f9d63; }
+  body.light .sw-decisions, body.light .sw-related { background: #2f6fe0; }
+  body.light .sw-contradicts, body.light .sw-rules { background: #d23c52; }
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; }
+    .brand { padding: 0 10px 0 4px; }
+    .nav { flex-direction: row; flex-wrap: wrap; }
+    .sidebar .spacer, .sidebar .foot { display: none; }
+  }
+</style>
+</head>
+<body>
+<svg style="display:none" aria-hidden="true" focusable="false">
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></symbol>
+<symbol id="i-activity" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></symbol>
+<symbol id="i-sliders" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+<symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+<symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></symbol>
+<symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></symbol>
+</svg>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <svg class="brand-logo" viewBox="0 0 32 32" role="img" aria-label="kilo-memory">
+        <defs>
+          <linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#5b8cff"/>
+            <stop offset="1" stop-color="#8a5bff"/>
+          </linearGradient>
+        </defs>
+        <g fill="none" stroke="url(#brandGrad)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 6c-1.2-.9-2.8-1.1-4.1-.5-1 .5-1.7 1.4-2 2.5-1.3.1-2.5.9-3 2.1-.4 1-.3 2.2.3 3.1-.8.8-1.2 1.8-1.1 2.9.2 1.5 1.4 2.7 2.9 3 .3 1.5 1.6 2.7 3.2 2.7.6 0 1.1-.2 1.6-.4.5.8 1.4 1.4 2.4 1.4"/>
+          <path d="M16 6c1.2-.9 2.8-1.1 4.1-.5 1 .5 1.7 1.4 2 2.5 1.3.1 2.5.9 3 2.1.4 1 .3 2.2-.3 3.1.8.8 1.2 1.8 1.1 2.9-.2 1.5-1.4 2.7-2.9 3-.3 1.5-1.6 2.7-3.2 2.7-.6 0-1.1-.2-1.6-.4-.5.8-1.4 1.4-2.4 1.4"/>
+          <path d="M12.5 11.5l2.2 2.2v2.3"/>
+          <path d="M19.5 11.5l-2.2 2.2v2.3"/>
+          <path d="M16 8.6v3"/>
+          <path d="M13.6 16h4.8"/>
+          <path d="M16 16.6v3.4"/>
+          <path d="M16 24v3"/>
+          <path d="M12 22.4l-1.7 1.9"/>
+          <path d="M20 22.4l1.7 1.9"/>
+          <circle cx="16" cy="8.6" r="1"/>
+          <circle cx="12.5" cy="11.5" r="1"/>
+          <circle cx="19.5" cy="11.5" r="1"/>
+          <circle cx="16" cy="20" r="1"/>
+        </g>
+      </svg>
+      kilo-memory
+    </div>
+    <nav class="nav">
+      <button class="nav-btn active" data-tab="overview"><svg class="ic"><use href="#i-grid"/></svg> Обзор</button>
+      <button class="nav-btn" data-tab="items"><svg class="ic"><use href="#i-layers"/></svg> Записи</button>
+      <button class="nav-btn" data-tab="create"><svg class="ic"><use href="#i-plus"/></svg> Создать</button>
+      <button class="nav-btn" data-tab="graph"><svg class="ic"><use href="#i-share"/></svg> Граф</button>
+      <button class="nav-btn" data-tab="health"><svg class="ic"><use href="#i-activity"/></svg> Здоровье</button>
+      <button class="nav-btn" data-tab="settings"><svg class="ic"><use href="#i-sliders"/></svg> Настройки</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="foot" id="hdr-project">проект не определён</div>
+  </aside>
+
+  <div class="content">
+    <div class="topbar">
+      <h2 id="page-title">Обзор</h2>
+      <span class="sub" id="hdr-stat"></span>
+      <div class="chips">
+        <label class="proj-pick" title="Проект — общий контекст панели: Обзор, Записи, Здоровье, Создать">Проект
+          <select id="t-project"></select>
+        </label>
+        <span class="chip" id="chip-health">—</span>
+        <button class="icon-btn" id="btn-theme"><svg class="ic"><use href="#i-moon"/></svg> Светлая</button>
+        <button class="icon-btn" id="btn-refresh"><svg class="ic"><use href="#i-refresh"/></svg> Обновить</button>
+      </div>
+    </div>
+
+    <main>
+      <section id="tab-overview" class="active">
+        <div class="kpi-grid" id="kpi-grid"></div>
+        <div class="cols">
+          <div class="panel"><h3><svg class="ic sm"><use href="#i-layers"/></svg> По категориям</h3><div id="chart-kind" class="muted">…</div></div>
+          <div class="panel"><h3><svg class="ic sm"><use href="#i-activity"/></svg> По уровню консолидации</h3><div id="chart-consolidation" class="muted">…</div></div>
+        </div>
+        <div class="cols">
+          <div class="panel"><h3><svg class="ic sm"><use href="#i-grid"/></svg> По scope</h3><div id="chart-scope" class="muted">…</div></div>
+          <div class="panel"><h3><svg class="ic sm"><use href="#i-check"/></svg> По статусу</h3><div id="chart-status" class="muted">…</div></div>
+        </div>
+        <div class="panel"><h3><svg class="ic sm"><use href="#i-tag"/></svg> Топ тегов</h3><div id="top-tags" class="muted">…</div></div>
+        <div class="panel"><h3><svg class="ic sm"><use href="#i-clock"/></svg> Недавно обновлённые</h3><div id="recent-items" class="cards"></div></div>
+      </section>
+
+      <section id="tab-items">
+        <div class="card">
+          <div class="row">
+            <label>Поиск <input id="f-q" placeholder="текст" style="min-width:240px"></label>
+            <label>Уровень <select id="f-scope"><option value="all">все</option><option value="global">глобальная</option><option value="project">проектная</option></select></label>
+            <label>Категория <select id="f-kind"><option value="all">все</option><option value="rules">Правила</option><option value="preferences">Предпочтения</option><option value="decisions">Решения</option><option value="facts">Факты</option><option value="architecture">Архитектура</option><option value="concepts">Концепты</option></select></label>
+            <label>Статус <select id="f-status"><option value="all">все</option><option value="active">Активная</option><option value="superseded">Заменённая</option><option value="archived">Архивная</option></select></label>
+            <label>Уровень жёсткости <select id="f-tier"><option value="all">все</option><option value="normal">Обычная</option><option value="important">Важная</option><option value="immutable">Неизменяемая</option></select></label>
+            <button class="btn" id="btn-reload"><svg class="ic"><use href="#i-search"/></svg> Показать</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="pager">
+            <span class="count" id="items-count"></span>
+            <span class="toolbar">
+              <span class="lbl">На странице <select id="pager-size"><option>12</option><option>24</option><option>48</option><option>96</option></select></span>
+              <button class="icon-btn" id="pager-prev">Назад</button>
+              <span class="count" id="pager-info"></span>
+              <button class="icon-btn" id="pager-next">Вперёд</button>
+            </span>
+          </div>
+          <div id="items-grid" class="cards"></div>
+        </div>
+      </section>
+
+      <section id="tab-create">
+        <div class="card">
+          <h3>Новая запись</h3>
+          <div class="row">
+            <label>Уровень <select id="c-scope"><option value="global">Глобальная</option><option value="project">Проектная</option></select></label>
+            <label>Проект (для проектной) <select id="c-project"></select></label>
+            <label>Категория <select id="c-kind"><option value="facts">Факты</option><option value="rules">Правила</option><option value="preferences">Предпочтения</option><option value="decisions">Решения</option><option value="architecture">Архитектура</option><option value="concepts">Концепты</option></select></label>
+            <label>Уровень жёсткости <select id="c-tier"><option value="normal">Обычная</option><option value="important">Важная</option><option value="immutable">Неизменяемая</option></select></label>
+            <label>Важность <input id="c-importance" type="number" min="1" max="5" value="3" style="width:70px"></label>
+          </div>
+          <p><label>Заголовок (необязательно)<br><input id="c-title" style="width:100%"></label></p>
+          <p><label>Текст<br><textarea id="c-text" placeholder="Короткое конкретное утверждение на русском"></textarea></label></p>
+          <div class="row">
+            <label>Теги (через запятую) <input id="c-tags" style="min-width:260px"></label>
+            <label>Заменяет — id записей через запятую <input id="c-supersedes" style="min-width:220px"></label>
+            <label>Связано с — id записей через запятую <input id="c-related" style="min-width:220px"></label>
+          </div>
+          <p><button class="btn" id="btn-create"><svg class="ic"><use href="#i-save"/></svg> Сохранить</button></p>
+        </div>
+      </section>
+
+      <section id="tab-graph">
+        <div class="card">
+          <div class="toolbar" style="justify-content:space-between">
+            <span class="toolbar">
+              <button class="btn secondary" id="btn-graph"><svg class="ic"><use href="#i-refresh"/></svg> Обновить граф</button>
+              <span class="muted" id="graph-summary"></span>
+            </span>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <label>Уровень <select id="g-scope"><option value="all">все</option><option value="global">глобальная</option><option value="project">проектная</option></select></label>
+            <label>Рёбра
+              <span class="toolbar" style="padding-top:4px">
+                <label style="flex-direction:row"><input type="checkbox" class="g-edge" value="supersedes" checked> заменяет</label>
+                <label style="flex-direction:row"><input type="checkbox" class="g-edge" value="related" checked> связано</label>
+                <label style="flex-direction:row"><input type="checkbox" class="g-edge" value="depends" checked> зависит</label>
+                <label style="flex-direction:row"><input type="checkbox" class="g-edge" value="contradicts" checked> противоречит</label>
+              </span>
+            </label>
+            <label style="flex-direction:row"><input type="checkbox" id="g-labels" checked> подписи</label>
+          </div>
+          <div id="graph-canvas" style="margin-top:12px"></div>
+          <div class="legend">
+            <span><i class="sw-rules"></i>Правила</span>
+            <span><i class="sw-preferences"></i>Предпочтения</span>
+            <span><i class="sw-decisions"></i>Решения</span>
+            <span><i class="sw-facts"></i>Факты</span>
+            <span><i class="sw-architecture"></i>Архитектура</span>
+            <span><i class="sw-concepts"></i>Концепты</span>
+          </div>
+          <div class="legend">
+            <span>Рёбра:</span>
+            <span><i class="sw-supersedes"></i>заменяет</span>
+            <span><i class="sw-related"></i>связано</span>
+            <span><i class="sw-depends"></i>зависит</span>
+            <span><i class="sw-contradicts"></i>противоречит</span>
+            <span class="muted">клик по узлу — открыть запись, колесо — зум, перетаскивание фона — сдвиг</span>
+            <span class="muted">Граф строится по всей центральной БД (все проекты); проверка (lint) учитывает только глобальную память и текущий проект</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-health">
+        <div class="card">
+          <div class="toolbar">
+            <button class="btn secondary" id="btn-status"><svg class="ic"><use href="#i-database"/></svg> Статус</button>
+            <button class="btn secondary" id="btn-lint"><svg class="ic"><use href="#i-check"/></svg> Проверка</button>
+            <button class="btn secondary" id="btn-heal-report"><svg class="ic"><use href="#i-activity"/></svg> Оздоровление (отчёт)</button>
+            <button class="btn" id="btn-heal-apply"><svg class="ic"><use href="#i-check"/></svg> Оздоровление (применить)</button>
+          </div>
+          <div class="report" id="health-out"><span class="muted">Нажмите кнопку…</span></div>
+        </div>
+      </section>
+
+      <section id="tab-settings">
+        <div class="card">
+          <div class="toolbar"><button class="btn secondary" id="btn-cfg-load"><svg class="ic"><use href="#i-refresh"/></svg> Перечитать</button><button class="btn" id="btn-cfg-save"><svg class="ic"><use href="#i-save"/></svg> Сохранить (применить сразу)</button></div>
+          <p class="muted">Настройки пишутся в <code>~/.config/kilo/kilo-memory.json</code> и применяются к активному движку сразу. Значения из env <code>KILO_MEMORY_*</code> имеют приоритет над файлом.</p>
+          <div id="cfg-body"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="modal" id="editor">
+  <div class="box">
+    <div class="toolbar" style="justify-content:space-between">
+      <h3 style="margin:0" id="ed-title">Запись</h3>
+      <button class="btn secondary" id="ed-close"><svg class="ic"><use href="#i-x"/></svg> Закрыть</button>
+    </div>
+    <p class="muted" id="ed-id"></p>
+    <div class="grid2">
+      <label>Заголовок<input id="ed-title-input"></label>
+      <label>Категория<select id="ed-kind"><option value="rules">Правила</option><option value="preferences">Предпочтения</option><option value="decisions">Решения</option><option value="facts">Факты</option><option value="architecture">Архитектура</option><option value="concepts">Концепты</option></select></label>
+      <label>Уровень жёсткости<select id="ed-tier"><option value="normal">Обычная</option><option value="important">Важная</option><option value="immutable">Неизменяемая</option></select></label>
+      <label>Статус<select id="ed-status"><option value="active">Активная</option><option value="superseded">Заменённая</option><option value="archived">Архивная</option></select></label>
+      <label>Важность<input id="ed-importance" type="number" min="1" max="5"></label>
+      <label>Уверенность<input id="ed-confidence" type="number" min="0" max="1" step="0.01"></label>
+      <label class="full">Теги (через запятую)<input id="ed-tags"></label>
+      <label class="full">Ключевые слова<input id="ed-keywords"></label>
+      <label class="full">Текст<textarea id="ed-content"></textarea></label>
+      <label class="full">Заменяет — id записей через запятую<input id="ed-supersedes"></label>
+      <label class="full">Связано с — id записей через запятую<input id="ed-related"></label>
+    </div>
+    <div class="toolbar" style="margin-top:12px">
+      <button class="btn" id="ed-save"><svg class="ic"><use href="#i-save"/></svg> Сохранить</button>
+      <button class="btn secondary" id="ed-forget"><svg class="ic"><use href="#i-x"/></svg> Пометить заменённой</button>
+      <button class="btn danger" id="ed-delete"><svg class="ic"><use href="#i-trash"/></svg> Удалить навсегда</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let currentId = null;
+let projects = [];
+let curProject = "all";
+let serverProject = "";
+let currentTab = "overview";
+
+async function api(method, path, body, useProject) {
+  const opt = { method, headers: {} };
+  if (body !== undefined) { opt.headers["content-type"] = "application/json"; opt.body = JSON.stringify(body); }
+  if (useProject) { const sep = path.includes("?") ? "&" : "?"; path += sep + "project=" + encodeURIComponent(curProject || "all"); }
+  const res = await fetch("/api" + path, opt);
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = { ok: false, error: "Некорректный ответ сервера" }; }
+  if (!res.ok && data && data.ok === undefined) data.ok = false;
+  return data;
+}
+function toast(msg, isErr) {
+  const t = $("toast"); t.textContent = msg; t.className = "toast show" + (isErr ? " err" : "");
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.className = "toast"), 5000);
+}
+function splitIds(v) { return (v || "").split(",").map(s => s.trim()).filter(Boolean); }
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function firstLines(text, max) { const s = String(text || "").replace(/\s+/g, " ").trim(); return s.length > max ? s.slice(0, max) + "…" : s; }
+
+const TITLES = { overview: "Обзор", items: "Записи", create: "Создать запись", graph: "Граф памяти", health: "Здоровье памяти", settings: "Настройки" };
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll("section").forEach(s => s.classList.toggle("active", s.id === "tab-" + name));
+  $("page-title").textContent = TITLES[name] || name;
+  if (name === "overview") loadOverview();
+  if (name === "items") loadItems(false);
+  if (name === "graph") loadGraph();
+}
+document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+
+function applyTheme() {
+  const light = localStorage.getItem("km-theme") === "light";
+  document.body.classList.toggle("light", light);
+  $("btn-theme").innerHTML = '<svg class="ic"><use href="#i-' + (light ? "moon" : "sun") + '"/></svg> ' + (light ? "Тёмная" : "Светлая");
+}
+$("btn-theme").onclick = () => {
+  localStorage.setItem("km-theme", document.body.classList.contains("light") ? "dark" : "light");
+  applyTheme();
+  if (currentTab === "graph") renderGraph();
+};
+$("btn-refresh").onclick = () => switchTab(currentTab);
+
+function projectLabel(root) {
+  const parts = String(root || "").split(/[\\/]+/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : String(root || "");
+}
+async function loadHealthHeader() {
+  const h = await api("GET", "/health");
+  serverProject = h.projectRoot || "";
+  const saved = localStorage.getItem("km-project");
+  curProject = saved || serverProject || "all";
+  $("hdr-project").textContent = serverProject ? ("сервер: " + serverProject) : "проект не определён";
+  const s = await api("GET", "/status", undefined, true);
+  if (s.ok) {
+    const st = s.status;
+    $("hdr-stat").textContent = "записей: " + st.total + " · активных: " + st.active + " · средняя уверенность: " + st.avgConfidence;
+    $("chip-health").textContent = "здоровье: " + st.active + " активных / " + st.total;
+  }
+}
+async function loadProjects() {
+  const r = await api("GET", "/projects");
+  const list = r.ok ? (r.projects || []) : [];
+  if (serverProject && !list.includes(serverProject)) list.unshift(serverProject);
+  projects = list;
+  $("t-project").innerHTML = ['<option value="all">Все проекты</option>']
+    .concat(projects.map(p => '<option value="' + esc(p) + '" title="' + esc(p) + '">' + esc(projectLabel(p)) + "</option>")).join("");
+  $("c-project").innerHTML = projects.map(p => '<option value="' + esc(p) + '" title="' + esc(p) + '">' + esc(projectLabel(p)) + "</option>").join("");
+  applyProjectSelection();
+}
+function applyProjectSelection() {
+  const sel = $("t-project");
+  const known = projects.includes(curProject) || curProject === "all";
+  sel.value = known ? curProject : "all";
+  curProject = sel.value;
+  sel.title = curProject === "all" ? "Все проекты центральной БД" : curProject;
+  localStorage.setItem("km-project", curProject);
+  const cp = $("c-project");
+  if (cp && curProject !== "all" && projects.includes(curProject)) cp.value = curProject;
+  loadHealthHeader();
+}
+$("t-project").onchange = () => {
+  curProject = $("t-project").value || "all";
+  localStorage.setItem("km-project", curProject);
+  applyProjectSelection();
+  itemsOffset = 0;
+  if (currentTab === "overview") loadOverview();
+  else if (currentTab === "items") loadItems(true);
+};
+
+// ---- Обзор ----
+function barsHtml(obj, colorFn, ru) {
+  const entries = Object.entries(obj || {}).filter(e => e[1] > 0).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) return '<span class="muted">нет данных</span>';
+  const max = Math.max(1, ...entries.map(e => e[1]));
+  return entries.map(([k, v]) =>
+    '<div class="bar-row"><span class="muted">' + esc((ru && ru[k]) || k) + '</span><span class="bar-track"><span class="bar" style="width:' + Math.round((v / max) * 100) + "%;" + (colorFn ? "background:" + colorFn(k) : "") + '"></span></span><span class="muted" style="text-align:right">' + v + "</span></div>"
+  ).join("");
+}
+const KIND_LABEL = { rules: "Правила", preferences: "Предпочтения", decisions: "Решения", facts: "Факты", architecture: "Архитектура", concepts: "Концепты" };
+const SCOPE_LABEL = { global: "Глобальная", project: "Проектная" };
+const STATUS_LABEL = { active: "Активная", superseded: "Заменённая", archived: "Архивная" };
+const TIER_LABEL = { normal: "Обычная", important: "Важная", immutable: "Неизменяемая" };
+const EDGE_LABEL = { supersedes: "заменяет", related: "связано", depends: "зависит", contradicts: "противоречит" };
+const CONSOLIDATION_RU = { raw: "Сырой (raw)", episodic: "Эпизодический (episodic)", semantic: "Смысловой (semantic)", procedural: "Процедурный (procedural)" };
+function barsList(obj, ru) {
+  const entries = Object.entries(obj || {}).filter(e => e[1] > 0).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) return '<div class="muted">нет данных</div>';
+  const max = Math.max(1, ...entries.map(e => e[1]));
+  return entries.map(([k, v]) =>
+    '<div class="bar-row"><span>' + esc((ru && ru[k]) || k) + '</span><span class="bar-track"><span class="bar" style="width:' + Math.round((v / max) * 100) + '%"></span></span><span class="muted" style="text-align:right">' + v + "</span></div>"
+  ).join("");
+}
+function renderStatus(st) {
+  if (!st || typeof st !== "object") return '<div class="muted">Нет данных статуса.</div>';
+  const cards = [
+    ["Всего записей", st.total],
+    ["Активных", st.active],
+    ["Средняя уверенность", st.avgConfidence],
+  ].map(([l, v]) => '<div class="kpi"><div class="v">' + esc(v) + '</div><div class="l">' + esc(l) + "</div></div>").join("");
+  const roots = Array.isArray(st.roots) && st.roots.length
+    ? st.roots.map(r => '<div class="muted" style="overflow-wrap:anywhere"><code>' + esc(r) + "</code></div>").join("")
+    : '<div class="muted">—</div>';
+  return '<div class="kpi-grid" style="margin-bottom:14px">' + cards + "</div>" +
+    '<div class="cols"><div class="panel" style="margin:0"><h3>По категориям</h3>' + barsList(st.byKind, KIND_LABEL) + "</div>" +
+    '<div class="panel" style="margin:0"><h3>По уровню</h3>' + barsList(st.byScope, SCOPE_LABEL) + "</div></div>" +
+    '<div class="cols" style="margin-top:14px"><div class="panel" style="margin:0"><h3>По уровню консолидации</h3>' + barsList(st.byConsolidation, CONSOLIDATION_RU) + "</div>" +
+    '<div class="panel" style="margin:0"><h3>Каталоги вики</h3>' + roots + "</div></div>";
+}
+function renderReport(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  let html = "";
+  let inList = false;
+  const closeList = () => { if (inList) { html += "</ul>"; inList = false; } };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { closeList(); continue; }
+    let m;
+    if ((m = line.match(/^##\s+(.*)$/))) { closeList(); html += "<h4>" + esc(m[1]) + "</h4>"; continue; }
+    if ((m = line.match(/^#\s+(.*)$/))) { closeList(); html += "<h3>" + esc(m[1]) + "</h3>"; continue; }
+    if ((m = line.match(/^Исправлений:\s*(.*)$/))) {
+      closeList();
+      const n = Number(((m[1].match(/\d+/) || ["0"])[0])) || 0;
+      html += '<div class="count ' + (n === 0 ? "ok" : "warn") + '">Исправлений: ' + esc(m[1]) + "</div>";
+      continue;
+    }
+    if ((m = line.match(/^-\s+(.*)$/))) {
+      const item = m[1].trim();
+      if (item === "Не найдено." || item === "нет") {
+        closeList();
+        html += '<div class="empty"><svg class="ic sm"><use href="#i-check"/></svg> Не найдено</div>';
+        continue;
+      }
+      if (!inList) { html += "<ul>"; inList = true; }
+      html += "<li>" + esc(item) + "</li>";
+      continue;
+    }
+    closeList();
+    html += "<p>" + esc(line) + "</p>";
+  }
+  closeList();
+  return html || '<span class="muted">Пусто.</span>';
+}
+async function loadOverview() {
+  const [s, itemsRes] = await Promise.all([api("GET", "/status", undefined, true), api("GET", "/items?limit=1000&sort=updated", undefined, true)]);
+  const st = s.ok ? s.status : { total: 0, active: 0, avgConfidence: 0, byKind: {}, byScope: {}, byConsolidation: {} };
+  const items = itemsRes.ok ? itemsRes.items : [];
+  const immutable = items.filter(i => i.tier === "immutable").length;
+  const kinds = Object.keys(st.byKind || {}).length;
+  const kpi = [
+    ["database", "Всего записей", st.total, true],
+    ["check", "Активных", st.active, false],
+    ["activity", "Средняя уверенность", st.avgConfidence, false],
+    ["layers", "Категорий / immutable", kinds + " / " + immutable, false],
+  ];
+  $("kpi-grid").innerHTML = kpi.map(([icon, l, v, grad]) =>
+    '<div class="kpi"><div class="head"><svg class="ic"><use href="#i-' + icon + '"/></svg><span class="l">' + esc(l) + '</span></div><div class="v' + (grad ? " grad" : "") + '">' + esc(v) + "</div></div>"
+  ).join("");
+  $("chart-kind").innerHTML = barsHtml(st.byKind, k => KIND_COLORS[k], KIND_LABEL);
+  $("chart-consolidation").innerHTML = barsHtml(st.byConsolidation, null, CONSOLIDATION_RU);
+  $("chart-scope").innerHTML = barsHtml(st.byScope, null, SCOPE_LABEL);
+  const statusCounts = {};
+  items.forEach(i => statusCounts[i.status] = (statusCounts[i.status] || 0) + 1);
+  $("chart-status").innerHTML = barsHtml(statusCounts, k => k === "active" ? "#39d98a" : (k === "archived" ? "#f0b24c" : "#8f9dc0"), STATUS_LABEL);
+  const tagCounts = {};
+  items.forEach(i => (i.tags || []).forEach(t => tagCounts[t] = (tagCounts[t] || 0) + 1));
+  $("top-tags").innerHTML = barsHtml(Object.fromEntries(Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 10)));
+  $("recent-items").innerHTML = items.slice(0, 6).map(cardHtml).join("");
+  document.querySelectorAll("#recent-items .item-card").forEach(el => el.onclick = () => openEditor(el.dataset.id));
+}
+
+// ---- Записи (только карточки, с пагинацией) ----
+let itemsLimit = Number(localStorage.getItem("km-page-size")) || 24;
+let itemsOffset = 0;
+let itemsTotal = 0;
+
+function cardHtml(i) {
+  const tags = (i.tags || []).map(t => '<span class="tag">' + esc(t) + "</span>").join("");
+  return '<article class="item-card" data-id="' + esc(i.id) + '">' +
+    '<div class="card-head"><span class="card-title">' + esc(i.title) + '</span><span class="pill tier-' + esc(i.tier) + '">' + esc(TIER_LABEL[i.tier] || i.tier) + "</span></div>" +
+    '<div class="badges"><span class="pill scope-' + esc(i.scope) + '">' + esc(SCOPE_LABEL[i.scope] || i.scope) + '</span>' +
+    '<span class="pill kind-' + esc(i.kind) + '">' + esc(KIND_LABEL[i.kind] || i.kind) + "</span>" +
+    '<span class="pill status-' + esc(i.status) + '">' + esc(STATUS_LABEL[i.status] || i.status) + "</span>" +
+    (i.projectRoot ? '<span class="pill" title="' + esc(i.projectRoot) + '">проект</span>' : "") + "</div>" +
+    '<p class="excerpt">' + esc(firstLines(i.content, 260)) + "</p>" +
+    (tags ? '<div class="tags">' + tags + "</div>" : "") +
+    '<div class="card-meta muted"><code>' + esc(i.id) + "</code> · важность " + i.importance + " · уверенность " + Number(i.confidence).toFixed(2) + ' · <svg class="ic sm"><use href="#i-clock"/></svg> ' + esc((i.updatedAt || "").slice(0, 10)) + "</div>" +
+    "</article>";
+}
+async function loadItems(reset) {
+  if (reset) itemsOffset = 0;
+  const sp = new URLSearchParams();
+  const q = $("f-q").value.trim(); if (q) sp.set("q", q);
+  sp.set("scope", $("f-scope").value); sp.set("kind", $("f-kind").value);
+  sp.set("status", $("f-status").value); sp.set("tier", $("f-tier").value);
+  sp.set("limit", String(itemsLimit)); sp.set("offset", String(itemsOffset));
+  const r = await api("GET", "/items?" + sp.toString(), undefined, true);
+  if (!r.ok) { toast(r.error || "Ошибка загрузки", true); return; }
+  itemsTotal = r.total;
+  if (r.items.length === 0 && itemsOffset > 0) { itemsOffset = Math.max(0, itemsOffset - itemsLimit); return loadItems(false); }
+  const from = r.items.length ? itemsOffset + 1 : 0;
+  const to = itemsOffset + r.items.length;
+  $("items-count").textContent = itemsTotal ? ("Найдено: " + itemsTotal + " · показаны " + from + "–" + to) : "Ничего не найдено";
+  $("items-grid").innerHTML = r.items.map(cardHtml).join("");
+  document.querySelectorAll("#items-grid .item-card").forEach(el => el.onclick = () => openEditor(el.dataset.id));
+  renderPager();
+}
+function renderPager() {
+  const pages = Math.max(1, Math.ceil(itemsTotal / itemsLimit));
+  const page = Math.floor(itemsOffset / itemsLimit) + 1;
+  $("pager-info").textContent = "Стр. " + page + " из " + pages;
+  $("pager-prev").disabled = itemsOffset <= 0;
+  $("pager-next").disabled = itemsOffset + itemsLimit >= itemsTotal;
+}
+$("pager-prev").onclick = () => { itemsOffset = Math.max(0, itemsOffset - itemsLimit); loadItems(false); };
+$("pager-next").onclick = () => { itemsOffset = itemsOffset + itemsLimit; loadItems(false); };
+$("pager-size").onchange = (e) => {
+  itemsLimit = Number(e.target.value) || 24;
+  localStorage.setItem("km-page-size", String(itemsLimit));
+  loadItems(true);
+};
+$("btn-reload").onclick = () => loadItems(true);
+$("f-q").addEventListener("keydown", e => { if (e.key === "Enter") loadItems(true); });
+["f-scope", "f-kind", "f-status", "f-tier"].forEach(id => { $(id).onchange = () => loadItems(true); });
+
+async function openEditor(id) {
+  const r = await api("GET", "/items/" + encodeURIComponent(id));
+  if (!r.ok) { toast(r.error || "Не найдено", true); return; }
+  const i = r.item; currentId = i.id;
+  $("ed-id").textContent = i.id + " · уровень: " + (SCOPE_LABEL[i.scope] || i.scope) + (i.projectRoot ? " · " + i.projectRoot : "");
+  $("ed-title-input").value = i.title; $("ed-kind").value = i.kind; $("ed-tier").value = i.tier;
+  $("ed-status").value = i.status; $("ed-importance").value = i.importance; $("ed-confidence").value = i.confidence;
+  $("ed-tags").value = (i.tags || []).join(", "); $("ed-keywords").value = i.keywords || "";
+  $("ed-content").value = i.content; $("ed-supersedes").value = (i.supersedes || []).join(", ");
+  $("ed-related").value = (i.related || []).join(", ");
+  $("editor").classList.add("open");
+}
+$("ed-close").onclick = () => $("editor").classList.remove("open");
+$("ed-save").onclick = async () => {
+  const r = await api("PUT", "/items/" + encodeURIComponent(currentId), {
+    title: $("ed-title-input").value, kind: $("ed-kind").value, tier: $("ed-tier").value,
+    status: $("ed-status").value, importance: Number($("ed-importance").value),
+    confidence: Number($("ed-confidence").value), tags: $("ed-tags").value.split(",").map(s => s.trim()).filter(Boolean),
+    keywords: $("ed-keywords").value, content: $("ed-content").value,
+    supersedes: splitIds($("ed-supersedes").value), related: splitIds($("ed-related").value),
+  });
+  toast(r.message || (r.ok ? "Сохранено" : r.error), !r.ok);
+  if (r.ok) { $("editor").classList.remove("open"); loadItems(false); loadHealthHeader(); loadOverview(); }
+};
+$("ed-forget").onclick = async () => {
+  if (!confirm("Пометить запись как superseded (забытую)?")) return;
+  const r = await api("POST", "/items/" + encodeURIComponent(currentId) + "/forget");
+  toast(r.message || r.error, !r.ok);
+  if (r.ok) { $("editor").classList.remove("open"); loadItems(false); loadOverview(); }
+};
+$("ed-delete").onclick = async () => {
+  if (!confirm("УДАЛИТЬ БЕЗВОЗВРАТНО: запись, md-файл и индекс. Продолжить?")) return;
+  const r = await api("DELETE", "/items/" + encodeURIComponent(currentId));
+  toast(r.message || r.error, !r.ok);
+  if (r.ok) { $("editor").classList.remove("open"); loadItems(false); loadHealthHeader(); loadOverview(); }
+};
+
+$("btn-create").onclick = async () => {
+  const text = $("c-text").value.trim();
+  if (!text) { toast("Текст обязателен", true); return; }
+  const scope = $("c-scope").value;
+  const body = {
+    text, scope, kind: $("c-kind").value, tier: $("c-tier").value,
+    importance: Number($("c-importance").value), title: $("c-title").value || undefined,
+    tags: $("c-tags").value.split(",").map(s => s.trim()).filter(Boolean),
+    supersedes: splitIds($("c-supersedes").value), related: splitIds($("c-related").value),
+  };
+  if (scope === "project") {
+    const sel = $("c-project");
+    if (curProject !== "all" && projects.includes(curProject)) sel.value = curProject;
+    if (!sel.value && sel.options.length) sel.selectedIndex = 0;
+    body.projectRoot = sel.value || undefined;
+    if (!body.projectRoot) { toast("Для project выберите проект (список пуст)", true); return; }
+  }
+  const r = await api("POST", "/items", body);
+  toast(r.message || r.error, !r.ok);
+  if (r.ok) { $("c-text").value = ""; $("c-title").value = ""; loadItems(true); loadHealthHeader(); loadOverview(); }
+};
+
+const EDGE_COLORS = { supersedes: "#ffd479", related: "#4c8dff", depends: "#35c07a", contradicts: "#e0525f" };
+const EDGE_COLORS_LIGHT = { supersedes: "#b8860b", related: "#2f6fe0", depends: "#1f9d63", contradicts: "#d23c52" };
+const KIND_COLORS = { rules: "#e0525f", preferences: "#e0a94c", decisions: "#4c8dff", facts: "#35c07a", architecture: "#a06bff", concepts: "#4cc9e0" };
+function isLightTheme() { return document.body.classList.contains("light"); }
+function edgeColor(type) {
+  if (isLightTheme() && EDGE_COLORS_LIGHT[type]) return EDGE_COLORS_LIGHT[type];
+  return EDGE_COLORS[type] || "#888";
+}
+let graphData = { entities: [], edges: [] };
+let graphSvg = null, graphVb = null, graphPanning = false, gpX = 0, gpY = 0, goX = 0, goY = 0;
+
+async function loadGraph() {
+  const r = await api("GET", "/graph");
+  if (!r.ok) { toast(r.error || "Ошибка", true); return; }
+  graphData = { entities: r.entities || [], edges: r.edges || [] };
+  const byType = {};
+  graphData.edges.forEach(e => byType[e.type] = (byType[e.type] || 0) + 1);
+  $("graph-summary").textContent = "узлов: " + graphData.entities.length + ", рёбер: " + graphData.edges.length +
+    " (" + Object.keys(byType).map(t => (EDGE_LABEL[t] || t) + ": " + byType[t]).join(", ") + ")";
+  renderGraph();
+}
+function visibleGraph() {
+  const scope = $("g-scope").value;
+  const types = new Set([...document.querySelectorAll(".g-edge:checked")].map(c => c.value));
+  let ents = graphData.entities;
+  if (scope !== "all") ents = ents.filter(e => e.scope === scope);
+  const ids = new Set(ents.map(e => e.id));
+  let edges = graphData.edges.filter(e => types.has(e.type) && ids.has(e.source) && ids.has(e.target));
+  if (edges.length > 3000) edges = edges.slice(0, 3000);
+  return { entities: ents, edges };
+}
+function renderGraph() { renderGraphSvg(); }
+function forceLayout(nodes, links, W, H) {
+  const n = Math.max(1, nodes.length);
+  const k = Math.sqrt((W * H) / n) * 0.7;
+  nodes.forEach((d, i) => {
+    const a = (2 * Math.PI * i) / n;
+    d.x = W / 2 + Math.cos(a) * Math.min(W, H) * 0.3;
+    d.y = H / 2 + Math.sin(a) * Math.min(W, H) * 0.3;
+    d.vx = 0; d.vy = 0;
+  });
+  const iters = n > 250 ? 200 : 450;
+  const temp0 = k * 1.1;
+  for (let it = 0; it < iters; it++) {
+    const temp = temp0 * (1 - it / iters) + 0.02;
+    for (let i = 0; i < n; i++) {
+      const a = nodes[i];
+      for (let j = i + 1; j < n; j++) {
+        const b = nodes[j];
+        let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+        if (d2 < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = dx * dx + dy * dy; }
+        const d = Math.sqrt(d2);
+        const f = (k * k) / d2;
+        const fx = (dx / d) * f, fy = (dy / d) * f;
+        a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+      }
+    }
+    for (const l of links) {
+      const a = nodes[l.s], b = nodes[l.t];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+      const f = (d - k * 0.9) * 0.05;
+      const fx = (dx / d) * f, fy = (dy / d) * f;
+      a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+    }
+    for (const a of nodes) {
+      a.vx += (W / 2 - a.x) * 0.002; a.vy += (H / 2 - a.y) * 0.002;
+      const sp = Math.sqrt(a.vx * a.vx + a.vy * a.vy) || 0.01;
+      const lim = Math.min(sp, temp);
+      a.x = Math.max(24, Math.min(W - 24, a.x + (a.vx / sp) * lim));
+      a.y = Math.max(24, Math.min(H - 24, a.y + (a.vy / sp) * lim));
+      a.vx = 0; a.vy = 0;
+    }
+  }
+}
+function renderGraphSvg() {
+  const g = visibleGraph();
+  const canvas = $("graph-canvas");
+  if (g.entities.length === 0) { canvas.innerHTML = '<p class="muted" style="padding:14px">Узлов нет (проверьте фильтры).</p>'; graphSvg = null; return; }
+  const W = 1200, H = 720;
+  const nodes = g.entities.map(e => ({ id: e.id, title: e.name || e.id, kind: e.kind, scope: e.scope, deg: 0, x: 0, y: 0, vx: 0, vy: 0 }));
+  const idx = new Map(nodes.map((d, i) => [d.id, i]));
+  const links = g.edges.map(e => ({ s: idx.get(e.source), t: idx.get(e.target), type: e.type })).filter(l => l.s !== undefined && l.t !== undefined && l.s !== l.t);
+  links.forEach(l => { nodes[l.s].deg++; nodes[l.t].deg++; });
+  forceLayout(nodes, links, W, H);
+  const showLabels = $("g-labels").checked;
+  const parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet"><defs>'];
+  for (const t of Object.keys(EDGE_COLORS)) parts.push('<marker id="arr-' + t + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="' + edgeColor(t) + '"/></marker>');
+  parts.push("</defs><g class=\"edges\">");
+  for (const l of links) {
+    const a = nodes[l.s], b = nodes[l.t];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const off = Math.min(12, d * 0.12);
+    const cx = mx - (dy / d) * off, cy = my + (dx / d) * off;
+    parts.push('<path class="gedge" d="M' + a.x.toFixed(1) + ',' + a.y.toFixed(1) + ' Q' + cx.toFixed(1) + ',' + cy.toFixed(1) + ' ' + b.x.toFixed(1) + ',' + b.y.toFixed(1) + '" fill="none" stroke="' + edgeColor(l.type) + '" stroke-width="1.2" marker-end="url(#arr-' + l.type + ')"/>');
+  }
+  parts.push("</g>");
+  for (const nd of nodes) {
+    const r = 6 + Math.min(10, nd.deg * 1.1);
+    const color = KIND_COLORS[nd.kind] || "#93a1bd";
+    parts.push('<g class="gnode" data-id="' + esc(nd.id) + '"><title>' + esc(nd.title) + ' (' + esc(nd.id) + ', ' + esc(KIND_LABEL[nd.kind] || nd.kind) + ')</title>');
+    parts.push('<circle cx="' + nd.x.toFixed(1) + '" cy="' + nd.y.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + color + '"/>');
+    if (showLabels) {
+      const label = nd.title.length > 26 ? nd.title.slice(0, 26) + "…" : nd.title;
+      parts.push('<text x="' + nd.x.toFixed(1) + '" y="' + (nd.y + r + 12).toFixed(1) + '" text-anchor="middle">' + esc(label) + "</text>");
+    }
+    parts.push("</g>");
+  }
+  parts.push("</svg>");
+  canvas.innerHTML = parts.join("");
+  graphSvg = canvas.querySelector("svg");
+  graphVb = { x: 0, y: 0, w: W, h: H };
+  graphSvg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  graphSvg.addEventListener("click", (ev) => { const node = ev.target.closest(".gnode"); if (node) openEditor(node.dataset.id); });
+  graphSvg.addEventListener("wheel", (ev) => {
+    ev.preventDefault();
+    const rect = graphSvg.getBoundingClientRect();
+    const mx = graphVb.x + ((ev.clientX - rect.left) / rect.width) * graphVb.w;
+    const my = graphVb.y + ((ev.clientY - rect.top) / rect.height) * graphVb.h;
+    const scale = ev.deltaY > 0 ? 1.15 : 0.87;
+    graphVb.w *= scale; graphVb.h *= scale;
+    graphVb.x = mx - (mx - graphVb.x) * scale;
+    graphVb.y = my - (my - graphVb.y) * scale;
+    graphSvg.setAttribute("viewBox", graphVb.x + " " + graphVb.y + " " + graphVb.w + " " + graphVb.h);
+  }, { passive: false });
+  graphSvg.addEventListener("mousedown", (ev) => {
+    if (ev.target.closest(".gnode")) return;
+    graphPanning = true; gpX = ev.clientX; gpY = ev.clientY; goX = graphVb.x; goY = graphVb.y;
+    graphSvg.classList.add("panning");
+  });
+}
+window.addEventListener("mousemove", (ev) => {
+  if (!graphPanning || !graphSvg || !graphVb) return;
+  const rect = graphSvg.getBoundingClientRect();
+  graphVb.x = goX - ((ev.clientX - gpX) / rect.width) * graphVb.w;
+  graphVb.y = goY - ((ev.clientY - gpY) / rect.height) * graphVb.h;
+  graphSvg.setAttribute("viewBox", graphVb.x + " " + graphVb.y + " " + graphVb.w + " " + graphVb.h);
+});
+window.addEventListener("mouseup", () => {
+  graphPanning = false;
+  if (graphSvg) graphSvg.classList.remove("panning");
+});
+$("btn-graph").onclick = loadGraph;
+$("g-scope").onchange = renderGraph;
+$("g-labels").onchange = renderGraph;
+document.querySelectorAll(".g-edge").forEach(c => c.onchange = renderGraph);
+
+$("btn-status").onclick = async () => {
+  const r = await api("GET", "/status", undefined, true);
+  $("health-out").innerHTML = r.ok ? renderStatus(r.status) : renderReport(r.error || "Не удалось получить статус.");
+};
+$("btn-lint").onclick = async () => {
+  const r = await api("GET", "/lint", undefined, true);
+  $("health-out").innerHTML = renderReport(r.ok ? r.report : (r.error || "Ошибка"));
+};
+$("btn-heal-report").onclick = async () => {
+  const r = await api("POST", "/heal", { mode: "report" }, true);
+  $("health-out").innerHTML = renderReport(r.ok ? r.report : (r.error || "Ошибка"));
+};
+$("btn-heal-apply").onclick = async () => {
+  if (!confirm("Применить безопасные авто-фиксы (битые ссылки, дубли-сироты, stale)?")) return;
+  const r = await api("POST", "/heal", { mode: "apply-safe" }, true);
+  $("health-out").innerHTML = renderReport(r.ok ? r.report : (r.error || "Ошибка"));
+  loadItems(false); loadOverview();
+};
+
+function fld(path, label, type, help, opts) { return { path, label, type, help: help || "", opts: opts || {} }; }
+const WEIGHT_FIELDS = [
+  ["rel", "Релевантность", "Вес совпадения с текстом запроса."],
+  ["age", "Свежесть", "Вес недавно обновлённых записей."],
+  ["imp", "Важность", "Вес поля importance (1–5)."],
+  ["acc", "Использования", "Вес числа попаданий в выдачу (accessCount)."],
+  ["conf", "Уверенность", "Вес confidence записи."],
+  ["consolidation", "Зрелость", "Вес уровня консолидации (raw→procedural)."],
+  ["tier", "Жёсткость", "Вес tier (normal/important/immutable)."],
+  ["kind", "Категория", "Вес совпадения категории с запросом."],
+  ["scope", "Scope", "Вес приоритета scope (project/global)."],
+].map(w => fld("memory.weights." + w[0], w[1], "number", w[2], { step: 0.05, min: 0 }));
+const CFG_GROUPS = [
+  { title: "Общее", fields: [
+    fld("enabled", "Плагин включён", "bool", "Полностью включает долгосрочную память: автоинъекцию и инструменты."),
+  ] },
+  { title: "Веб-панель", fields: [
+    fld("web.enabled", "Веб-панель включена", "bool", "Локальный дашборд на 127.0.0.1. Изменение поля применится после перезапуска Kilo."),
+    fld("web.host", "Адрес прослушивания", "text", "Лучше оставить 127.0.0.1 — доступ только с этой машины."),
+    fld("web.port", "Порт", "number", "Порт панели. Смена порта — после перезапуска Kilo.", { min: 0, max: 65535 }),
+  ] },
+  { title: "Инъекция в контекст", fields: [
+    fld("memory.injectTopRules", "Записей правил/предпочтений", "number", "Сколько базовых записей правил и предпочтений добавлять в системный промпт.", { min: 0 }),
+    fld("memory.injectRelevant", "Релевантных записей", "number", "Сколько записей, релевантных текущему запросу, добавлять в контекст.", { min: 0 }),
+    fld("memory.maxInjectionChars", "Лимит символов блока", "number", "Бюджет символов блока памяти в промпте.", { min: 0 }),
+    fld("memory.recencyHalfLifeDays", "Полураспад актуальности, дней", "number", "Через столько дней вес свежести записи падает вдвое.", { min: 1 }),
+    fld("memory.digestEnabled", "Писать сырые дайджесты (raw/)", "bool", "Сохранять переписку сессий в raw/ — для последующей кристаллизации."),
+    fld("memory.digestScope", "Куда писать дайджесты", "select", "auto — по теме сессии; global/project — жёстко в один уровень.", { options: [["auto", "авто (по теме)"], ["global", "глобально"], ["project", "проект"]] }),
+  ] },
+  { title: "Уверенность", fields: [
+    fld("memory.confidenceMin", "Минимальная уверенность", "number", "Ниже этого порога запись — кандидат на архивацию/забывание.", { step: 0.05, min: 0, max: 1 }),
+    fld("memory.confidenceBoostAmount", "Прирост при использовании", "number", "Насколько растёт confidence, когда запись попадает в выдачу.", { step: 0.01, min: 0 }),
+    fld("memory.confidenceConflictPenalty", "Штраф при конфликте", "number", "Насколько падает confidence при пересечении с новой записью.", { step: 0.01, min: 0 }),
+    fld("memory.confidenceDecayHalfLifeDays", "Полураспад уверенности, дней", "number", "Период авто-снижения confidence к минимальному порогу.", { min: 1 }),
+  ] },
+  { title: "Поиск и формат вывода", fields: [
+    fld("memory.useBM25", "BM25 + RRF", "bool", "Гибридный поиск: полнотекстовый BM25 (FTS5) со слиянием RRF."),
+    fld("memory.rrfK", "Сглаживание RRF (k)", "number", "Константа Reciprocal Rank Fusion, обычно 60.", { min: 1 }),
+    fld("memory.defaultRecallFormat", "Формат вывода по умолчанию", "select", "Формат выдачи памяти, если агент не задал его явно.", { options: [["markdown", "markdown"], ["table", "таблица"], ["timeline", "хронология"], ["json", "JSON"]] }),
+  ] },
+  { title: "Консолидация знаний", fields: [
+    fld("memory.consolidationDefault", "Стартовый уровень новых записей", "select", "Эпизодический — сводка сессии; raw — сырая заметка.", { options: [["episodic", "эпизодический (episodic)"], ["raw", "сырой (raw)"]] }),
+    fld("memory.promoteConfidence", "Порог уверенности для повышения", "number", "С этой уверенности возможен рост уровня зрелости записи.", { step: 0.05, min: 0, max: 1 }),
+    fld("memory.promoteHits", "Порог использований для промоуции", "number", "Столько попаданий в выдачу нужно для роста уровня.", { min: 1 }),
+  ] },
+  { title: "Самолечение", fields: [
+    fld("memory.selfHealEnabled", "Самолечение включено", "bool", "Поиск и безопасное исправление проблем памяти (битые ссылки, дубли, устаревшее)."),
+    fld("memory.selfHealStaleDays", "Устаревание, дней", "number", "После стольких дней без обновления запись считается устаревшей.", { min: 1 }),
+    fld("memory.selfHealMaxAutoFixes", "Лимит авто-исправлений", "number", "Максимум безопасных правок за один прогон self-heal.", { min: 0 }),
+  ] },
+  { title: "Граф знаний", fields: [
+    fld("memory.graphEnabled", "Граф включён", "bool", "Строить граф связей и учитывать связи при поиске."),
+    fld("memory.graphTraverseDepth", "Глубина обхода", "number", "На сколько шагов по рёбрам расширять выдачу.", { min: 0, max: 5 }),
+    fld("memory.graphBoost", "Вес связанных записей", "number", "Насколько усиливать соседей по графу при ранжировании.", { step: 0.05, min: 0 }),
+  ] },
+  { title: "Кристаллизация", fields: [
+    fld("memory.crystallizationEnabled", "Кристаллизация включена", "bool", "Формировать сводку значимых записей при компактировании сессии."),
+  ] },
+  { title: "Линт (аудит)", fields: [
+    fld("memory.lintOverlapMinCommonWords", "Порог значимых общих слов", "number", "Минимум значимых (редких) общих слов, чтобы пара считалась пересекающейся. Частые служебные и обще-доменные слова не учитываются.", { min: 1 }),
+    fld("memory.lintOverlapMinScore", "Порог перекрытия (0..1)", "number", "Минимальное idf-перекрытие значимых слов. 0.45 — максимально строго (остаются почти только реальные пересечения).", { step: 0.05, min: 0, max: 1 }),
+    fld("memory.lintMaxPairs", "Лимит пар пересечений", "number", "Сколько пар показывать (0 — без ограничения).", { min: 0 }),
+  ] },
+  { title: "Веса ранжирования", fields: WEIGHT_FIELDS },
+];
+function getPath(obj, path) { return path.split(".").reduce((o, k) => (o ? o[k] : undefined), obj); }
+function fieldHtml(fld, cfg) {
+  const v = getPath(cfg, fld.path);
+  const help = fld.help ? '<span class="help">' + esc(fld.help) + "</span>" : "";
+  if (fld.type === "bool") {
+    return '<label class="field check"><input type="checkbox" data-cfg="' + fld.path + '"' + (v ? " checked" : "") + '><span class="txt"><span class="lbl">' + esc(fld.label) + "</span>" + help + "</span></label>";
+  }
+  if (fld.type === "select") {
+    const options = (fld.opts.options || []).map(o => '<option value="' + esc(o[0]) + '"' + (String(v) === String(o[0]) ? " selected" : "") + ">" + esc(o[1]) + "</option>").join("");
+    return '<label class="field"><span class="lbl">' + esc(fld.label) + '</span><select data-cfg="' + fld.path + '">' + options + "</select>" + help + "</label>";
+  }
+  let attrs = ' type="text"';
+  if (fld.type === "number") {
+    attrs = ' type="number"';
+    if (fld.opts.min !== undefined) attrs += ' min="' + fld.opts.min + '"';
+    if (fld.opts.max !== undefined) attrs += ' max="' + fld.opts.max + '"';
+    if (fld.opts.step !== undefined) attrs += ' step="' + fld.opts.step + '"';
+  }
+  return '<label class="field"><span class="lbl">' + esc(fld.label) + '</span><input data-cfg="' + fld.path + '"' + attrs + ' value="' + esc(v) + '">' + help + "</label>";
+}
+async function loadConfig() {
+  const r = await api("GET", "/config");
+  if (!r.ok) { toast(r.error || "Ошибка конфига", true); return; }
+  const cfg = r.config;
+  $("cfg-body").innerHTML = CFG_GROUPS.map(gr =>
+    '<div class="cfg-group"><h4>' + esc(gr.title) + '</h4><div class="cfg-grid">' + gr.fields.map(fl => fieldHtml(fl, cfg)).join("") + "</div></div>"
+  ).join("");
+}
+$("btn-cfg-load").onclick = loadConfig;
+$("btn-cfg-save").onclick = async () => {
+  const body = {};
+  document.querySelectorAll("[data-cfg]").forEach(el => {
+    const path = el.dataset.cfg.split(".");
+    const val = el.type === "checkbox" ? el.checked : (el.type === "number" ? Number(el.value) : el.value);
+    let node = body;
+    for (let i = 0; i < path.length - 1; i++) {
+      if (!node[path[i]] || typeof node[path[i]] !== "object") node[path[i]] = {};
+      node = node[path[i]];
+    }
+    node[path[path.length - 1]] = val;
+  });
+  const r = await api("PUT", "/config", body);
+  toast(r.ok ? "Настройки сохранены и применены" : (r.error || "Ошибка"), !r.ok);
+  if (r.ok) loadConfig();
+};
+
+(async function init() {
+  applyTheme();
+  $("pager-size").value = String(itemsLimit);
+  await loadHealthHeader();
+  await loadProjects();
+  await loadOverview();
+  await loadConfig();
+  await loadItems(true);
+})();
+</script>
+</body>
+</html>

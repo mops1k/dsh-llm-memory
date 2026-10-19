@@ -15,7 +15,8 @@ import {
   verifyBackup,
 } from '@llm-memory/core/infrastructure/backup'
 
-import { embeddedWebBundle } from './web-bundle.js'
+import { embeddedLegacyHtml, embeddedWebBundle } from './web-bundle.js'
+import { handleLegacyApi, type LegacyContext } from './legacy-api.js'
 import type { KiloService } from './service.js'
 import type { KiloMemoryConfig } from './config.js'
 
@@ -23,6 +24,17 @@ export interface KiloWebHandle {
   readonly url: string | null
   readonly disabledReason: string | null
   close(): Promise<void>
+}
+
+function legacyContext(options: { service: KiloService; config: KiloMemoryConfig; saveConfig?: (next: KiloMemoryConfig) => void }): LegacyContext {
+  return { service: options.service, config: options.config, ...(options.saveConfig ? { saveConfig: options.saveConfig } : {}) }
+}
+
+/** The original dashboard, with its API calls pointed at the compatibility routes. */
+function legacyPage(): string {
+  const html = embeddedLegacyHtml()
+  if (!html) return PAGE
+  return html.replaceAll('"/api" + path', '"/api/legacy" + path')
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -91,7 +103,12 @@ export async function startKiloWebServer(options: {
   const server: Server = createServer((req, res) => {
     try {
       const url = new URL(req.url ?? '/', `http://${host}`)
-      if (req.method === 'GET' && url.pathname === '/') return html(res, PAGE)
+      if (req.method === 'GET' && url.pathname === '/') return html(res, legacyPage())
+      if (url.pathname.startsWith('/api/legacy/')) {
+        const legacyPath = url.pathname.slice('/api/legacy'.length)
+        void handleLegacyApi(req, legacyPath, url.searchParams, legacyContext(options), (status, body) => json(res, status, body))
+        return
+      }
       if (req.method === 'GET' && url.pathname === '/web.js') {
         const bundle = readBundle()
         if (!bundle) return json(res, 404, { error: 'web bundle is not built' })

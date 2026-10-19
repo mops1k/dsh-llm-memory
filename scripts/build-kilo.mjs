@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 const entry = fileURLToPath(new URL('../packages/adapter/src/kilo/plugin.ts', import.meta.url))
 const outfile = fileURLToPath(new URL('../packages/adapter/lib/kilo.js', import.meta.url))
 const webBundle = readFileSync(fileURLToPath(new URL('../packages/ui/lib/web.js', import.meta.url)), 'utf8')
+const legacyHtml = readFileSync(fileURLToPath(new URL('../packages/adapter/src/kilo/web-ui.legacy.html', import.meta.url)), 'utf8')
 
 await build({
   entryPoints: [entry],
@@ -19,6 +20,9 @@ await build({
   target: ['node22'],
   sourcemap: true,
   logLevel: 'info',
-  define: { __LLM_MEMORY_WEB_BUNDLE__: JSON.stringify(webBundle) },
+  define: {
+    __LLM_MEMORY_WEB_BUNDLE__: JSON.stringify(webBundle),
+    __LLM_MEMORY_LEGACY_HTML__: JSON.stringify(legacyHtml),
+  },
 })
 console.log(`[llm-memory] kilo bundle -> ${outfile}`)

@@ -1,0 +1,203 @@
+/**
+ * Compatibility layer for the original kilo-memory dashboard (`web-ui.html`).
+ * It exposes the old `/api/*` surface over the new KiloService, so the familiar
+ * panel design keeps working on the unified core.
+ */
+import { writeFileSync } from 'node:fs'
+
+import { selfHeal } from '@llm-memory/core/application/maintenance'
+import { clampImportance, type MemoryEntry, type MemoryFilter } from '@llm-memory/core/domain/types'
+import { writeItemPage } from '@llm-memory/core/application/wiki'
+
+import type { KiloService } from './service.js'
+import type { KiloMemoryConfig } from './config.js'
+
+type Json = Record<string, unknown>
+
+export interface LegacyContext {
+  service: KiloService
+  config: KiloMemoryConfig
+  saveConfig?: (next: KiloMemoryConfig) => void
+}
+
+function listFilter(params: URLSearchParams): MemoryFilter {
+  const filter: MemoryFilter = { limit: 1000 }
+  for (const key of ['scope', 'kind', 'tier', 'status'] as const) {
+    const value = params.get(key)
+    if (value && value !== 'all') filter[key] = value as never
+  }
+  const limit = Number(params.get('limit'))
+  if (Number.isFinite(limit) && limit > 0) filter.limit = Math.min(limit, 5000)
+  const offset = Number(params.get('offset'))
+  if (Number.isFinite(offset) && offset > 0) filter.offset = Math.floor(offset)
+  const sort = params.get('sort')
+  if (sort === 'created' || sort === 'importance' || sort === 'updated') filter.sort = sort
+  return filter
+}
+
+function toItem(entry: MemoryEntry): Json {
+  return {
+    id: entry.id,
+    title: entry.title,
+    content: entry.text,
+    kind: entry.kind,
+    tier: entry.tier,
+    status: entry.status,
+    scope: entry.scope,
+    project: entry.project || undefined,
+    importance: entry.importance,
+    confidence: entry.confidence,
+    keywords: entry.keywords,
+    tags: entry.tags,
+    consolidation: entry.consolidation,
+    supersedes: entry.supersedes,
+    supersededBy: entry.supersededBy,
+    related: entry.related,
+    accessCount: entry.accessCount,
+    lastAccess: entry.lastAccess,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+  }
+}
+
+async function readJson(req: import('node:http').IncomingMessage): Promise<Json> {
+  const chunks: Buffer[] = []
+  for await (const chunk of req) chunks.push(Buffer.from(chunk))
+  const raw = Buffer.concat(chunks).toString('utf8')
+  if (raw.trim().length === 0) return {}
+  return JSON.parse(raw) as Json
+}
+
+function saveInput(body: Json): Parameters<KiloService['save']>[0] {
+  const text = String(body.text ?? body.content ?? '').trim()
+  return {
+    text,
+    ...(typeof body.title === 'string' ? { title: body.title } : {}),
+    ...(typeof body.kind === 'string' ? { kind: body.kind as never } : {}),
+    ...(typeof body.tier === 'string' ? { tier: body.tier as never } : {}),
+    ...(body.scope === 'project' ? { scope: 'project' as const } : { scope: 'user' as const }),
+    ...(typeof body.importance === 'number' ? { importance: body.importance } : {}),
+    ...(Array.isArray(body.tags) ? { tags: body.tags.map(String) } : {}),
+    ...(typeof body.keywords === 'string' ? { keywords: body.keywords } : {}),
+  }
+}
+
+function updatePatch(body: Json): Partial<MemoryEntry> {
+  const patch: Partial<MemoryEntry> = {}
+  if (typeof body.title === 'string') patch.title = body.title
+  if (typeof body.content === 'string') patch.text = body.content
+  if (typeof body.text === 'string') patch.text = body.text
+  if (typeof body.kind === 'string') patch.kind = body.kind as MemoryEntry['kind']
+  if (typeof body.tier === 'string') patch.tier = body.tier as MemoryEntry['tier']
+  if (typeof body.status === 'string') patch.status = body.status as MemoryEntry['status']
+  if (typeof body.importance === 'number') patch.importance = clampImportance(body.importance)
+  if (typeof body.confidence === 'number') patch.confidence = body.confidence
+  if (typeof body.keywords === 'string') patch.keywords = body.keywords
+  if (Array.isArray(body.tags)) patch.tags = body.tags.map(String)
+  if (Array.isArray(body.related)) patch.related = body.related.map(String)
+  if (typeof body.consolidation === 'string') patch.consolidation = body.consolidation as MemoryEntry['consolidation']
+  return patch
+}
+
+/** Handle one legacy API request; returns null when the path is not ours. */
+export async function handleLegacyApi(
+  req: import('node:http').IncomingMessage,
+  path: string,
+  params: URLSearchParams,
+  ctx: LegacyContext,
+  json: (status: number, body: unknown) => void,
+): Promise<boolean> {
+  const method = (req.method ?? 'GET').toUpperCase()
+  const { service, config } = ctx
+
+  if (path === '/health') {
+    json(200, { ok: true, projectRoot: service.store.root, enabled: config.enabled, projects: Object.keys(service.store.projectRoots()), ts: new Date().toISOString() })
+    return true
+  }
+  if (path === '/status') {
+    json(200, { ok: true, status: service.status() })
+    return true
+  }
+  if (path === '/projects') {
+    json(200, { ok: true, projects: Object.entries(service.store.projectRoots()).map(([key, root]) => ({ key, root })) })
+    return true
+  }
+  if (path === '/config') {
+    if (method === 'GET') json(200, { ok: true, config })
+    else {
+      const body = await readJson(req)
+      const next = { ...config, ...body, memory: { ...config.memory, ...(body.memory as Json | undefined) }, web: { ...config.web, ...(body.web as Json | undefined) } } as KiloMemoryConfig
+      ctx.saveConfig?.(next)
+      json(200, { ok: true, config: next })
+    }
+    return true
+  }
+  if (path === '/items' && method === 'GET') {
+    const filter = listFilter(params)
+    const q = (params.get('q') ?? params.get('query') ?? '').trim()
+    const result = q.length > 0 ? { items: service.store.search(q, filter), total: 0 } : service.store.list(filter)
+    json(200, { ok: true, total: result.total || result.items.length, items: result.items.map(toItem) })
+    return true
+  }
+  if (path === '/items' && method === 'POST') {
+    const entry = service.save(saveInput(await readJson(req)))
+    json(200, { ok: true, message: 'Сохранено.', item: toItem(entry) })
+    return true
+  }
+  const match = path.match(/^\/items\/([^/]+)(\/forget)?$/)
+  if (match) {
+    const id = decodeURIComponent(match[1] ?? '')
+    const entry = service.store.get(id)
+    if (!entry) {
+      json(404, { ok: false, error: 'Запись не найдена.' })
+      return true
+    }
+    if (match[2] === '/forget' && method === 'POST') {
+      service.forget(id)
+      json(200, { ok: true })
+      return true
+    }
+    if (method === 'GET') {
+      json(200, { ok: true, item: toItem(entry) })
+      return true
+    }
+    if (method === 'PUT' || method === 'PATCH') {
+      const next: MemoryEntry = { ...entry, ...updatePatch(await readJson(req)), updatedAt: new Date().toISOString() }
+      service.store.upsert(next)
+      writeItemPage(service.store.root, next, next.scope === 'project' ? next.project : null, '.kilo/memory')
+      json(200, { ok: true, item: toItem(next) })
+      return true
+    }
+    if (method === 'DELETE') {
+      const deleted = service.delete(id)
+      json(deleted ? 200 : 404, { ok: deleted, item: undefined })
+      return true
+    }
+  }
+  if (path === '/graph') {
+    json(200, { ok: true, ...service.graph() })
+    return true
+  }
+  if (path === '/lint') {
+    json(200, { ok: true, report: service.lint() })
+    return true
+  }
+  if (path === '/heal') {
+    const body = await readJson(req)
+    const mode = body['mode'] === 'apply-safe' ? 'apply-safe' : 'report'
+    const report = selfHeal(service.store.list({ limit: 1_000_000 }).items, mode)
+    for (const entry of report.items) {
+      if (mode === 'apply-safe') {
+        service.store.upsert(entry)
+        writeItemPage(service.store.root, entry, entry.scope === 'project' ? entry.project : null, '.kilo/memory')
+      }
+    }
+    json(200, { ok: true, mode, report })
+    return true
+  }
+  return false
+}
+
+export function persistConfig(configPath: string) {
+  return (next: KiloMemoryConfig): void => writeFileSync(configPath, JSON.stringify(next, null, 2), 'utf8')
+}
