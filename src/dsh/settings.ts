@@ -263,6 +263,7 @@ export const MemorySettingsSchema = z.object({
   backupDir: z
     .string()
     .default(DEFAULT_CONFIG.backupDir)
+    .volatile()
     .description('Directory for manual .llmmem backups (empty = <storageRoot>/backups).'),
 })
 
