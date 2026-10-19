@@ -1,8 +1,11 @@
 {
   "name": "@llm-memory/adapter",
-  "version": "0.0.0",
+  "version": "1.4.0",
   "private": true,
   "type": "module",
-  "main": "src/index.ts",
-  "exports": { ".": "./src/index.ts" }
+  "main": "./src/kilo/plugin.ts",
+  "exports": {
+    "./kilo": "./src/kilo/plugin.ts",
+    "./kilo/*": "./src/kilo/*.ts"
+  }
 }

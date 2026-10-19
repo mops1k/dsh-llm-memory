@@ -18,6 +18,7 @@ export interface KiloMemoryConfig {
     recallTextChars: number
     /** Kilo consolidation/reinforcement behaviour stays on by default. */
     consolidateOnCompact: boolean
+    crystallizeOnCompact: boolean
   }
   web: {
     enabled: boolean
@@ -36,6 +37,7 @@ export const DEFAULT_KILO_CONFIG: KiloMemoryConfig = {
     recallScope: 'all',
     recallTextChars: 600,
     consolidateOnCompact: true,
+    crystallizeOnCompact: true,
   },
   web: { enabled: true, host: '127.0.0.1', port: 8787 },
 }

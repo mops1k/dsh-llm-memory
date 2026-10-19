@@ -2,7 +2,7 @@
  * Kilo memory service on top of the shared core: storage, ranking, wiki pages,
  * maintenance and graph. The adapter stays thin — all logic lives in core.
  */
-import { consolidate, reinforce, selfHeal, DEFAULT_MAINTENANCE } from '@llm-memory/core/application/maintenance'
+import { consolidate, crystallize as crystallizeEntries, reinforce, selfHeal, DEFAULT_MAINTENANCE } from '@llm-memory/core/application/maintenance'
 import { DEFAULT_RANKING, KILO_RANKING_WEIGHTS, rankItems } from '@llm-memory/core/application/ranking'
 import { buildGraph, deleteItemPage, initMemoryRoot, writeItemPage } from '@llm-memory/core/application/wiki'
 import { entryFromKiloRow, entryToKiloRow } from '@llm-memory/core/domain/mapping'
@@ -11,6 +11,9 @@ import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/sto
 import { entryPathFor } from '@llm-memory/core/layout/paths'
 import { createKiloLayout, type LayoutPort } from '@llm-memory/core/layout/index'
 import { createIsolation } from '@llm-memory/core/isolation/index'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import type { KiloMemoryConfig } from './config.js'
 
 const KILO_PROJECT_DIR = '.kilo/memory'
@@ -191,6 +194,18 @@ export class KiloService {
       writeItemPage(this.store.root, entry, entry.scope === 'project' ? entry.project : null, KILO_PROJECT_DIR)
     }
     return items.length
+  }
+
+  /** Strip a session id down to a safe filename (Kilo wrote the same names). */
+  crystallize(sessionId: string): { path: string; markdown: string } {
+    const result = crystallizeEntries(this.store.list({ limit: 1_000_000 }).items, sessionId)
+    if (result.disabled) return { path: '', markdown: '' }
+    const dir = join(this.layout.userRoot(), 'raw')
+    mkdirSync(dir, { recursive: true })
+    const name = (sessionId || 'session').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120)
+    const path = join(dir, `crystallize-${name}.md`)
+    writeFileSync(path, result.markdown, 'utf8')
+    return { path, markdown: result.markdown }
   }
 
   close(): void {

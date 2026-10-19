@@ -22,6 +22,18 @@ export interface KiloTool {
   execute(args: Record<string, unknown>): Promise<string>
 }
 
+/** Shape of the Kilo `tool()` helper and its `schema` factory (subset we use). */
+export interface KiloMemoryToolsSdk {
+  (definition: { description: string; args: Record<string, unknown>; execute: (args: Record<string, unknown>) => Promise<string> }): unknown
+  schema: {
+    string(): unknown
+    number(): unknown
+    boolean(): unknown
+    array(inner: unknown): unknown
+    enum(values: string[]): unknown
+  }
+}
+
 export const KILO_TOOL_NAMES = [
   'llm_memory_recall',
   'llm_memory_save',

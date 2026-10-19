@@ -61,7 +61,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -b && node scripts/build-ui.mjs && node scripts/copy-client.mjs",
+    "build": "tsc -b && node scripts/build-ui.mjs && node scripts/build-kilo.mjs && node scripts/copy-client.mjs",
     "typecheck": "tsc -b",
     "lint": "oxlint src tests client scripts packages",
     "test": "vitest run",

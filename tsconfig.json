@@ -22,6 +22,6 @@
       "@llm-memory/testkit": ["./packages/testkit/src/index.ts"]
     }
   },
-  "references": [{ "path": "./packages/core" }],
+  "references": [{ "path": "./packages/core" }, { "path": "./packages/adapter" }],
   "include": ["src/**/*.ts"]
 }
