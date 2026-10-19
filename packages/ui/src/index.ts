@@ -1,2 +1,3 @@
-/** @llm-memory/ui — наполняется на этапах 1–8. */
-export const PACKAGE = "@llm-memory/ui"
+/** @llm-memory/ui — shared UI code: headless logic, web screens and themes. */
+export * from './headless/index.js'
+export * from './theme/tokens.js'

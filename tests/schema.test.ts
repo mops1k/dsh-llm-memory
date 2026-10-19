@@ -72,10 +72,13 @@ describe('schema v2 migration', () => {
   it('migrates a copy of the live Kilo store without losing records', () => {
     const live = '/mnt/c/Users/Kvintilyanov/.config/kilo/memory/db/memory.db'
     if (!existsSync(live)) return // host without the Windows mount
+    const source = new DatabaseSync(live, { readOnly: true })
+    const expected = source.prepare("SELECT COUNT(*) AS entries, SUM(status='active') AS active FROM memories").get()
+    source.close()
     const path = tempDb(live)
     const { first, second, counts: after } = migrate(path)
     expect(first.addedColumns.length).toBe(SCHEMA_V2_COLUMNS.length)
     expect(second.addedColumns).toEqual([])
-    expect(after).toEqual({ entries: 351, active: 301 })
+    expect(after).toEqual(expected)
   })
 })

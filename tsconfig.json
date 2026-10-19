@@ -17,6 +17,7 @@
     "noUncheckedIndexedAccess": true,
     "paths": {
       "@llm-memory/adapter/*": ["./packages/adapter/src/*"],
+      "@llm-memory/ui": ["./packages/ui/src/index.ts"],
       "@llm-memory/ui/*": ["./packages/ui/src/*"],
       "@llm-memory/testkit": ["./packages/testkit/src/index.ts"]
     }
