@@ -49,8 +49,32 @@ export function createDshBridge(options: DshBridgeOptions): DshBridge {
         return engine.forget(String(payload['id'] ?? ''))
       case 'delete':
         return engine.delete(String(payload['id'] ?? ''))
-      case 'lint':
-        return engine.lintReport()
+      case 'lint': {
+        const report = engine.lintReport()
+        const issues = [
+          ...report.brokenLinks.map(link => ({
+            entryId: link.id,
+            message: `broken ${link.field} link: ${link.missingId} ("${link.title}")`,
+            severity: 'warning' as const,
+          })),
+          ...report.overlaps.map(pair => ({
+            entryId: pair.a,
+            message: `overlap with "${pair.bTitle}" (${Math.round(pair.score * 100)}%)`,
+            severity: 'info' as const,
+          })),
+          ...report.stale.map(item => ({
+            entryId: item.id,
+            message: `stale since ${item.updatedAt} ("${item.title}")`,
+            severity: 'info' as const,
+          })),
+          ...(report.duplicates ?? []).map(item => ({
+            entryId: item.id,
+            message: `near-duplicate of "${item.duplicateTitle}"`,
+            severity: 'info' as const,
+          })),
+        ]
+        return { ...report, issues }
+      }
       case 'graph':
         return engine.graph()
       case 'health':
