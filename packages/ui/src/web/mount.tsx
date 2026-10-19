@@ -6,7 +6,8 @@ import type { UiHost } from '../headless/host.js'
 import { createTranslator } from '../headless/i18n.js'
 import { graphVm, healthVm, itemsVm, lintVm, settingsVm, statusVm } from '../headless/viewmodels.js'
 import { MemoryApp, type ScreenData } from './app.js'
-import { styleSheet } from './styles.js'
+import { SettingsScreen } from './screens.js'
+import { styleSheet, themeVars } from './styles.js'
 
 export async function collectScreenData(host: UiHost): Promise<ScreenData> {
   const t = createTranslator(host.locale())
@@ -37,6 +38,20 @@ function injectStyles(): void {
   style.id = id
   style.textContent = styleSheet()
   document.head.append(style)
+}
+
+/** Settings-only surface for harnesses that have a native settings page (DSH). */
+export async function mountSettings(target: HTMLElement, host: UiHost): Promise<void> {
+  injectStyles()
+  const t = createTranslator(host.locale())
+  const raw = await host.request<Record<string, string | number | boolean>>('settings.get')
+  createRoot(target).render(
+    React.createElement(
+      'div',
+      { className: 'lm-app', 'data-host': host.kind, style: themeVars(host.theme()) as unknown as React.CSSProperties },
+      React.createElement(SettingsScreen, { vm: settingsVm(raw, t), t }),
+    ),
+  )
 }
 
 export function mount(target: HTMLElement, host: UiHost): Promise<void> {

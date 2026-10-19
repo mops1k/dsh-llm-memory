@@ -65,14 +65,14 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function Panel(ctx) {
+    function Panel(ctx, view) {
       const base = resolveBase(ctx)
       const ref = React.useRef(null)
       React.useEffect(() => {
         let cancelled = false
         const node = ref.current
         import(base + '/ui/web-ui.js')
-          .then(mod => { if (!cancelled && node) mod.mount(node, makeHost(base)) })
+          .then(mod => { if (!cancelled && node) (view === 'settings' ? mod.mountSettings : mod.mount)(node, makeHost(base)) })
           .catch(error => { if (node) node.textContent = 'LLM Memory UI failed to load: ' + String(error) })
         return () => { cancelled = true }
       }, [base])
@@ -82,11 +82,11 @@ window.__ModuleLoader__.load({
     let scope = null
 
     function MemoryView() {
-      return Panel(scope)
+      return Panel(scope, 'conversation')
     }
 
     function SettingsCard() {
-      return Panel(scope)
+      return Panel(scope, 'settings')
     }
 
     function apply(ctx) {
