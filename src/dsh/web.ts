@@ -526,7 +526,11 @@ export function createWebHandler(
       const input = { archive: asString(body.archive), name: asString(body.name), confirm: asString(body.confirm) }
       const allowed = ['backup.create', 'backup.list', 'backup.verify', 'backup.restore', 'backup.delete']
       if (!allowed.includes(operation)) throw new HttpError(400, `unsupported backup operation: ${operation}`)
-      sendJson(res, 200, await bridge().request(operation as Parameters<ReturnType<typeof createDshBridge>['request']>[0], input))
+      try {
+        sendJson(res, 200, await bridge().request(operation as Parameters<ReturnType<typeof createDshBridge>['request']>[0], input))
+      } catch (error) {
+        throw new HttpError(400, error instanceof Error ? error.message : String(error))
+      }
       return
     }
     if (rel === '/api/ui') {
