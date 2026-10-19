@@ -27,6 +27,17 @@ export interface KiloMemoryConfig {
     host: string
     port: number
   }
+  /** Vector RAG settings (provider off by default until stage 9 vectors land). */
+  embeddings: {
+    provider: 'off' | 'local'
+    model: string
+    dim: number
+    topK: number
+    minScore: number
+    chunkChars: number
+    chunkOverlap: number
+    prewarm: boolean
+  }
 }
 
 export const DEFAULT_KILO_CONFIG: KiloMemoryConfig = {
@@ -43,6 +54,16 @@ export const DEFAULT_KILO_CONFIG: KiloMemoryConfig = {
     backupDir: '',
   },
   web: { enabled: true, host: '127.0.0.1', port: 8787 },
+  embeddings: {
+    provider: 'off',
+    model: 'multilingual-e5-small',
+    dim: 384,
+    topK: 8,
+    minScore: 0.2,
+    chunkChars: 800,
+    chunkOverlap: 120,
+    prewarm: false,
+  },
 }
 
 function mergeSection<T extends object>(base: T, raw: unknown): T {
@@ -63,5 +84,6 @@ export function resolveKiloConfig(raw: unknown): KiloMemoryConfig {
     ...input,
     memory: mergeSection(DEFAULT_KILO_CONFIG.memory, input.memory),
     web: mergeSection(DEFAULT_KILO_CONFIG.web, input.web),
+    embeddings: mergeSection(DEFAULT_KILO_CONFIG.embeddings, input.embeddings),
   }
 }

@@ -126,7 +126,7 @@ export async function handleLegacyApi(
     if (method === 'GET') json(200, { ok: true, config })
     else {
       const body = await readJson(req)
-      const next = { ...config, ...body, memory: { ...config.memory, ...(body.memory as Json | undefined) }, web: { ...config.web, ...(body.web as Json | undefined) } } as KiloMemoryConfig
+      const next = { ...config, ...body, memory: { ...config.memory, ...(body.memory as Json | undefined) }, web: { ...config.web, ...(body.web as Json | undefined) }, embeddings: { ...config.embeddings, ...(body.embeddings as Json | undefined) } } as KiloMemoryConfig
       ctx.saveConfig?.(next)
       json(200, { ok: true, config: next })
     }
@@ -179,20 +179,45 @@ export async function handleLegacyApi(
     return true
   }
   if (path === '/lint') {
-    json(200, { ok: true, report: service.lint() })
+    // The legacy page renders a markdown string, not a report object.
+    const items = service.store.list({ limit: 1_000_000 }).items
+    const active = items.filter(item => item.status === 'active')
+    const ids = new Set(items.map(item => item.id))
+    const broken: string[] = []
+    for (const item of active) {
+      for (const field of ['supersedes', 'related', 'supersededBy'] as const) {
+        for (const ref of item[field] ?? []) if (!ids.has(ref)) broken.push(`- **${item.title}** (\`${item.id}\`): ${field} → \`${ref}\``)
+      }
+    }
+    const staleCutoff = Date.now() - 90 * 24 * 60 * 60 * 1000
+    const stale = active.filter(item => Date.parse(item.updatedAt) < staleCutoff)
+    const marks = [
+      '## Сводка',
+      `- всего записей: **${items.length}**, активных: **${active.length}**`,
+      `- битых ссылок: **${broken.length}**, устаревших (>90 дней): **${stale.length}**`,
+    ]
+    if (broken.length > 0) marks.push('', '## Битые ссылки', ...broken)
+    if (stale.length > 0) marks.push('', '## Устаревшие', ...stale.map(item => `- **${item.title}** — обновлено ${item.updatedAt}`))
+    json(200, { ok: true, report: marks.join('\n') })
     return true
   }
   if (path === '/heal') {
     const body = await readJson(req)
     const mode = body['mode'] === 'apply-safe' ? 'apply-safe' : 'report'
-    const report = selfHeal(service.store.list({ limit: 1_000_000 }).items, mode)
-    for (const entry of report.items) {
-      if (mode === 'apply-safe') {
+    const result = selfHeal(service.store.list({ limit: 1_000_000 }).items, mode)
+    if (mode === 'apply-safe') {
+      for (const entry of result.items) {
         service.store.upsert(entry)
         writeItemPage(service.store.root, entry, entry.scope === 'project' ? entry.project : null, '.kilo/memory')
       }
     }
-    json(200, { ok: true, mode, report })
+    const fixed = result.issues.filter(issue => issue.fixed).length
+    const lines = [
+      `## Оздоровление (${mode === 'apply-safe' ? 'применено' : 'отчёт'})`,
+      `- найдено проблем: **${result.issues.length}**, исправлено: **${fixed}**`,
+      ...result.issues.map(issue => `- ${issue.kind}: \`${issue.entryId}\` — ${issue.detail}${issue.fixed ? ' *(исправлено)*' : ''}`),
+    ]
+    json(200, { ok: true, mode, report: lines.join('\n') })
     return true
   }
   return false

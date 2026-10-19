@@ -980,6 +980,16 @@ const CFG_GROUPS = [
     fld("memory.lintOverlapMinScore", "Порог перекрытия (0..1)", "number", "Минимальное idf-перекрытие значимых слов. 0.45 — максимально строго (остаются почти только реальные пересечения).", { step: 0.05, min: 0, max: 1 }),
     fld("memory.lintMaxPairs", "Лимит пар пересечений", "number", "Сколько пар показывать (0 — без ограничения).", { min: 0 }),
   ] },
+  { title: "RAG (векторный поиск)", fields: [
+    fld("embeddings.provider", "Провайдер эмбеддингов", "select", "off — лексический поиск; local — локальная модель (включается на этапе векторов).", { options: [["off", "off (лексический)"], ["local", "local"]] }),
+    fld("embeddings.model", "Модель", "text", "Имя локальной модели эмбеддингов."),
+    fld("embeddings.dim", "Размерность", "number", "Размерность вектора модели.", { min: 1 }),
+    fld("embeddings.topK", "Соседей в recall", "number", "Сколько ближайших записей добавлять к лексическим результатам.", { min: 1, max: 50 }),
+    fld("embeddings.minScore", "Минимальная близость", "number", "Порог косинусной близости (0..1).", { step: 0.05, min: 0, max: 1 }),
+    fld("embeddings.chunkChars", "Размер чанка (символы)", "number", "Длина фрагмента записи для индексации.", { min: 200, max: 8000, step: 50 }),
+    fld("embeddings.chunkOverlap", "Перекрытие чанков", "number", "Сколько символов соседние чанки делят.", { min: 0, max: 4000, step: 10 }),
+    fld("embeddings.prewarm", "Загружать модель при старте", "bool", "Прогрев модели в фоне вместо первого запроса."),
+  ] },
   { title: "Веса ранжирования", fields: WEIGHT_FIELDS },
 ];
 function getPath(obj, path) { return path.split(".").reduce((o, k) => (o ? o[k] : undefined), obj); }
