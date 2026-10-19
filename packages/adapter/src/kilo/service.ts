@@ -196,6 +196,17 @@ export class KiloService {
     return items.length
   }
 
+  /** Paths handed to the shared backup service (ADR-005). */
+  backupTarget(): { storeDir: string; dbPath: string; projectDirs: string[]; backupsDir: string } {
+    const storeDir = this.store.root
+    return {
+      storeDir,
+      dbPath: this.store.dbPath,
+      projectDirs: this.projectRoot ? [join(this.projectRoot, KILO_PROJECT_DIR)] : [],
+      backupsDir: this.config.memory.backupDir || join(storeDir, 'backups'),
+    }
+  }
+
   /** Strip a session id down to a safe filename (Kilo wrote the same names). */
   crystallize(sessionId: string): { path: string; markdown: string } {
     const result = crystallizeEntries(this.store.list({ limit: 1_000_000 }).items, sessionId)

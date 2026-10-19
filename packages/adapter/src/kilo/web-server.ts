@@ -7,6 +7,14 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
+import {
+  createBackup,
+  deleteBackup,
+  listBackups,
+  restoreBackup,
+  verifyBackup,
+} from '@llm-memory/core/infrastructure/backup'
+
 import type { KiloService } from './service.js'
 import type { KiloMemoryConfig } from './config.js'
 
@@ -92,6 +100,7 @@ export async function startKiloWebServer(options: {
         req.on('end', () => {
           try {
             const payload = body ? (JSON.parse(body) as { operation?: string; input?: unknown }) : {}
+            if (operation === 'backup') return json(res, 200, backupOperation(options.service, payload.operation, payload.input))
             const next = mutate(operation, payload.input, options.config)
             if (operation === 'settings' && !('error' in next)) options.saveConfig?.(next)
             return json(res, 200, next)
@@ -128,6 +137,37 @@ export async function startKiloWebServer(options: {
   }
 }
 
+function toSummary(record: { archive: string; createdAt: string; bytes: number; encrypted?: boolean }): Record<string, unknown> {
+  return {
+    name: record.archive.split(/[\\/]/).pop() ?? record.archive,
+    createdAt: record.createdAt,
+    sizeBytes: record.bytes,
+    includesVectors: false,
+    verified: undefined,
+    encrypted: record.encrypted ?? false,
+  }
+}
+
+function backupOperation(service: KiloService, operation: string | undefined, input: unknown): unknown {
+  const target = service.backupTarget()
+  const payload = (input ?? {}) as { archive?: string; name?: string; confirm?: string; passphrase?: string }
+  const archive = payload.archive ?? (payload.name ? join(target.backupsDir, payload.name) : '')
+  switch (operation) {
+    case 'backup.create':
+      return createBackup({ harness: 'kilo', ...target, ...(payload.passphrase ? { passphrase: payload.passphrase } : {}) })
+    case 'backup.list':
+      return listBackups(target.backupsDir, payload.passphrase).map(toSummary)
+    case 'backup.verify':
+      return verifyBackup(archive, payload.passphrase)
+    case 'backup.restore':
+      return restoreBackup({ harness: 'kilo', ...target, archive, confirm: payload.confirm ?? '', ...(payload.passphrase ? { passphrase: payload.passphrase } : {}) })
+    case 'backup.delete':
+      return { deleted: deleteBackup(archive, payload.confirm, target.backupsDir) }
+    default:
+      return { error: `unknown backup operation ${operation ?? ''}` }
+  }
+}
+
 function dataFor(
   service: KiloService,
   operation: string,
@@ -155,7 +195,7 @@ function dataFor(
     case 'settings':
       return config
     case 'backup':
-      return []
+      return listBackups(service.backupTarget().backupsDir).map(toSummary)
     default:
       return { error: `unknown operation ${operation}` }
   }

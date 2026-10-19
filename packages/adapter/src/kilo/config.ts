@@ -19,6 +19,8 @@ export interface KiloMemoryConfig {
     /** Kilo consolidation/reinforcement behaviour stays on by default. */
     consolidateOnCompact: boolean
     crystallizeOnCompact: boolean
+    /** Archive directory; empty means `<store>/backups`. */
+    backupDir: string
   }
   web: {
     enabled: boolean
@@ -38,6 +40,7 @@ export const DEFAULT_KILO_CONFIG: KiloMemoryConfig = {
     recallTextChars: 600,
     consolidateOnCompact: true,
     crystallizeOnCompact: true,
+    backupDir: '',
   },
   web: { enabled: true, host: '127.0.0.1', port: 8787 },
 }
