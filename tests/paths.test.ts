@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { resolveStorageRoot as resolveDshStorageRoot } from '../src/dsh/paths'
 import {
   NO_CWD_KEY,
   USER_DIR,
@@ -34,7 +35,7 @@ describe('paths', () => {
 
   it('resolves the storage root from override, DSH_HOME and home dir', () => {
     process.env['DSH_HOME'] = '/tmp/dsh-home'
-    expect(resolveStorageRoot()).toBe(join('/tmp/dsh-home', 'llm-memory'))
+    expect(resolveDshStorageRoot()).toBe(join('/tmp/dsh-home', 'llm-memory'))
     expect(resolveStorageRoot('/tmp/custom')).toBe('/tmp/custom')
     delete process.env['DSH_HOME']
     expect(resolveStorageRoot()).toContain('.dsh')

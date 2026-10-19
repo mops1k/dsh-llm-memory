@@ -28,9 +28,6 @@ import { dirname, join, resolve, sep } from 'node:path'
 
 import type { MemoryEntry, MemoryScope } from '../domain/types.js'
 
-/** Environment variable holding the dsh home directory. */
-export const DSH_HOME_ENV = 'DSH_HOME'
-
 /** Directory name of the cross-project user layer. */
 export const USER_DIR = '_user'
 
@@ -55,12 +52,13 @@ export const MAX_SLUG_LENGTH = 48
 /** Maximum length of a sanitized project key. */
 export const MAX_PROJECT_KEY_LENGTH = 64
 
-/** Resolve the storage root: explicit override, then `$DSH_HOME`, then `~/.dsh`. */
+/**
+ * Neutral fallback storage root used when a caller passes none. Adapters
+ * resolve their own root (DSH: `src/dsh/paths.ts`, Kilo: its layout).
+ */
 export function resolveStorageRoot(override?: string | null): string {
   const custom = typeof override === 'string' ? override.trim() : ''
   if (custom.length > 0) return resolve(custom)
-  const dshHome = (process.env[DSH_HOME_ENV] ?? '').trim()
-  if (dshHome.length > 0) return resolve(join(dshHome, 'llm-memory'))
   return resolve(join(homedir(), '.dsh', 'llm-memory'))
 }
 

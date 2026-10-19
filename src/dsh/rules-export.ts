@@ -14,7 +14,8 @@ import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import type { MemoryConfig } from '@llm-memory/core/domain/config.js'
-import { DSH_HOME_ENV, readFileIfExists, writeFileAtomic } from '@llm-memory/core/layout/paths.js'
+import { readFileIfExists, writeFileAtomic } from '@llm-memory/core/layout/paths.js'
+import { DSH_HOME_ENV } from './paths.js'
 
 /** Markers delimiting the managed block inside `$DSH_HOME/AGENTS.md`. */
 export const RULES_BLOCK_BEGIN = '<!-- BEGIN llm-memory-kilo-rules -->'

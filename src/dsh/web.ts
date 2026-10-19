@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createDshBridge } from './ui-bridge.js'
-import { resolveStorageRoot } from '@llm-memory/core/layout/paths.js'
+import { resolveStorageRoot } from './paths.js'
 import { listBackups } from '@llm-memory/core/infrastructure/backup'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
