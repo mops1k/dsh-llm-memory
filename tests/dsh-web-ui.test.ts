@@ -62,6 +62,8 @@ describe('DSH headless WebUI', () => {
     expect(page.status).toBe(200)
     expect(page.body).toContain('/ui/web-ui.js')
     expect(page.body).toContain('/api/ui')
+    expect(page.body).toContain("import(base + '/ui/web-ui.js')")
+    expect(page.body).not.toContain("from '/ui/web-ui.js'")
     const bundle = await request('GET', `${base}/ui/web-ui.js`)
     expect(bundle.status).toBe(200)
     expect(bundle.body).toContain('mount')

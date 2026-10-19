@@ -189,7 +189,6 @@ const HEADLESS_UI_HTML = `<!doctype html>
 <style>body{margin:0;font-family:system-ui,sans-serif}</style></head>
 <body><div id="root"></div>
 <script type="module">
-  import { mount } from '/ui/web-ui.js'
   const base = location.pathname.endsWith('/ui') ? location.pathname.slice(0, -3) : location.pathname
   const request = async (operation, input) => {
     const response = await fetch(base + '/api/ui', {
@@ -211,8 +210,14 @@ const HEADLESS_UI_HTML = `<!doctype html>
     }),
     t: key => key,
   }
-  mount(document.getElementById('root'), host)
-</script></body></html>`
+  const root = document.getElementById('root')
+  import(base + '/ui/web-ui.js')
+    .then(mod => mod.mount(root, host))
+    .catch(error => {
+      root.innerHTML = '<pre style="font:14px/1.4 monospace;padding:16px;color:#b00020">UI bundle failed to load: ' +
+        String(error) + ' (expected ' + base + '/ui/web-ui.js)</pre>'
+    })
+  </script></body></html>`
 
 function loadWebBundle(): string | null {
   for (const url of ['../../lib/web-ui.js', '../../packages/ui/lib/web.js']) {
