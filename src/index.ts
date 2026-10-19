@@ -10,7 +10,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 
-import { mergeConfig } from './core/config.js'
+import { mergeConfig } from '@llm-memory/core/config.js'
 import { registerMemoryContext } from './dsh/context.js'
 import { createMemoryRuntime } from './dsh/engine.js'
 import {

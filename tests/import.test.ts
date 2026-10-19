@@ -4,9 +4,9 @@ import { DatabaseSync } from 'node:sqlite'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { runImport } from '../src/core/import/index'
-import { detectAllRoots, detectDshMemoryRoots, detectKiloRoots, detectMnemonRoots } from '../src/core/import/paths'
-import { MemoryStore } from '../src/core/store'
+import { runImport } from '@llm-memory/core/import/index'
+import { detectAllRoots, detectDshMemoryRoots, detectKiloRoots, detectMnemonRoots } from '@llm-memory/core/import/paths'
+import { MemoryStore } from '@llm-memory/core/store'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 const OFF = { detectNative: false, detectWslWindows: false, detectWindows: false } as const

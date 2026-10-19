@@ -21,7 +21,7 @@ import {
   scopeDir,
   titleSlug,
   writeFileAtomic,
-} from '../src/core/paths'
+} from '@llm-memory/core/paths'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 describe('paths', () => {

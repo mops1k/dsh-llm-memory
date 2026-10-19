@@ -10,9 +10,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { mergeConfig } from '../src/core/config'
-import { LocalEmbeddingProvider } from '../src/core/embeddings'
-import { MemoryEngine } from '../src/core/engine'
+import { mergeConfig } from '@llm-memory/core/config'
+import { LocalEmbeddingProvider } from '@llm-memory/core/embeddings'
+import { MemoryEngine } from '@llm-memory/core/engine'
 
 const enabled = process.env['DSH_LLM_MEMORY_E2E_EMBEDDINGS'] === '1'
 const cacheDir = process.env['DSH_LLM_MEMORY_MODEL_CACHE'] ?? join(tmpdir(), 'dsh-llm-memory-models')

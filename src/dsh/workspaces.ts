@@ -12,8 +12,8 @@
 import { existsSync } from 'node:fs'
 import { basename } from 'node:path'
 
-import type { ImportedProject } from '../core/import/common.js'
-import { NO_CWD_KEY, sanitizeProjectKey } from '../core/paths.js'
+import type { ImportedProject } from '@llm-memory/core/import/common.js'
+import { NO_CWD_KEY, sanitizeProjectKey } from '@llm-memory/core/paths.js'
 
 /** Minimal structural view of a `@deepseek-ai/dsh-workspace` record. */
 export interface WorkspaceLike {

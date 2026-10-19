@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { MemoryEngine } from '../src/core/engine'
+import { MemoryEngine } from '@llm-memory/core/engine'
 import {
   PROJECTS_FILE,
   USER_DIR,
@@ -14,8 +14,8 @@ import {
   readProjectsRegistry,
   upsertProjectRoot,
   writeProjectsRegistry,
-} from '../src/core/paths'
-import { MemoryStore } from '../src/core/store'
+} from '@llm-memory/core/paths'
+import { MemoryStore } from '@llm-memory/core/store'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 /** Absolute path of an entry page inside a project repository. */

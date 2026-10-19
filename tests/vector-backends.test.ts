@@ -9,9 +9,9 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { MemoryStore } from '../src/core/store'
-import { JsVectorIndex, SqliteVecIndex, createVectorIndex } from '../src/core/vector-index'
-import type { VectorRecord } from '../src/core/types'
+import { MemoryStore } from '@llm-memory/core/store'
+import { JsVectorIndex, SqliteVecIndex, createVectorIndex } from '@llm-memory/core/vector-index'
+import type { VectorRecord } from '@llm-memory/core/types'
 
 const DIM = 8
 

@@ -15,9 +15,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 
-import type { MemoryConfig } from '../core/config.js'
-import type { MemoryEngine, RecallFormat, SaveInput, UpdatePatch } from '../core/engine.js'
-import { RECALL_FORMAT_VALUES } from '../core/engine.js'
+import type { MemoryConfig } from '@llm-memory/core/config.js'
+import type { MemoryEngine, RecallFormat, SaveInput, UpdatePatch } from '@llm-memory/core/engine.js'
+import { RECALL_FORMAT_VALUES } from '@llm-memory/core/engine.js'
 import {
   detectImportProjects,
   IMPORT_SOURCES,
@@ -25,15 +25,15 @@ import {
   runImport,
   type ImportedProject,
   type ImportSourceName,
-} from '../core/import/index.js'
-import type { MemoryFilter, MemoryKind, MemoryTier } from '../core/types.js'
+} from '@llm-memory/core/import/index.js'
+import type { MemoryFilter, MemoryKind, MemoryTier } from '@llm-memory/core/types.js'
 import {
   clampImportance,
   isMemoryKind,
   isMemoryScope,
   isMemoryStatus,
   isMemoryTier,
-} from '../core/types.js'
+} from '@llm-memory/core/types.js'
 import { exportRulesToDshAgents, previewRulesExport } from './rules-export.js'
 import {
   findWorkspacePathByKey,

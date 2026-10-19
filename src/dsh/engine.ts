@@ -10,9 +10,9 @@
  *
  * @module dsh-llm-memory/dsh/engine
  */
-import { mergeConfig, type MemoryConfig } from '../core/config.js'
-import { MemoryEngine } from '../core/engine.js'
-import { resolveStorageRoot } from '../core/paths.js'
+import { mergeConfig, type MemoryConfig } from '@llm-memory/core/config.js'
+import { MemoryEngine } from '@llm-memory/core/engine.js'
+import { resolveStorageRoot } from '@llm-memory/core/paths.js'
 
 /** Engine plus its lifecycle handle. */
 export interface MemoryRuntime {

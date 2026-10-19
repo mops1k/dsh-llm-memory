@@ -16,12 +16,11 @@
     "forceConsistentCasingInFileNames": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
-      "@llm-memory/core": ["./packages/core/src/index.ts"],
-      "@llm-memory/core/*": ["./packages/core/src/*"],
       "@llm-memory/adapter/*": ["./packages/adapter/src/*"],
       "@llm-memory/ui/*": ["./packages/ui/src/*"],
       "@llm-memory/testkit": ["./packages/testkit/src/index.ts"]
     }
   },
+  "references": [{ "path": "./packages/core" }],
   "include": ["src/**/*.ts"]
 }

@@ -5,8 +5,8 @@ import { Readable } from 'node:stream'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { mergeConfig } from '../src/core/config'
-import { MemoryEngine } from '../src/core/engine'
+import { mergeConfig } from '@llm-memory/core/config'
+import { MemoryEngine } from '@llm-memory/core/engine'
 import { createWebHandler, normalizeWebPath, type WebHandler } from '../src/dsh/web'
 import { cleanupRoot, makeTempRoot } from './helpers'
 import { FakeEmbeddingProvider } from './helpers/fake-embeddings'

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { ImportedProject } from '../src/core/import/common'
+import type { ImportedProject } from '@llm-memory/core/import/common'
 import {
   findWorkspacePathByKey,
   registerImportedWorkspaces,

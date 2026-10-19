@@ -61,11 +61,14 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/copy-client.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint src tests client scripts",
+    "build": "tsc -b && node scripts/copy-client.mjs",
+    "typecheck": "tsc -b",
+    "lint": "oxlint src tests client scripts packages",
     "test": "vitest run",
     "check:dsh": "node scripts/check-dsh-compat.mjs"
+  },
+  "dependencies": {
+    "@llm-memory/core": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4",

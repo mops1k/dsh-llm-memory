@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { entryFromPage, parsePage, pageToText, serializeFrontmatter } from '../src/core/frontmatter'
-import { newMemoryEntry } from '../src/core/store'
+import { entryFromPage, parsePage, pageToText, serializeFrontmatter } from '@llm-memory/core/frontmatter'
+import { newMemoryEntry } from '@llm-memory/core/store'
 
 describe('frontmatter', () => {
   it('round-trips a fully populated entry', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { projectInto, projectVectors } from '../src/core/projection'
+import { projectInto, projectVectors } from '@llm-memory/core/projection'
 
 function vector(values: number[], dim = 8): Float32Array {
   const result = new Float32Array(dim)

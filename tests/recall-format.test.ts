@@ -10,8 +10,8 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { DEFAULT_CONFIG, mergeConfig } from '../src/core/config'
-import { MemoryEngine } from '../src/core/engine'
+import { DEFAULT_CONFIG, mergeConfig } from '@llm-memory/core/config'
+import { MemoryEngine } from '@llm-memory/core/engine'
 
 const roots: string[] = []
 
