@@ -1,0 +1,57 @@
+{
+  "cutoverAt": "2026-10-19T23:02:01.782Z",
+  "store": "/mnt/c/Users/Kvintilyanov/.config/kilo/memory",
+  "dbPath": "/mnt/c/Users/Kvintilyanov/.config/kilo/memory/db/memory.db",
+  "counts": {
+    "total": 363,
+    "active": 312
+  },
+  "tools": [
+    "llm_memory_delete",
+    "llm_memory_forget",
+    "llm_memory_graph",
+    "llm_memory_lint",
+    "llm_memory_recall",
+    "llm_memory_save",
+    "llm_memory_status"
+  ],
+  "recallSample": {
+    "query": "kilo",
+    "items": [
+      {
+        "id": "m_eebb738c2b25",
+        "kind": "rules"
+      },
+      {
+        "id": "m_999122ad0e08",
+        "kind": "architecture"
+      },
+      {
+        "id": "m_00783b48b649",
+        "kind": "facts"
+      }
+    ]
+  },
+  "panel": {
+    "url": "http://127.0.0.1:8787/",
+    "ok": true,
+    "status": 363
+  },
+  "backupDir": "/mnt/c/Users/Kvintilyanov/.config/kilo/memory/backups",
+  "plugin": {
+    "file": "/mnt/c/Users/Kvintilyanov/.config/kilo/plugin/kilo-memory.js",
+    "sha256": "846808d9cc8c88b3"
+  },
+  "migration": {
+    "columns": 17,
+    "indexes": 3,
+    "integrity": "ok",
+    "before": {
+      "entries": 363,
+      "active": 312
+    }
+  },
+  "backups": [
+    "memory-2026-10-19T23-01-40-479Z.llmmem"
+  ]
+}

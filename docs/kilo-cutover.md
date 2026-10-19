@@ -21,6 +21,17 @@ Kilo, `--apply` migration на живом store (с `--backup`), положит�
 проверить инструменты `llm_memory_*`, панель 8787 и recall. Откат — restore
 pre-cutover архива с `--confirm RESTORE`.
 
+**Статус production cutover 19.10.2026:** выполнен при закрытом Kilo. Полный
+backup 4.7 МБ (213 файлов, verify ok) -> `~/kilo-cutover/backups/`; миграция
+живого store: 17 колонок, 3 индекса, 363 записи / 312 активных до = после,
+`integrity_check: ok`; новый плагин `kilo-memory.js` (sha256 846808d9cc8c88b3)
+установлен в `~/.config/kilo/plugin/`, старый `kilo-memory.ts` и конфиг
+сохранены в `~/kilo-cutover/plugin-backup/`; smoke: 7 инструментов,
+recall, панель 8787 (`/api/status` = 363). Отчёт:
+`docs/adr/kilo-cutover-2026-10-19.json`. Откат: restore архива
+(`scripts/backup-cli.mjs restore ... --confirm RESTORE`) + вернуть старый файл
+плагина из plugin-backup.
+
 **Статус репетиции 19.10.2026 (копия живого store: 358/307):** миграция ok,
 сохранность ok, smoke ok, rollback ok, `productionReady: true`.
 
