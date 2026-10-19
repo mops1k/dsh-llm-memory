@@ -29,7 +29,6 @@ export type RulesPromptScope = 'project' | 'all'
  * `bundled-en` reads the English translation shipped in `rules/en/`,
  * `kilo-verbatim` reads the original Kilo rule files found on this machine.
  */
-export type RulesSourceMode = 'bundled-en' | 'kilo-verbatim'
 
 /**
  * Vector (semantic) retrieval settings: where embeddings come from, how entry
@@ -180,7 +179,6 @@ export interface MemoryConfig {
   /** Whether import roots are auto-detected (Windows / WSL / Linux). */
   importAutoDetect: boolean
   /** Source of the rules exported to `$DSH_HOME/AGENTS.md`. */
-  rulesSource: RulesSourceMode
   /** Vector (semantic) retrieval settings. */
   embeddings: EmbeddingConfig
   /** HTTP path of the standalone memory web UI. */
@@ -243,7 +241,6 @@ export const DEFAULT_CONFIG: MemoryConfig = {
   importRoots: [],
   importAutoDetect: true,
   projectScanBudgetMs: 0,
-  rulesSource: 'bundled-en',
   embeddings: { ...DEFAULT_EMBEDDINGS },
   webPath: '/llm-memory',
   backupDir: '',
@@ -303,10 +300,6 @@ function asWebPath(value: unknown, fallback: string): string {
   const trimmed = value.trim()
   if (trimmed.length === 0) return fallback
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
-}
-
-function asRulesSource(value: unknown, fallback: RulesSourceMode): RulesSourceMode {
-  return value === 'bundled-en' || value === 'kilo-verbatim' ? value : fallback
 }
 
 function asRulesPromptScope(value: unknown, fallback: RulesPromptScope): RulesPromptScope {
@@ -408,7 +401,6 @@ export function mergeConfig(partial?: Partial<MemoryConfig> | null): MemoryConfi
       0,
       600000,
     ),
-    rulesSource: asRulesSource(src.rulesSource, DEFAULT_CONFIG.rulesSource),
     embeddings: asEmbeddings(src.embeddings, DEFAULT_CONFIG.embeddings),
     webPath: src.webPath === undefined ? DEFAULT_CONFIG.webPath : asWebPath(src.webPath, DEFAULT_CONFIG.webPath),
     backupDir: typeof src.backupDir === 'string' ? src.backupDir.trim() : DEFAULT_CONFIG.backupDir,

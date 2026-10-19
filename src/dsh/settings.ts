@@ -124,13 +124,6 @@ export const MemorySettingsSchema = z.object({
     .default(DEFAULT_CONFIG.importAutoDetect)
     .volatile()
     .description('Auto-detect source roots on Windows, WSL and Linux filesystems.'),
-  rulesSource: z
-    .union([z.const('bundled-en'), z.const('kilo-verbatim')])
-    .default(DEFAULT_CONFIG.rulesSource)
-    .volatile()
-    .description(
-      'Source of the rules exported to $DSH_HOME/AGENTS.md: the bundled English translation (bundled-en) or the verbatim Kilo files (kilo-verbatim).',
-    ),
   lintOverlapMinCommonWords: z
     .number()
     .min(1)

@@ -231,59 +231,6 @@ describe('createWebHandler', () => {
   })
 })
 
-describe('rules preview route', () => {
-  const originalDshHome = process.env['DSH_HOME']
-
-  afterEach(() => {
-    if (originalDshHome === undefined) delete process.env['DSH_HOME']
-    else process.env['DSH_HOME'] = originalDshHome
-  })
-
-  it('returns the preview as JSON without touching AGENTS.md', async () => {
-    const dshHome = join(root, 'dsh-home')
-    const kiloDir = join(root, 'kilo')
-    mkdirSync(kiloDir, { recursive: true })
-    writeFileSync(join(kiloDir, 'AGENTS.md'), '# Kilo AGENTS\n\nPreview rule.\n', 'utf8')
-    process.env['DSH_HOME'] = dshHome
-
-    const previewHandler = createWebHandler(
-      engine,
-      mergeConfig({
-        webPath: '/llm-memory',
-        importAutoDetect: false,
-        importRoots: [kiloDir],
-        rulesSource: 'kilo-verbatim',
-      }),
-    )
-    const target = join(dshHome, 'AGENTS.md')
-
-    const res = makeResponse()
-    await previewHandler(
-      makeRequest('POST', '/llm-memory/api/rules/preview', {}) as unknown as IncomingMessage,
-      res as unknown as ServerResponse,
-    )
-    expect(res.statusCode).toBe(200)
-    expect(res.headers['content-type']).toContain('application/json')
-    const data = json(res)
-    expect(data.target).toBe(target)
-    expect(data.mode).toBe('create')
-    expect(typeof data.block).toBe('string')
-    expect(data.block).toContain('Preview rule.')
-    expect(Array.isArray(data.sources)).toBe(true)
-    expect((data.sources as unknown[]).length).toBe(1)
-    expect(existsSync(target)).toBe(false)
-
-    const getRes = makeResponse()
-    await previewHandler(
-      makeRequest('GET', '/llm-memory/api/rules/preview') as unknown as IncomingMessage,
-      getRes as unknown as ServerResponse,
-    )
-    expect(getRes.statusCode).toBe(200)
-    expect(json(getRes).block).toContain('Preview rule.')
-    expect(existsSync(target)).toBe(false)
-  })
-})
-
 describe('model cache routes', () => {
   it('reports the cache state and refuses a download while vector search is off', async () => {
     const status = await call('GET', '/llm-memory/api/model/status')

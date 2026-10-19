@@ -324,18 +324,8 @@ describe('memory human command', () => {
     const unknown = definition.handler({ rawInput: 'bogus' } as unknown as CommandInvocation) as CommandResult
     expect(unknown).toMatchObject({ kind: 'error' })
 
-    // Isolate the export target so the command never writes to the real ~/.dsh.
-    const previousDshHome = process.env['DSH_HOME']
-    const exportHome = makeTempRoot('dsh-context-export-')
-    process.env['DSH_HOME'] = exportHome
-    try {
-      const exported = definition.handler({ rawInput: 'export' } as unknown as CommandInvocation) as CommandResult
-      expect(exported).toMatchObject({ kind: 'success' })
-    } finally {
-      if (previousDshHome === undefined) delete process.env['DSH_HOME']
-      else process.env['DSH_HOME'] = previousDshHome
-      cleanupRoot(exportHome)
-    }
+    const exportCommand = definition.handler({ rawInput: 'export' } as unknown as CommandInvocation) as CommandResult
+    expect(exportCommand).toMatchObject({ kind: 'error' })
   })
 
   it('injects the memory guide when an agent is created', () => {

@@ -25,7 +25,6 @@ window.__ModuleLoader__.load({
     const VIEW_LABEL = "LLM Memory";
     const VIEW_ID = "llm-memory";
     const ORDER = 30;
-    const ALREADY_EXPORTED_NOTE = "Rules are already exported to ~/.dsh/AGENTS.md.";
     const PREVIEW_TEXT_LIMIT = 20000;
     const GRAPH_HEIGHT = 520;
 
@@ -2224,7 +2223,6 @@ window.__ModuleLoader__.load({
             h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildVectors }, "Rebuild vectors"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: repairVectors }, "Repair vectors"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildAnn }, "Rebuild ANN index"),
-            h("button", { type: "button", style: S.button, disabled: busy, onClick: props.onPreviewRules }, "Preview rules"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: syncWorkspaces }, "Sync workspaces"),
             h(
               "button",
@@ -2340,46 +2338,6 @@ window.__ModuleLoader__.load({
             h("button", { type: "button", style: S.button, onClick: close }, "Close"),
           ),
         );
-      } else if (overlay.kind === "rules") {
-        const data = overlay.data || {};
-        body.push(h("h2", { key: "t", style: S.overlayTitle }, "Rules export preview"));
-        body.push(
-          h(
-            "p",
-            { key: "m", style: S.hint },
-            "Target: " + data.target + " \u00b7 Mode: " + data.mode + (data.changed ? "" : " \u00b7 no changes"),
-          ),
-        );
-        if (data.message) body.push(h("p", { key: "msg", style: S.hint }, data.message));
-        if (data.alreadyExported) body.push(h("p", { key: "al", style: S.hint }, ALREADY_EXPORTED_NOTE));
-        body.push(h("h3", { key: "sh", style: S.sectionTitle }, "Sources"));
-        body.push(
-          h(
-            "pre",
-            { key: "s", style: S.pre },
-            (data.sources || []).map((source) => "- " + source.path + " (" + source.bytes + " bytes)").join("\n") ||
-              "none",
-          ),
-        );
-        body.push(h("h3", { key: "bh", style: S.sectionTitle }, "Block"));
-        body.push(h("pre", { key: "b", style: S.pre }, truncatePreview(data.block)));
-        body.push(
-          h(
-            "div",
-            { key: "a", style: S.actions },
-            h(
-              "button",
-              {
-                type: "button",
-                style: data.alreadyExported ? Object.assign({}, S.primary, S.disabled) : S.primary,
-                disabled: !!data.alreadyExported || props.busy,
-                onClick: props.onExportRules,
-              },
-              "Confirm export",
-            ),
-            h("button", { type: "button", style: S.button, onClick: close }, "Cancel"),
-          ),
-        );
       } else if (overlay.kind === "confirm") {
         body.push(h("h2", { key: "t", style: S.overlayTitle }, overlay.title));
         body.push(h("p", { key: "m", style: Object.assign({}, S.hint, { fontSize: "12px" }) }, overlay.message));
@@ -2440,7 +2398,6 @@ window.__ModuleLoader__.load({
         const [projects, setProjects] = React.useState([]);
         const [actionStatus, setActionStatus] = React.useState({ text: "", error: false });
         const [busy, setBusy] = React.useState(false);
-        const [alreadyExported, setAlreadyExported] = React.useState(false);
 
         React.useEffect(() => {
           const update = () => setBase(webBase(scope));
@@ -2468,9 +2425,7 @@ window.__ModuleLoader__.load({
         const refreshRulesExportState = React.useCallback(async () => {
           try {
             const data = await apiPost(base, "/api/rules/preview", {});
-            setAlreadyExported(data && data.alreadyExported === true);
           } catch (error) {
-            setAlreadyExported(false);
           }
         }, [base]);
 
@@ -2575,20 +2530,6 @@ window.__ModuleLoader__.load({
           }
         };
 
-        const previewRules = async () => {
-          setBusy(true);
-          setActionStatus({ text: "Loading rules preview\u2026", error: false });
-          try {
-            const data = await apiPost(base, "/api/rules/preview", {});
-            setAlreadyExported(data && data.alreadyExported === true);
-            setOverlay({ kind: "rules", data });
-            setActionStatus({ text: "Preview ready. Review before exporting.", error: false });
-          } catch (error) {
-            setActionStatus({ text: errorText(error), error: true });
-          } finally {
-            setBusy(false);
-          }
-        };
 
         const exportRules = async () => {
           setOverlay(null);
@@ -2642,7 +2583,7 @@ window.__ModuleLoader__.load({
         } else if (tab === "lint") {
           content = h("div", { style: S.panel }, h(LintPanel, { base, version: browseVersion }));
         } else {
-          content = h(HealthTab, { base, onPreviewRules: previewRules, onSaved: refreshBrowse });
+          content = h(HealthTab, { base, onSaved: refreshBrowse });
         }
 
         return h(
@@ -2652,17 +2593,6 @@ window.__ModuleLoader__.load({
             "div",
             { style: S.toolbar },
             h("button", { type: "button", style: S.button, disabled: busy, onClick: importMemory }, "Import memory"),
-            h(
-              "button",
-              {
-                type: "button",
-                style: alreadyExported ? Object.assign({}, S.button, S.disabled) : S.button,
-                disabled: busy || alreadyExported,
-                title: alreadyExported ? ALREADY_EXPORTED_NOTE : undefined,
-                onClick: previewRules,
-              },
-              "Export rules to dsh AGENTS.md",
-            ),
             h("span", { style: S.toolbarSpacer }),
             h(Notice, { text: actionStatus.text, error: actionStatus.error }),
             h(
@@ -2714,8 +2644,6 @@ window.__ModuleLoader__.load({
         const [notice, setNotice] = React.useState("");
         const [report, setReport] = React.useState("");
         const [busy, setBusy] = React.useState(false);
-        const [preview, setPreview] = React.useState(null);
-        const [alreadyExported, setAlreadyExported] = React.useState(false);
         const [model, setModel] = React.useState(null);
         const [modelBusy, setModelBusy] = React.useState(false);
 
@@ -2775,9 +2703,7 @@ window.__ModuleLoader__.load({
         const refreshRulesExportState = async () => {
           try {
             const data = await apiPost(webBase(scope), "/api/rules/preview", {});
-            setAlreadyExported(!!(data && data.alreadyExported === true));
           } catch (error) {
-            setAlreadyExported(false);
           }
         };
 
@@ -2902,39 +2828,6 @@ window.__ModuleLoader__.load({
             setReport(lines.join("\n"));
           } catch (error) {
             setReport("Import failed: " + errorText(error));
-          } finally {
-            setBusy(false);
-          }
-        };
-
-        const loadRulesPreview = async () => {
-          setBusy(true);
-          setReport("");
-          try {
-            const data = await apiPost(webBase(scope), "/api/rules/preview", {});
-            setPreview(data);
-            setAlreadyExported(!!(data && data.alreadyExported === true));
-          } catch (error) {
-            setPreview(null);
-            setReport("Preview failed: " + errorText(error));
-          } finally {
-            setBusy(false);
-          }
-        };
-
-        const confirmRulesExport = async () => {
-          setBusy(true);
-          setReport("Exporting rules\u2026");
-          try {
-            const data = await apiPost(webBase(scope), "/api/rules/export", {});
-            const lines = [data.message || "changed=" + data.changed + ", bytes=" + data.bytes, "target: " + data.target];
-            (data.sources || []).forEach((source) => lines.push("- " + source));
-            setReport(lines.join("\n"));
-            setPreview(null);
-            setAlreadyExported(!!(data && data.alreadyExported === true));
-            await refreshRulesExportState();
-          } catch (error) {
-            setReport("Export failed: " + errorText(error));
           } finally {
             setBusy(false);
           }
@@ -3303,71 +3196,7 @@ window.__ModuleLoader__.load({
             { style: S.actions },
             h("button", { type: "button", style: S.primary, disabled: busy, onClick: save }, "Save settings"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: importMemory }, "Import memory"),
-            h(
-              "div",
-              { style: { display: "flex", flexDirection: "column", gap: "2px", alignItems: "flex-start" } },
-              h(
-                "button",
-                {
-                  type: "button",
-                  style: alreadyExported ? Object.assign({}, S.button, S.disabled) : S.button,
-                  disabled: busy || alreadyExported,
-                  title: alreadyExported ? ALREADY_EXPORTED_NOTE : undefined,
-                  onClick: loadRulesPreview,
-                },
-                "Export rules to dsh AGENTS.md",
-              ),
-              alreadyExported ? h("small", { style: S.hint }, ALREADY_EXPORTED_NOTE) : null,
-            ),
           ),
-          preview
-            ? h(
-                "div",
-                { style: S.panel },
-                h("h3", { key: "title", style: S.sectionTitle }, "Rules export preview"),
-                h(
-                  "p",
-                  { key: "meta", style: S.hint },
-                  "Target: " +
-                    preview.target +
-                    " \u00b7 Mode: " +
-                    preview.mode +
-                    (preview.changed ? "" : " \u00b7 no changes"),
-                ),
-                preview.message ? h("p", { key: "message", style: S.hint }, preview.message) : null,
-                h(
-                  "p",
-                  { key: "sources", style: S.hint },
-                  (preview.sources || []).length === 0
-                    ? "Sources: none"
-                    : "Sources: " +
-                        (preview.sources || []).map((source) => source.path + " (" + source.bytes + " bytes)").join("; "),
-                ),
-                preview.alreadyExported ? h("p", { key: "already", style: S.hint }, ALREADY_EXPORTED_NOTE) : null,
-                h("pre", { key: "block", style: S.pre }, truncatePreview(preview.block)),
-                h(
-                  "div",
-                  { key: "actions", style: S.actions },
-                  h(
-                    "button",
-                    {
-                      type: "button",
-                      style: preview.alreadyExported ? Object.assign({}, S.primary, S.disabled) : S.primary,
-                      disabled: busy || !!preview.alreadyExported,
-                      title: preview.alreadyExported ? ALREADY_EXPORTED_NOTE : undefined,
-                      onClick: confirmRulesExport,
-                    },
-                    "Confirm export",
-                  ),
-                  h(
-                    "button",
-                    { type: "button", style: S.button, disabled: busy, onClick: () => setPreview(null) },
-                    "Cancel",
-                  ),
-                ),
-              )
-            : null,
-          h(BackupSection, { scope }),
           notice ? h("p", { style: S.status }, notice) : null,
           report ? h("pre", { style: S.pre }, report) : null,
         );
@@ -3458,6 +3287,18 @@ window.__ModuleLoader__.load({
       );
     }
 
+
+    function createBackupCard(scope) {
+      return function BackupCard() {
+        return h(
+          "div",
+          { style: S.cardColumn },
+          h("h2", { style: S.overlayTitle }, "LLM Memory · Backup"),
+          h(BackupSection, { scope }),
+        );
+      };
+    }
+
     /* ------------------------------------------------------------------ *
      * plugin entry
      * ------------------------------------------------------------------ */
@@ -3477,6 +3318,7 @@ window.__ModuleLoader__.load({
 
       const MemoryView = createMemoryView(scope);
       const SettingsCard = createSettingsCard(scope);
+      const BackupCard = createBackupCard(scope);
 
       ctx.slots.inject("conversation.view", () =>
         ctx.slots.register(
@@ -3490,6 +3332,12 @@ window.__ModuleLoader__.load({
         ctx.slots.register(
           { name: "settings.section", id: VIEW_ID, order: 20, label: () => VIEW_LABEL },
           SettingsCard,
+        ),
+      );
+      ctx.slots.inject("settings.section", () =>
+        ctx.slots.register(
+          { name: "settings.section", id: VIEW_ID + "-backup", order: 21, label: () => VIEW_LABEL + " · Backup" },
+          BackupCard,
         ),
       );
     }

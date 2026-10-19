@@ -38,7 +38,6 @@ import {
   isMemoryStatus,
   isMemoryTier,
 } from '@llm-memory/core/domain/types.js'
-import { exportRulesToDshAgents, previewRulesExport } from './rules-export.js'
 import {
   findWorkspacePathByKey,
   registerImportedWorkspaces,
@@ -391,7 +390,6 @@ function importResponse(reports: ReturnType<typeof runImport>): Record<string, u
  * `POST /api/delete`, `POST /api/import`, `POST /api/workspaces/sync`,
  * `POST /api/heal`, `POST /api/vectors/rebuild`, `GET /api/model/status`,
  * `POST /api/model/download`, `POST /api/model/remove`,
- * `GET|POST /api/rules/preview`, `POST /api/rules/export`.
  */
 export function createWebHandler(
   engine: MemoryEngine,
@@ -486,10 +484,6 @@ export function createWebHandler(
         offset,
         query: query ?? '',
       })
-      return
-    }
-    if (rel === '/api/rules/preview') {
-      sendJson(res, 200, previewRulesExport(config))
       return
     }
     if (rel === '/api/item') {
@@ -700,16 +694,6 @@ export function createWebHandler(
     if (rel === '/api/model/remove') {
       await readJsonBody(req, MAX_BODY_BYTES)
       sendJson(res, 200, engine.removeModel())
-      return
-    }
-    if (rel === '/api/rules/preview') {
-      await readJsonBody(req, MAX_BODY_BYTES)
-      sendJson(res, 200, previewRulesExport(config))
-      return
-    }
-    if (rel === '/api/rules/export') {
-      await readJsonBody(req, MAX_BODY_BYTES)
-      sendJson(res, 200, exportRulesToDshAgents(config))
       return
     }
     if (rel.startsWith('/api/')) {

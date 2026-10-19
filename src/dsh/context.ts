@@ -32,7 +32,6 @@ import type { MemoryConfig } from '@llm-memory/core/domain/config.js'
 import type { MemoryEngine } from '@llm-memory/core/application/engine.js'
 import { detectImportProjects, mergeImportedProjects, runImport } from './import/index.js'
 import { DIGEST_DIR, projectKeyFromCwd } from '@llm-memory/core/layout/paths.js'
-import { exportRulesToDshAgents } from './rules-export.js'
 import { registerProjectRoots } from './workspaces.js'
 
 /** Unique name of the system-prompt section contributed by this plugin. */
@@ -303,18 +302,6 @@ export function runMemoryCommand(
 
   if (sub.length === 0 || sub === 'status') {
     return { kind: 'success', text: statusText(engine) }
-  }
-
-  if (sub === 'export') {
-    try {
-      const result = exportRulesToDshAgents(config)
-      return {
-        kind: 'success',
-        text: `Exported ${result.bytes} bytes from ${result.sources.length} rule source(s) to ${result.target}.`,
-      }
-    } catch (error) {
-      return { kind: 'error', text: `Rule export is not available yet: ${errorMessage(error)}` }
-    }
   }
 
   if (sub === 'import') {
