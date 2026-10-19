@@ -520,6 +520,15 @@ export function createWebHandler(
   }
 
   const handlePost = async (rel: string, req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    if (rel === '/api/backup') {
+      const body = await readJsonBody(req, MAX_BODY_BYTES)
+      const operation = asString(body.operation) ?? ''
+      const input = { archive: asString(body.archive), name: asString(body.name), confirm: asString(body.confirm) }
+      const allowed = ['backup.create', 'backup.list', 'backup.verify', 'backup.restore', 'backup.delete']
+      if (!allowed.includes(operation)) throw new HttpError(400, `unsupported backup operation: ${operation}`)
+      sendJson(res, 200, await bridge().request(operation as Parameters<ReturnType<typeof createDshBridge>['request']>[0], input))
+      return
+    }
     if (rel === '/api/ui') {
       const body = await readJsonBody(req, MAX_BODY_BYTES)
       const operation = asString(body.operation)

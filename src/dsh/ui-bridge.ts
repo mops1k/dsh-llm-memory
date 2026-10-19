@@ -86,6 +86,8 @@ export function createDshBridge(options: DshBridgeOptions): DshBridge {
       case 'backup.list':
         return listBackups(backupsDirOf(options), payload['passphrase'] as string | undefined)
       case 'backup.create': {
+        // Opening the store materialises the SQLite file the snapshot copies.
+        engine.list({ status: 'all', limit: 1 })
         const report = createBackup(target())
         return { name: report.archive.split(/[\\/]/).pop() ?? report.archive, createdAt: report.manifest.createdAt, sizeBytes: report.bytes, includesVectors: false, verified: true }
       }

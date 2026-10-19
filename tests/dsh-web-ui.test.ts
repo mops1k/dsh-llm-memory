@@ -81,4 +81,19 @@ describe('DSH headless WebUI', () => {
     const missing = await request('POST', `${base}/api/ui`, { input: {} })
     expect(missing.status).toBe(400)
   })
+
+  it('creates and deletes backups over the DSH HTTP API', async () => {
+    const created = await request('POST', `${base}/api/backup`, { operation: 'backup.create' })
+    expect(created.status).toBe(200)
+    const summary = JSON.parse(created.body) as { name: string }
+    expect(summary.name).toMatch(/\.llmmem$/)
+    const listed = await request('GET', `${base}/api/backup`)
+    expect(JSON.parse(listed.body)).toHaveLength(1)
+    const denied = await request('POST', `${base}/api/backup`, { operation: 'backup.delete', confirm: 'yes' })
+    expect(denied.status).toBe(400)
+    const archive = (JSON.parse(listed.body) as Array<{ archive: string }>)[0]?.archive
+    const deleted = await request('POST', `${base}/api/backup`, { operation: 'backup.delete', archive, confirm: 'DELETE' })
+    expect(JSON.parse(deleted.body)).toMatchObject({ deleted: true })
+    expect(JSON.parse((await request('GET', `${base}/api/backup`)).body)).toHaveLength(0)
+  })
 })

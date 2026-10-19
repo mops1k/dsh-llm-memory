@@ -3367,10 +3367,95 @@ window.__ModuleLoader__.load({
                 ),
               )
             : null,
+          h(BackupSection, { scope }),
           notice ? h("p", { style: S.status }, notice) : null,
           report ? h("pre", { style: S.pre }, report) : null,
         );
       };
+    }
+
+
+    function BackupSection({ scope }) {
+      const base = webBase(scope);
+      const [backups, setBackups] = React.useState([]);
+      const [busy, setBusy] = React.useState(false);
+      const [notice, setNotice] = React.useState("");
+
+      const reload = React.useCallback(async () => {
+        try {
+          const data = await apiGet(base, "/api/backup");
+          setBackups(Array.isArray(data) ? data : []);
+        } catch (error) {
+          setNotice("Backup list failed: " + errorText(error));
+        }
+      }, [base]);
+
+      React.useEffect(() => {
+        reload();
+      }, [reload]);
+
+      const call = async (operation, extra) => {
+        setBusy(true);
+        setNotice("");
+        try {
+          const result = await apiPost(base, "/api/backup", Object.assign({ operation }, extra || {}));
+          setNotice(operation.replace("backup.", "") + ": " + JSON.stringify(result));
+          await reload();
+        } catch (error) {
+          setNotice(operation + " failed: " + errorText(error));
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      const create = () => call("backup.create");
+      const verify = (archive) => call("backup.verify", { archive });
+      const restore = (archive) => {
+        const word = window.prompt('Type RESTORE to restore ' + archive);
+        if (word === "RESTORE") call("backup.restore", { archive, confirm: word });
+      };
+      const remove = (archive) => {
+        const word = window.prompt('Type DELETE to remove ' + archive);
+        if (word === "DELETE") call("backup.delete", { archive, confirm: word });
+      };
+
+      return h(
+        "section",
+        { style: S.section },
+        h("h3", { style: S.sectionTitle }, "Backup"),
+        h(
+          "p",
+          { style: S.hint },
+          "Manual .llmmem snapshots of the memory store (database, pages, raw digests, config). Restore and delete require typed confirmation.",
+        ),
+        h(
+          "div",
+          { style: S.actions },
+          h("button", { type: "button", style: S.primary, disabled: busy, onClick: create }, "Create backup"),
+          h("button", { type: "button", style: S.button, disabled: busy, onClick: reload }, "Refresh"),
+        ),
+        backups.length === 0
+          ? h("p", { style: S.hint }, "No backups yet.")
+          : h(
+              "ul",
+              { style: { listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "6px" } },
+              backups.map((item) =>
+                h(
+                  "li",
+                  { key: item.archive || item.name, style: S.field },
+                  h("div", { style: S.hint }, String(item.name || item.archive) + " — " + String(item.createdAt || "") + " — " + String(item.bytes || item.sizeBytes || 0) + " bytes" + (item.encrypted ? " (encrypted)" : "")),
+                  h(
+                    "div",
+                    { style: S.actions },
+                    h("button", { type: "button", style: S.button, disabled: busy, onClick: () => verify(item.archive) }, "Verify"),
+                    h("button", { type: "button", style: S.button, disabled: busy, onClick: () => restore(item.archive) }, "Restore"),
+                    h("button", { type: "button", style: S.button, disabled: busy, onClick: () => remove(item.archive) }, "Delete"),
+                  ),
+                ),
+              ),
+            ),
+        notice ? h("p", { style: S.status }, notice) : null,
+      );
     }
 
     /* ------------------------------------------------------------------ *
