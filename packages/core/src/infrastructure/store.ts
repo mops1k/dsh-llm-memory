@@ -147,7 +147,19 @@ function rowToEntry(row: Record<string, unknown>): MemoryEntry {
     createdAt: asString(row['created_at']),
     updatedAt: asString(row['updated_at']),
     ...(confidence !== undefined ? { confidence } : {}),
+    ...(asNumber(row['access_count']) !== undefined ? { accessCount: asNumber(row['access_count']) } : {}),
+    ...(asString(row['last_access']).length > 0 ? { lastAccess: asString(row['last_access']) } : {}),
+    ...(consolidationValue(row['consolidation']) !== undefined
+      ? { consolidation: consolidationValue(row['consolidation']) }
+      : {}),
+    ...(asString(row['origin']).length > 0 ? { origin: asString(row['origin']) } : {}),
   }
+}
+
+function consolidationValue(value: unknown): MemoryEntry['consolidation'] {
+  return value === 'raw' || value === 'episodic' || value === 'semantic' || value === 'procedural'
+    ? (value as MemoryEntry['consolidation'])
+    : undefined
 }
 
 function normalizeLimit(value: number | undefined): number | undefined {
@@ -185,6 +197,10 @@ function entryMatchesRow(entry: MemoryEntry, row: Record<string, unknown>): bool
     asString(row['created_at']) === entry.createdAt &&
     asString(row['updated_at']) === entry.updatedAt &&
     (asNumber(row['confidence']) ?? null) === (entry.confidence ?? null) &&
+    (asNumber(row['access_count']) ?? null) === (entry.accessCount ?? null) &&
+    asString(row['last_access']) === (entry.lastAccess ?? '') &&
+    (consolidationValue(row['consolidation']) ?? null) === (entry.consolidation ?? null) &&
+    asString(row['origin']) === (entry.origin ?? '') &&
     sameStrings(row['tags'], entry.tags) &&
     sameStrings(row['supersedes'], entry.supersedes) &&
     sameStrings(row['superseded_by'], entry.supersededBy) &&
@@ -436,7 +452,11 @@ export class MemoryStore {
         path TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL DEFAULT '',
-        confidence REAL
+        confidence REAL,
+        access_count INTEGER,
+        last_access TEXT,
+        consolidation TEXT,
+        origin TEXT
       );
     `)
     db.exec('CREATE INDEX IF NOT EXISTS idx_memories_scope_project ON memories(scope, project);')
@@ -479,6 +499,12 @@ export class MemoryStore {
     // keep NULL and are read once by the first reconcile pass.
     add('file_mtime_ms', 'file_mtime_ms INTEGER')
     add('file_size', 'file_size INTEGER')
+    // Kilo parity fields (ADR-002): persisted when the column exists; existing
+    // stores gain them additively and never lose rows.
+    add('access_count', 'access_count INTEGER')
+    add('last_access', 'last_access TEXT')
+    add('consolidation', 'consolidation TEXT')
+    add('origin', 'origin TEXT')
   }
 
   /** Create the FTS5 table, rebuilding it when it lacks the required `id` column. */
@@ -545,8 +571,8 @@ export class MemoryStore {
       `INSERT INTO memories (
          id, scope, project, kind, tier, status, title, text, tags, keywords, importance,
          supersedes, superseded_by, related, source, ext_key, path, created_at, updated_at, confidence,
-         file_mtime_ms, file_size
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         file_mtime_ms, file_size, access_count, last_access, consolidation, origin
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          scope = excluded.scope,
          project = excluded.project,
@@ -568,7 +594,11 @@ export class MemoryStore {
          updated_at = excluded.updated_at,
          confidence = excluded.confidence,
          file_mtime_ms = excluded.file_mtime_ms,
-         file_size = excluded.file_size`,
+         file_size = excluded.file_size,
+         access_count = excluded.access_count,
+         last_access = excluded.last_access,
+         consolidation = excluded.consolidation,
+         origin = excluded.origin`,
     ).run(
       entry.id,
       entry.scope,
@@ -592,6 +622,10 @@ export class MemoryStore {
       entry.confidence ?? null,
       stat?.mtimeMs ?? null,
       stat?.size ?? null,
+      entry.accessCount ?? null,
+      entry.lastAccess ?? null,
+      entry.consolidation ?? null,
+      entry.origin ?? null,
     )
     this.syncFts(entry)
     this.onEntryChanged?.(entry.id)

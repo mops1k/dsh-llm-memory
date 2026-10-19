@@ -162,10 +162,11 @@ export function scopeDirFor(
   scope: MemoryScope,
   project: string,
   projectRoot?: string | null,
+  projectDirName: string = PROJECT_MEMORY_DIR,
 ): string {
   if (scope === 'user') return join(resolve(root), USER_DIR)
   const trimmed = typeof projectRoot === 'string' ? projectRoot.trim() : ''
-  if (trimmed.length > 0) return projectMemoryRoot(trimmed)
+  if (trimmed.length > 0) return projectMemoryRoot(trimmed, projectDirName)
   return join(resolve(root), sanitizeProjectKey(project))
 }
 
@@ -179,8 +180,12 @@ export function entryPathFor(
   root: string,
   entry: Pick<MemoryEntry, 'id' | 'kind' | 'title' | 'scope' | 'project'>,
   projectRoot?: string | null,
+  projectDirName: string = PROJECT_MEMORY_DIR,
 ): string {
-  return join(kindDir(scopeDirFor(root, entry.scope, entry.project, projectRoot), entry.kind), entryFileName(entry))
+  return join(
+    kindDir(scopeDirFor(root, entry.scope, entry.project, projectRoot, projectDirName), entry.kind),
+    entryFileName(entry),
+  )
 }
 
 /** Absolute path of the `projects.json` registry inside a storage root. */

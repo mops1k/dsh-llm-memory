@@ -218,8 +218,13 @@ export function readAllPages(root: string, projects?: Record<string, string>): P
 }
 
 /** Write an entry page atomically and return its absolute path. */
-export function writeItemPage(root: string, entry: MemoryEntry, projectRoot?: string | null): string {
-  const file = entryPathFor(root, entry, projectRoot)
+export function writeItemPage(
+  root: string,
+  entry: MemoryEntry,
+  projectRoot?: string | null,
+  projectDirName?: string,
+): string {
+  const file = entryPathFor(root, entry, projectRoot, projectDirName)
   writeFileAtomic(file, pageToText(entry))
   return file
 }

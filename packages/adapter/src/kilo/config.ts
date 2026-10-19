@@ -1,0 +1,62 @@
+/**
+ * Kilo adapter configuration (`~/.config/kilo/kilo-memory.json`), reduced to
+ * the fields the adapter needs. Defaults keep Kilo behaviour: dynamic prompt,
+ * global+project recall, panel on 127.0.0.1:8787.
+ */
+export type PromptMode = 'dynamic' | 'frozen'
+export type RecallFormat = 'markdown' | 'table' | 'timeline' | 'json'
+export type RecallScope = 'global' | 'project' | 'all'
+
+export interface KiloMemoryConfig {
+  enabled: boolean
+  memory: {
+    storageRoot: string
+    promptMode: PromptMode
+    recallLimit: number
+    recallFormat: RecallFormat
+    recallScope: RecallScope
+    recallTextChars: number
+    /** Kilo consolidation/reinforcement behaviour stays on by default. */
+    consolidateOnCompact: boolean
+  }
+  web: {
+    enabled: boolean
+    host: string
+    port: number
+  }
+}
+
+export const DEFAULT_KILO_CONFIG: KiloMemoryConfig = {
+  enabled: true,
+  memory: {
+    storageRoot: '',
+    promptMode: 'dynamic',
+    recallLimit: 10,
+    recallFormat: 'markdown',
+    recallScope: 'all',
+    recallTextChars: 600,
+    consolidateOnCompact: true,
+  },
+  web: { enabled: true, host: '127.0.0.1', port: 8787 },
+}
+
+function mergeSection<T extends object>(base: T, raw: unknown): T {
+  if (raw === null || typeof raw !== 'object') return base
+  const merged: Record<string, unknown> = { ...(base as Record<string, unknown>) }
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value !== undefined) merged[key] = value
+  }
+  return merged as T
+}
+
+/** Deep-merge a stored config over the defaults; unknown keys are kept. */
+export function resolveKiloConfig(raw: unknown): KiloMemoryConfig {
+  if (raw === null || typeof raw !== 'object') return structuredClone(DEFAULT_KILO_CONFIG)
+  const input = raw as Partial<KiloMemoryConfig>
+  return {
+    ...DEFAULT_KILO_CONFIG,
+    ...input,
+    memory: mergeSection(DEFAULT_KILO_CONFIG.memory, input.memory),
+    web: mergeSection(DEFAULT_KILO_CONFIG.web, input.web),
+  }
+}
