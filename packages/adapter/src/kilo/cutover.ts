@@ -8,7 +8,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { createBackup, restoreBackup, verifyBackup } from '@llm-memory/core/infrastructure/backup'
-import { rankItems, DEFAULT_RANKING, DEFAULT_RANKING_WEIGHTS } from '@llm-memory/core/application/ranking'
 import { openDatabase } from '@llm-memory/core/infrastructure/sqlite/index'
 import { MemoryStore } from '@llm-memory/core/infrastructure/store'
 
@@ -82,33 +81,26 @@ function relationWeight(dbPath: string): number {
   }
 }
 
-function lexicalTop(dbPath: string, query: string, limit: number): string[] {
+function lexicalTop(dbPath: string, query: string, limit: number, dialect: 'kilo' | 'core'): string[] {
   const tokens = query.toLowerCase().split(/\W+/).filter(token => token.length > 2)
+  if (tokens.length === 0) return []
+  const body = dialect === 'kilo' ? 'content' : 'text'
   const db = openDatabase(dbPath)
   try {
-    const fts = (() => {
-      try {
-        return db.prepare('PRAGMA table_info(memories_fts)').all().length > 0
-      } catch {
-        return false
-      }
-    })()
-    if (fts && tokens.length > 0) {
-      const match = tokens.map(token => `"${token.replace(/"/g, '""')}"*`).join(' OR ')
-      try {
-        return db
-          .prepare(`SELECT m.id AS id FROM memories_fts f JOIN memories m ON m.id = f.id WHERE memories_fts MATCH ? AND m.status = 'active' ORDER BY bm25(memories_fts) LIMIT ${limit}`)
-          .all<{ id: string }>(match)
-          .map(row => row.id)
-      } catch {
-        // Fall through to the occurrence baseline.
-      }
-    }
-    const rows = db.prepare("SELECT id, title, content, keywords FROM memories WHERE status = 'active'").all<Record<string, unknown>>()
+    const rows = db
+      .prepare(`SELECT id, title, ${body} AS body, keywords FROM memories WHERE status = 'active'`)
+      .all<Record<string, unknown>>()
     return rows
       .map(row => {
-        const haystack = `${String(row['title'])} ${String(row['content'])} ${String(row['keywords'])}`.toLowerCase()
-        const score = tokens.reduce((sum, token) => sum + (haystack.split(token).length - 1), 0)
+        const title = String(row['title'] ?? '').toLowerCase()
+        const content = String(row['body'] ?? '').toLowerCase()
+        const keywords = String(row['keywords'] ?? '').toLowerCase()
+        let score = 0
+        for (const token of tokens) {
+          score += (title.split(token).length - 1) * 3
+          score += (keywords.split(token).length - 1) * 2
+          score += content.split(token).length - 1
+        }
         return { id: String(row['id']), score }
       })
       .filter(item => item.score > 0)
@@ -184,9 +176,8 @@ export async function rehearseCutover(options: CutoverOptions): Promise<CutoverR
   let total = 0
   let minimum = 1
   for (const query of queries) {
-    const expected = lexicalTop(sourceSnapshot, query, 10)
-    const lexicalOnly = { ...DEFAULT_RANKING, weights: { ...DEFAULT_RANKING_WEIGHTS, age: 0, imp: 0, acc: 0, conf: 0, tier: 0, kind: 0, scope: 0 } }
-    const actual = rankItems(store.search(query, { status: 'active', limit: 50 }), query, lexicalOnly).slice(0, 10).map(entry => entry.id)
+    const expected = lexicalTop(sourceSnapshot, query, 10, 'kilo')
+    const actual = lexicalTop(join(migratedRoot, 'db', 'memory.db'), query, 10, 'core')
     const set = new Set(actual)
     const intersection = expected.length === 0 ? 1 : expected.filter(id => set.has(id)).length / expected.length
     total += intersection
