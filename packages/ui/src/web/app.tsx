@@ -5,6 +5,7 @@
 import * as React from 'react'
 
 import type { UiHost } from '../headless/host.js'
+import { themeVars } from './styles.js'
 import { createTranslator } from '../headless/i18n.js'
 import type { BackupSummary } from '../headless/backup.js'
 import type { GraphVm, HealthVm, ItemRowVm, LintVm, SettingsVm, StatusVm } from '../headless/viewmodels.js'
@@ -50,7 +51,7 @@ export function MemoryApp({ host, data, initialScreen = 'status', onSettingChang
   const selected = data.items.find(item => item.id === selectedId) ?? data.selected
 
   return (
-    <div className="lm-app" data-host={host.kind} style={theme as unknown as React.CSSProperties}>
+    <div className="lm-app" data-host={host.kind} style={themeVars(theme) as unknown as React.CSSProperties}>
       <nav className="lm-nav">
         {NAV.map(id => (
           <button key={id} type="button" aria-current={screen === id} onClick={() => setScreen(id)}>

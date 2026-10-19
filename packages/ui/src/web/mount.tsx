@@ -6,6 +6,7 @@ import type { UiHost } from '../headless/host.js'
 import { createTranslator } from '../headless/i18n.js'
 import { graphVm, healthVm, itemsVm, lintVm, settingsVm, statusVm } from '../headless/viewmodels.js'
 import { MemoryApp, type ScreenData } from './app.js'
+import { styleSheet } from './styles.js'
 
 export async function collectScreenData(host: UiHost): Promise<ScreenData> {
   const t = createTranslator(host.locale())
@@ -29,7 +30,17 @@ export async function collectScreenData(host: UiHost): Promise<ScreenData> {
   }
 }
 
+function injectStyles(): void {
+  const id = 'lm-styles'
+  if (typeof document === 'undefined' || document.getElementById(id)) return
+  const style = document.createElement('style')
+  style.id = id
+  style.textContent = styleSheet()
+  document.head.append(style)
+}
+
 export function mount(target: HTMLElement, host: UiHost): Promise<void> {
+  injectStyles()
   return collectScreenData(host).then(data => {
     createRoot(target).render(<MemoryApp host={host} data={data} />)
   })
