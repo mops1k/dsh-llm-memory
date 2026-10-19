@@ -19,9 +19,11 @@
       "@llm-memory/adapter/*": ["./packages/adapter/src/*"],
       "@llm-memory/ui": ["./packages/ui/src/index.ts"],
       "@llm-memory/ui/*": ["./packages/ui/src/*"],
+      "@llm-memory/ui/headless/host": ["./packages/ui/src/headless/host.ts"],
+      "@llm-memory/ui/headless/*": ["./packages/ui/src/headless/*.ts"],
       "@llm-memory/testkit": ["./packages/testkit/src/index.ts"]
     }
   },
-  "references": [{ "path": "./packages/core" }, { "path": "./packages/adapter" }],
+  "references": [{ "path": "./packages/core" }, { "path": "./packages/ui" }, { "path": "./packages/adapter" }],
   "include": ["src/**/*.ts"]
 }

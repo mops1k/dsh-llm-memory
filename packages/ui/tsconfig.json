@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "lib" },
-  "include": ["src/**/*.ts"]
+  "compilerOptions": { "composite": true, "rootDir": "src", "outDir": "lib" },
+  "include": ["src/headless/**/*.ts", "src/theme/**/*.ts"]
 }

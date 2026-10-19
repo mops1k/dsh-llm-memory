@@ -10,6 +10,8 @@
  * @module dsh-llm-memory/dsh/web
  */
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { listBackups } from '@llm-memory/core/infrastructure/backup'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -260,6 +262,8 @@ export type WorkspaceSyncPayload = WorkspaceSyncReport | { unavailable: true }
 
 /** Host wiring that lets the pure handler reach `ctx.workspaceRegistry`. */
 export interface WebHandlerOptions {
+  /** Store root used by the backup screen (defaults to the process cwd). */
+  storageRoot?: string;
   /** Resolve the workspace registry lazily; may return undefined when absent. */
   getWorkspaceRegistry?: () => unknown
 }
@@ -372,6 +376,10 @@ export function createWebHandler(
     }
     if (rel === '/api/model/status') {
       sendJson(res, 200, engine.modelStatus())
+      return
+    }
+    if (rel === '/api/backup') {
+      sendJson(res, 200, listBackups(join(options.storageRoot ?? '.', 'backups')))
       return
     }
     if (rel === '/api/lint') {
