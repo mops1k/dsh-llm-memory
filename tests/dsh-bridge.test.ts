@@ -37,6 +37,8 @@ describe('DSH UI bridge', () => {
       expect(graph.entities).toHaveLength(1)
       expect((await bridge.request('lint')) as { issues: unknown[] }).toBeTruthy()
       expect(await bridge.request('health')).toBeTruthy()
+      const settings = (await bridge.request('settings.get')) as { backupDir: string }
+      expect(settings.backupDir).toBe('')
     } finally {
       runtime.close()
     }

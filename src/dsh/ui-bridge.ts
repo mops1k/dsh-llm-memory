@@ -20,7 +20,7 @@ export interface DshBridge {
 }
 
 function backupsDirOf(options: DshBridgeOptions): string {
-  return options.backupsDir ?? join(options.storageRoot, 'backups')
+  return options.backupsDir ?? (options.engine.config.backupDir || join(options.storageRoot, 'backups'))
 }
 
 export function createDshBridge(options: DshBridgeOptions): DshBridge {

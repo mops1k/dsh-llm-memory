@@ -260,6 +260,10 @@ export const MemorySettingsSchema = z.object({
     .default(DEFAULT_CONFIG.webPath)
     .volatile()
     .description('Base HTTP path for the plugin WebUI and API.'),
+  backupDir: z
+    .string()
+    .default(DEFAULT_CONFIG.backupDir)
+    .description('Directory for manual .llmmem backups (empty = <storageRoot>/backups).'),
 })
 
 /** Full plugin schema: native Settings fields plus startup-only profile fields. */

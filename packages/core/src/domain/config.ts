@@ -185,6 +185,8 @@ export interface MemoryConfig {
   embeddings: EmbeddingConfig
   /** HTTP path of the standalone memory web UI. */
   webPath: string
+  /** Directory for manual `.llmmem` backups; empty means `<storageRoot>/backups`. */
+  backupDir: string
   /** Inject the short guide at session start when no richer system section is available. */
   sessionStartGuide: boolean
 }
@@ -244,6 +246,7 @@ export const DEFAULT_CONFIG: MemoryConfig = {
   rulesSource: 'bundled-en',
   embeddings: { ...DEFAULT_EMBEDDINGS },
   webPath: '/llm-memory',
+  backupDir: '',
   sessionStartGuide: true,
 }
 
@@ -408,6 +411,7 @@ export function mergeConfig(partial?: Partial<MemoryConfig> | null): MemoryConfi
     rulesSource: asRulesSource(src.rulesSource, DEFAULT_CONFIG.rulesSource),
     embeddings: asEmbeddings(src.embeddings, DEFAULT_CONFIG.embeddings),
     webPath: src.webPath === undefined ? DEFAULT_CONFIG.webPath : asWebPath(src.webPath, DEFAULT_CONFIG.webPath),
+    backupDir: typeof src.backupDir === 'string' ? src.backupDir.trim() : DEFAULT_CONFIG.backupDir,
     sessionStartGuide:
       typeof src.sessionStartGuide === 'boolean' ? src.sessionStartGuide : DEFAULT_CONFIG.sessionStartGuide,
   }
