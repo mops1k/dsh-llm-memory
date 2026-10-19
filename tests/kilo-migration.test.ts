@@ -66,6 +66,15 @@ describe('kilo store migration', () => {
   it('migrates a copy of the live Kilo store without losing records', () => {
     const live = '/mnt/c/Users/Kvintilyanov/.config/kilo/memory/db/memory.db'
     if (!existsSync(live)) return
+    // Kilo may be running: a hot WAL on the Windows mount can fail with EIO.
+    try {
+      const probe = new DatabaseSync(live, { readOnly: true })
+      probe.prepare('SELECT COUNT(*) FROM memories').get()
+      probe.close()
+    } catch (error) {
+      if (/disk I\/O error|database is locked|SQLITE_BUSY/i.test(String(error))) return
+      throw error
+    }
     const dir = mkdtempSync(join(tmpdir(), 'llm-kilo-live-'))
     temps.push(dir)
     const db = join(dir, 'memory.db')

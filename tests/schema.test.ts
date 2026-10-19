@@ -75,7 +75,14 @@ describe('schema v2 migration', () => {
     // The live store sits on a Windows mount and may have a hot WAL: open the
     // snapshot copy instead of the live file (read-only opens fail with EIO).
     const path = tempDb(live)
-    const source = new DatabaseSync(path, { readOnly: true })
+    let source: DatabaseSync
+    try {
+      source = new DatabaseSync(path, { readOnly: true })
+      source.prepare('SELECT COUNT(*) FROM memories').get()
+    } catch (error) {
+      if (/disk I\/O error|database is locked|SQLITE_BUSY/i.test(String(error))) return
+      throw error
+    }
     const expected = source.prepare("SELECT COUNT(*) AS entries, SUM(status='active') AS active FROM memories").get()
     source.close()
     const probe = new DatabaseSync(path, { readOnly: true })
