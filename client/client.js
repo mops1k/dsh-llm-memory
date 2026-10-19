@@ -3191,6 +3191,7 @@ window.__ModuleLoader__.load({
             { label: "WebUI base path", hint: "Base HTTP path of the WebUI and API. Takes effect after the plugin restarts." },
             h("input", inputProps("webPath")),
           ),
+          h(BackupSection, { scope }),
           h(
             "div",
             { style: S.actions },
@@ -3288,17 +3289,6 @@ window.__ModuleLoader__.load({
     }
 
 
-    function createBackupCard(scope) {
-      return function BackupCard() {
-        return h(
-          "div",
-          { style: S.cardColumn },
-          h("h2", { style: S.overlayTitle }, "LLM Memory · Backup"),
-          h(BackupSection, { scope }),
-        );
-      };
-    }
-
     /* ------------------------------------------------------------------ *
      * plugin entry
      * ------------------------------------------------------------------ */
@@ -3318,7 +3308,6 @@ window.__ModuleLoader__.load({
 
       const MemoryView = createMemoryView(scope);
       const SettingsCard = createSettingsCard(scope);
-      const BackupCard = createBackupCard(scope);
 
       ctx.slots.inject("conversation.view", () =>
         ctx.slots.register(
@@ -3332,12 +3321,6 @@ window.__ModuleLoader__.load({
         ctx.slots.register(
           { name: "settings.section", id: VIEW_ID, order: 20, label: () => VIEW_LABEL },
           SettingsCard,
-        ),
-      );
-      ctx.slots.inject("settings.section", () =>
-        ctx.slots.register(
-          { name: "settings.section", id: VIEW_ID + "-backup", order: 21, label: () => VIEW_LABEL + " · Backup" },
-          BackupCard,
         ),
       );
     }
