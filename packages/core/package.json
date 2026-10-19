@@ -1,7 +1,6 @@
 {
   "name": "@llm-memory/core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "1.4.0",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -18,5 +17,21 @@
       "types": "./lib/*.d.ts",
       "default": "./lib/*.js"
     }
+  },
+  "description": "Platform-independent memory core for DSH, kilocode, OpenCode and MCP (LLM Wiki engine: store, ranking, wiki graph, vectors, frontmatter).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mops1k/dsh-llm-memory.git",
+    "directory": "packages/core"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "files": [
+    "lib"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

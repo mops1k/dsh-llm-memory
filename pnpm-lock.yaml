@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@llm-memory/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:packages/core
     devDependencies:
       '@deepseek-ai/cordis':
