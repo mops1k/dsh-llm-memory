@@ -17,7 +17,17 @@ export interface KiloPluginContext {
   worktree?: string
 }
 
-const configPath = (): string => join(homedir(), '.config', 'kilo', 'kilo-memory.json')
+/** Universal name first; the pre-unification `kilo-memory.json` stays a read fallback. */
+export function resolveConfigFile(dir: string): string {
+  const preferred = join(dir, 'llm-memory.json')
+  if (existsSync(preferred)) return preferred
+  const legacy = join(dir, 'kilo-memory.json')
+  return existsSync(legacy) ? legacy : preferred
+}
+
+const configDir = (): string => join(homedir(), '.config', 'kilo')
+const configPath = (): string => resolveConfigFile(configDir())
+const configWritePath = (): string => join(configDir(), 'llm-memory.json')
 
 export function loadConfigFrom(file: string): KiloMemoryConfig {
   try {
@@ -70,7 +80,7 @@ const server = async (context: KiloPluginContext = {}) => {
     web = await startKiloWebServer({
       service,
       config,
-      saveConfig: next => writeFileSync(configPath(), JSON.stringify(next, null, 2), 'utf8'),
+      saveConfig: next => writeFileSync(configWritePath(), JSON.stringify(next, null, 2), 'utf8'),
     })
   }
   return {

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { loadConfigFrom, resolveProjectRoot } from '@llm-memory/adapter/kilo/plugin'
+import { loadConfigFrom, resolveConfigFile, resolveProjectRoot } from '@llm-memory/adapter/kilo/plugin'
 
 const dirs: string[] = []
 afterEach(() => {
@@ -31,6 +31,16 @@ describe('kilo plugin helpers', () => {
     expect(config.memory.recallLimit).toBe(3)
     expect(config.web.port).toBe(9001)
     expect(config.memory.recallScope).toBe('all')
+  })
+
+  it('prefers llm-memory.json and falls back to the legacy kilo-memory.json', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'llm-kilo-cfg-'))
+    dirs.push(dir)
+    expect(resolveConfigFile(dir)).toBe(join(dir, 'llm-memory.json'))
+    writeFileSync(join(dir, 'kilo-memory.json'), '{}')
+    expect(resolveConfigFile(dir)).toBe(join(dir, 'kilo-memory.json'))
+    writeFileSync(join(dir, 'llm-memory.json'), '{}')
+    expect(resolveConfigFile(dir)).toBe(join(dir, 'llm-memory.json'))
   })
 
   it('takes the project root from directory when worktree is a WSL placeholder', () => {

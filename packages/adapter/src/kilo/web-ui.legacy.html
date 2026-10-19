@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>kilo-memory — дашборд памяти</title>
+<title>LLM Memory</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjNWI4Y2ZmIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjOGE1YmZmIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzBiMTAyMCIvPjxnIGZpbGw9Im5vbmUiIHN0cm9rZT0idXJsKCNnKSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTE2IDdjLTEuMS0uOC0yLjYtMS0zLjgtLjQtLjkuNC0xLjYgMS4zLTEuOCAyLjMtMS4yLjEtMi4zLjgtMi44IDEuOS0uNC45LS4zIDIgLjMgMi45LS43LjctMS4xIDEuNy0xIDIuNy4yIDEuNCAxLjMgMi41IDIuNyAyLjguMyAxLjQgMS41IDIuNSAzIDIuNS41IDAgMS0uMiAxLjUtLjQuNS43IDEuMyAxLjMgMi4yIDEuMyIvPjxwYXRoIGQ9Ik0xNiA3YzEuMS0uOCAyLjYtMSAzLjgtLjQuOS40IDEuNiAxLjMgMS44IDIuMyAxLjIuMSAyLjMuOCAyLjggMS45LjQuOS4zIDItLjMgMi45LjcuNyAxLjEgMS43IDEgMi43LS4yIDEuNC0xLjMgMi41LTIuNyAyLjgtLjMgMS40LTEuNSAyLjUtMyAyLjUtLjUgMC0xLS4yLTEuNS0uNC0uNS43LTEuMyAxLjMtMi4yIDEuMyIvPjxwYXRoIGQ9Ik0xMyAxMS41bDIgMnYyLjEiLz48cGF0aCBkPSJNMTkgMTEuNWwtMiAydjIuMSIvPjxwYXRoIGQ9Ik0xNiA5djIuOCIvPjxwYXRoIGQ9Ik0xMy42IDE1LjVoNC44Ii8+PHBhdGggZD0iTTE2IDE2djMuMiIvPjxwYXRoIGQ9Ik0xNiAyM3YyLjYiLz48cGF0aCBkPSJNMTIuMyAyMS42bC0xLjUgMS43Ii8+PHBhdGggZD0iTTE5LjcgMjEuNmwxLjUgMS43Ii8+PGNpcmNsZSBjeD0iMTYiIGN5PSI5IiByPSIxIi8+PGNpcmNsZSBjeD0iMTMiIGN5PSIxMS41IiByPSIxIi8+PGNpcmNsZSBjeD0iMTkiIGN5PSIxMS41IiByPSIxIi8+PGNpcmNsZSBjeD0iMTYiIGN5PSIxOS4yIiByPSIxIi8+PC9nPjwvc3ZnPgo=">
 <style>
   :root {
@@ -232,7 +232,7 @@
 <div class="app">
   <aside class="sidebar">
     <div class="brand">
-      <svg class="brand-logo" viewBox="0 0 32 32" role="img" aria-label="kilo-memory">
+      <svg class="brand-logo" viewBox="0 0 32 32" role="img" aria-label="LLM Memory">
         <defs>
           <linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stop-color="#5b8cff"/>
@@ -256,7 +256,7 @@
           <circle cx="16" cy="20" r="1"/>
         </g>
       </svg>
-      kilo-memory
+      LLM Memory
     </div>
     <nav class="nav">
       <button class="nav-btn active" data-tab="overview"><svg class="ic"><use href="#i-grid"/></svg> Обзор</button>
@@ -401,7 +401,7 @@
       <section id="tab-settings">
         <div class="card">
           <div class="toolbar"><button class="btn secondary" id="btn-cfg-load"><svg class="ic"><use href="#i-refresh"/></svg> Перечитать</button><button class="btn" id="btn-cfg-save"><svg class="ic"><use href="#i-save"/></svg> Сохранить (применить сразу)</button></div>
-          <p class="muted">Настройки пишутся в <code>~/.config/kilo/kilo-memory.json</code> и применяются к активному движку сразу. Значения из env <code>KILO_MEMORY_*</code> имеют приоритет над файлом.</p>
+          <p class="muted">Настройки пишутся в <code>~/.config/kilo/llm-memory.json</code> и применяются к активному движку сразу. Старый файл <code>kilo-memory.json</code> читается как fallback.</p>
           <div id="cfg-body"></div>
         </div>
       </section>

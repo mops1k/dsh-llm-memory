@@ -49,7 +49,7 @@ function html(res: ServerResponse, body: string): void {
 }
 
 const PAGE = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>llm-memory · Kilo</title>
+<html lang="en"><head><meta charset="utf-8"><title>LLM Memory</title>
 <style>body{font-family:system-ui,sans-serif;margin:0;padding:0}</style></head>
 <body><div id="root"></div>
 <script type="module">

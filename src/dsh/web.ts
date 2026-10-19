@@ -184,7 +184,7 @@ function param(url: URL, name: string): string | undefined {
 
 /** The UI page is read relative to the compiled module so it ships in `ui/`. */
 const HEADLESS_UI_HTML = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>llm-memory</title>
+<html lang="en"><head><meta charset="utf-8"><title>LLM Memory</title>
 <style>body{margin:0;font-family:system-ui,sans-serif}</style></head>
 <body><div id="root"></div>
 <script type="module">
