@@ -15,6 +15,7 @@ import {
   verifyBackup,
 } from '@llm-memory/core/infrastructure/backup'
 
+import { embeddedWebBundle } from './web-bundle.js'
 import type { KiloService } from './service.js'
 import type { KiloMemoryConfig } from './config.js'
 
@@ -40,11 +41,17 @@ const PAGE = `<!doctype html>
 <style>body{font-family:system-ui,sans-serif;margin:0;padding:0}</style></head>
 <body><div id="root"></div>
 <script type="module">
-  import { mount, HttpUiHost } from '/web.js'
-  const params = new URLSearchParams(location.search)
-  const locale = params.get('locale') === 'ru' ? 'ru' : 'en'
-  const host = new HttpUiHost({ kind: 'kilo', baseUrl: location.origin, locale })
-  mount(document.getElementById('root'), host)
+  const root = document.getElementById('root')
+  import('/web.js')
+    .then(({ mount, HttpUiHost }) => {
+      const params = new URLSearchParams(location.search)
+      const locale = params.get('locale') === 'ru' ? 'ru' : 'en'
+      mount(root, new HttpUiHost({ kind: 'kilo', baseUrl: location.origin, locale }))
+    })
+    .catch(error => {
+      root.innerHTML = '<pre style="font:14px/1.4 monospace;padding:16px;color:#b00020">' +
+        'UI bundle failed to load: ' + String(error) + '</pre>'
+    })
 </script></body></html>`
 
 function bundlePath(): string | null {
@@ -56,6 +63,8 @@ function bundlePath(): string | null {
 }
 
 function readBundle(): string | null {
+  const embedded = embeddedWebBundle()
+  if (embedded) return embedded
   const path = bundlePath()
   if (!path) return null
   try {
