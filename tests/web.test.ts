@@ -231,6 +231,23 @@ describe('createWebHandler', () => {
   })
 })
 
+describe('ui snapshot route', () => {
+  it('exposes every screen and action the panel renders', async () => {
+    const snapshot = await call('GET', '/llm-memory/api/ui/snapshot')
+    expect(snapshot.statusCode).toBe(200)
+    const body = json(snapshot)
+    expect(body.version).toBeGreaterThan(0)
+    const ids = (body.views as Array<{ id: string }>).map(view => view.id)
+    for (const required of ['overview', 'items', 'editor', 'recall', 'graph', 'map', 'health', 'settings', 'backup', 'model']) {
+      expect(ids).toContain(required)
+    }
+    const actions = (body.actions as Array<{ id: string; label: string }>).map(action => action.id)
+    for (const required of ['backup.create', 'backup.restore', 'model.download', 'model.remove', 'lint.run', 'heal.apply', 'vectors.rebuild', 'import.run']) {
+      expect(actions).toContain(required)
+    }
+  })
+})
+
 describe('model cache routes', () => {
   it('reports the cache state and refuses a download while vector search is off', async () => {
     const status = await call('GET', '/llm-memory/api/model/status')

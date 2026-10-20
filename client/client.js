@@ -480,6 +480,38 @@ window.__ModuleLoader__.load({
      * shared presentational pieces
      * ------------------------------------------------------------------ */
 
+
+    /**
+     * Actions the core schema exposes to panels (backup/model/lint/heal/...).
+     * Buttons are rendered from this registry, so a new action appears in the
+     * dsh panel without any client-side list to edit.
+     */
+    function useUIActions(source) {
+      const base = typeof source === "string" ? source : webBase(source);
+      const [actions, setActions] = React.useState([]);
+      React.useEffect(() => {
+        let alive = true;
+        fetch(base + "/api/ui/snapshot")
+          .then((response) => (response.ok ? response.json() : null))
+          .then((data) => {
+            if (!alive || !data || !Array.isArray(data.actions)) return;
+            setActions(data.actions);
+          })
+          .catch(() => {});
+        return () => {
+          alive = false;
+        };
+      }, [base]);
+      const byId = React.useMemo(() => {
+        const map = {};
+        actions.forEach((action) => {
+          map[action.id] = action;
+        });
+        return map;
+      }, [actions]);
+      return { actions, byId };
+    }
+
     function Field(props) {
       return h(
         "div",
@@ -2122,6 +2154,7 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false);
       const [status, setStatus] = React.useState({ text: "", error: false });
       const [healReport, setHealReport] = React.useState(null);
+      const { byId: actionById } = useUIActions(props.base);
       const [workspaces, setWorkspaces] = React.useState(null);
 
       const run = async (text, task) => {
@@ -2230,9 +2263,9 @@ window.__ModuleLoader__.load({
           h(
             "div",
             { style: S.row },
-            h("button", { type: "button", style: S.primary, disabled: busy, onClick: () => setVersion((v) => v + 1) }, "Run lint"),
-            h("button", { type: "button", style: S.button, disabled: busy, onClick: heal }, "Heal"),
-            h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildVectors }, "Rebuild vectors"),
+            actionById["lint.run"] ? h("button", { type: "button", style: S.primary, disabled: busy, onClick: () => setVersion((v) => v + 1) }, actionById["lint.run"].label) : null,
+            actionById["heal.apply"] ? h("button", { type: "button", style: S.button, disabled: busy, onClick: heal }, actionById["heal.apply"].label) : null,
+            actionById["vectors.rebuild"] ? h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildVectors }, actionById["vectors.rebuild"].label) : null,
             h("button", { type: "button", style: S.button, disabled: busy, onClick: repairVectors }, "Repair vectors"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildAnn }, "Rebuild ANN index"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: syncWorkspaces }, "Sync workspaces"),
@@ -2404,6 +2437,7 @@ window.__ModuleLoader__.load({
         const [base, setBase] = React.useState(() => webBase(scope));
         const [tab, setTab] = React.useState("items");
         const [views, setViews] = React.useState([]);
+        const [panelActions, setPanelActions] = React.useState([]);
         const [overlay, setOverlay] = React.useState(null);
         const [editDraft, setEditDraft] = React.useState(null);
         const [editKey, setEditKey] = React.useState(0);
@@ -2443,6 +2477,7 @@ window.__ModuleLoader__.load({
               if (!alive) return;
               const known = Array.isArray(snapshot.views) ? snapshot.views : [];
               setViews(known.filter((view) => DSH_VIEW_IDS.includes(view.id)));
+              if (Array.isArray(snapshot.actions)) setPanelActions(snapshot.actions);
             })
             .catch(() => {
               /* keep the built-in order when the snapshot is unavailable */
@@ -2582,7 +2617,9 @@ window.__ModuleLoader__.load({
           h(
             "div",
             { style: S.toolbar },
-            h("button", { type: "button", style: S.button, disabled: busy, onClick: importMemory }, "Import memory"),
+            (panelActions.find((action) => action.id === "import.run") || null)
+              ? h("button", { type: "button", style: S.button, disabled: busy, onClick: importMemory }, panelActions.find((action) => action.id === "import.run").label)
+              : null,
             h("span", { style: S.toolbarSpacer }),
             h(Notice, { text: actionStatus.text, error: actionStatus.error }),
             h(
@@ -2730,6 +2767,7 @@ window.__ModuleLoader__.load({
         const [busy, setBusy] = React.useState(false);
         const [model, setModel] = React.useState(null);
         const [modelBusy, setModelBusy] = React.useState(false);
+        const { byId: actionById } = useUIActions(scope);
 
         const loadModelStatus = React.useCallback(async () => {
           try {
@@ -2784,13 +2822,6 @@ window.__ModuleLoader__.load({
           }
         };
 
-        const refreshRulesExportState = async () => {
-          try {
-            const data = await apiPost(webBase(scope), "/api/rules/preview", {});
-          } catch (error) {
-          }
-        };
-
         React.useEffect(() => {
           const onChange = () => setSnapshot(scope.getSnapshot());
           let unsubscribe = null;
@@ -2806,7 +2837,6 @@ window.__ModuleLoader__.load({
         }, []);
 
         React.useEffect(() => {
-          refreshRulesExportState();
         }, []);
 
         React.useEffect(() => {
@@ -2945,12 +2975,23 @@ window.__ModuleLoader__.load({
             statusNote ? h("p", { key: "status", style: S.hint }, statusNote) : null,
           ]),
           h(SchemaSettings, { form, update, scope }),
+          h("h3", { style: S.sectionTitle }, "Embedding model"),
+          h("p", { style: S.hint }, modelStatusText(model)),
+          h(
+            "div",
+            { style: S.actions },
+            actionById["model.status"] ? h("button", { type: "button", style: S.button, disabled: modelBusy, onClick: loadModelStatus }, actionById["model.status"].label) : null,
+            actionById["model.download"] ? h("button", { type: "button", style: S.primary, disabled: modelBusy || downloading, onClick: downloadModel }, actionById["model.download"].label) : null,
+            actionById["model.remove"] ? h("button", { type: "button", style: S.button, disabled: modelBusy, onClick: removeModel }, actionById["model.remove"].label) : null,
+          ),
           h(BackupSection, { scope }),
           h(
             "div",
             { style: S.actions },
             h("button", { type: "button", style: S.primary, disabled: busy, onClick: save }, "Save settings"),
-            h("button", { type: "button", style: S.button, disabled: busy, onClick: importMemory }, "Import memory"),
+            (panelActions.find((action) => action.id === "import.run") || null)
+              ? h("button", { type: "button", style: S.button, disabled: busy, onClick: importMemory }, panelActions.find((action) => action.id === "import.run").label)
+              : null,
           ),
           notice ? h("p", { style: S.status }, notice) : null,
           report ? h("pre", { style: S.pre }, report) : null,
@@ -2961,6 +3002,7 @@ window.__ModuleLoader__.load({
 
     function BackupSection({ scope }) {
       const base = webBase(scope);
+      const { byId } = useUIActions(scope);
       const [backups, setBackups] = React.useState([]);
       const [busy, setBusy] = React.useState(false);
       const [notice, setNotice] = React.useState("");
@@ -3015,8 +3057,8 @@ window.__ModuleLoader__.load({
         h(
           "div",
           { style: S.actions },
-          h("button", { type: "button", style: S.primary, disabled: busy, onClick: create }, "Create backup"),
-          h("button", { type: "button", style: S.button, disabled: busy, onClick: reload }, "Refresh"),
+          byId["backup.create"] ? h("button", { type: "button", style: S.primary, disabled: busy, onClick: create }, byId["backup.create"].label) : null,
+          byId["backup.list"] ? h("button", { type: "button", style: S.button, disabled: busy, onClick: reload }, byId["backup.list"].label) : null,
         ),
         backups.length === 0
           ? h("p", { style: S.hint }, "No backups yet.")
@@ -3031,9 +3073,9 @@ window.__ModuleLoader__.load({
                   h(
                     "div",
                     { style: S.actions },
-                    h("button", { type: "button", style: S.button, disabled: busy, onClick: () => verify(item.archive) }, "Verify"),
-                    h("button", { type: "button", style: S.button, disabled: busy, onClick: () => restore(item.archive) }, "Restore"),
-                    h("button", { type: "button", style: S.button, disabled: busy, onClick: () => remove(item.archive) }, "Delete"),
+                    byId["backup.verify"] ? h("button", { type: "button", style: S.button, disabled: busy, onClick: () => verify(item.archive) }, byId["backup.verify"].label) : null,
+                    byId["backup.restore"] ? h("button", { type: "button", style: S.button, disabled: busy, onClick: () => restore(item.archive) }, byId["backup.restore"].label) : null,
+                    byId["backup.delete"] ? h("button", { type: "button", style: S.button, disabled: busy, onClick: () => remove(item.archive) }, byId["backup.delete"].label) : null,
                   ),
                 ),
               ),
