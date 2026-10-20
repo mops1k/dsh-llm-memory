@@ -601,7 +601,10 @@ window.__ModuleLoader__.load({
       const [scope, setScope] = React.useState("");
       const [status, setStatus] = React.useState("");
       const [project, setProject] = React.useState("");
-      const [limit, setLimit] = React.useState("50");
+      const pagination = props.pagination || { pageSizes: [12, 24, 48, 96], defaultPageSize: 24 };
+      const [pageSize, setPageSize] = React.useState(String(pagination.defaultPageSize));
+      const [page, setPage] = React.useState(0);
+      const [reload, setReload] = React.useState(0);
       const [items, setItems] = React.useState(null);
       const [total, setTotal] = React.useState(0);
       const [error, setError] = React.useState("");
@@ -613,7 +616,8 @@ window.__ModuleLoader__.load({
         if (scope) params.set("scope", scope);
         if (status) params.set("status", status);
         if (project.trim()) params.set("project", project.trim());
-        if (limit) params.set("limit", limit);
+        params.set("limit", pageSize);
+        params.set("offset", String(page * Number(pageSize)));
         setError("");
         try {
           const data = await apiGet(props.base, "/api/items?" + params.toString());
@@ -623,11 +627,11 @@ window.__ModuleLoader__.load({
           setItems(null);
           setError(errorText(err));
         }
-      }, [props.base, query, kind, scope, status, project, limit]);
+      }, [props.base, query, kind, scope, status, project, pageSize, page]);
 
       React.useEffect(() => {
         load();
-      }, [props.version]);
+      }, [props.version, page, pageSize, reload]);
 
       const select = (value, setter, options, label) =>
         h(
@@ -679,17 +683,34 @@ window.__ModuleLoader__.load({
             ),
             h(
               Field,
-              { label: "Limit" },
-              h("input", {
-                type: "number",
-                min: 1,
-                max: 500,
-                style: Object.assign({}, S.input, { width: "80px", minWidth: "80px" }),
-                value: limit,
-                onChange: (event) => setLimit(event.target.value),
-              }),
+              { label: "Per page" },
+              h(
+                "select",
+                {
+                  style: S.input,
+                  value: pageSize,
+                  onChange: (event) => {
+                    setPage(0);
+                    setPageSize(event.target.value);
+                  },
+                },
+                pagination.pageSizes.map((size) =>
+                  h("option", { key: size, style: S.option, value: String(size) }, String(size)),
+                ),
+              ),
             ),
-            h("button", { type: "button", style: S.primary, onClick: load }, "Search"),
+            h(
+              "button",
+              {
+                type: "button",
+                style: S.primary,
+                onClick: () => {
+                  setPage(0);
+                  setReload((value) => value + 1);
+                },
+              },
+              "Search",
+            ),
           ),
         ),
         h(
@@ -702,6 +723,29 @@ window.__ModuleLoader__.load({
               : total + " entr" + (total === 1 ? "y" : "ies") + (query.trim() ? ' matching "' + query.trim() + '"' : ""),
         ),
         error ? null : h("div", { style: S.grid }, (items || []).map((entry) => entryCard(entry, props.handlers))),
+        error
+          ? null
+          : h(
+              "div",
+              { style: S.meta },
+              h("button", {
+                type: "button",
+                style: S.button,
+                disabled: page === 0,
+                onClick: () => setPage((value) => Math.max(0, value - 1)),
+              }, "Previous"),
+              h(
+                "span",
+                { style: { margin: "0 10px" } },
+                "Page " + (page + 1) + " of " + Math.max(1, Math.ceil(total / Number(pageSize))),
+              ),
+              h("button", {
+                type: "button",
+                style: S.button,
+                disabled: (page + 1) * Number(pageSize) >= total,
+                onClick: () => setPage((value) => value + 1),
+              }, "Next"),
+            ),
       );
     }
 
@@ -2512,11 +2556,14 @@ window.__ModuleLoader__.load({
           onDelete: deleteEntry,
         };
 
+        const itemsView = views.find((view) => view.id === "items");
+        const itemsTable = itemsView && (itemsView.widgets || []).find((widget) => widget.kind === "table");
+        const itemsPagination = itemsTable && itemsTable.pagination;
         let content = null;
         if (tab === "overview") {
           content = h("div", { style: S.panel }, h(StatusPanel, { base, version: browseVersion }));
         } else if (tab === "items") {
-          content = h(BrowseTab, { base, version: browseVersion, projects, handlers });
+          content = h(BrowseTab, { base, version: browseVersion, projects, handlers, pagination: itemsPagination });
         } else if (tab === "editor") {
           content = h(EditTab, { key: editKey, base, draft: editDraft, onSaved: refreshBrowse });
         } else if (tab === "graph") {

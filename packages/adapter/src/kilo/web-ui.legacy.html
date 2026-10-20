@@ -528,6 +528,17 @@ async function loadNav() {
     const snapshot = await api("GET", "/ui/snapshot");
     const views = (snapshot.views || []).filter(view => KILO_VIEWS[view.id]);
     if (!views.length) return;
+    const itemsView = views.find(view => view.id === "items");
+    const itemsTable = itemsView && (itemsView.widgets || []).find(widget => widget.kind === "table");
+    if (itemsTable && itemsTable.pagination) {
+      const sizes = itemsTable.pagination.pageSizes || [];
+      if (sizes.length) {
+        $("pager-size").innerHTML = sizes.map(size => "<option>" + size + "</option>").join("");
+        const stored = Number(localStorage.getItem("km-page-size"));
+        if (!sizes.includes(stored)) itemsLimit = itemsTable.pagination.defaultPageSize;
+        $("pager-size").value = String(itemsLimit);
+      }
+    }
     $("nav").innerHTML = views.map(view => {
       const meta = KILO_VIEWS[view.id];
       const section = meta.section || view.id;

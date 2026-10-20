@@ -48,6 +48,18 @@ describe('universal UI schema', () => {
     expect(map?.widgets.some(widget => widget.kind === 'actions' && widget.actions.includes('vectors.rebuild'))).toBe(true)
   })
 
+  it('declares pagination for entry lists', () => {
+    const items = UI_VIEWS.find(view => view.id === 'items')
+    const table = items?.widgets.find(widget => widget.kind === 'table')
+    if (table?.kind !== 'table') throw new Error('items table is missing')
+    expect(table.pagination?.pageSizes).toEqual([12, 24, 48, 96])
+    expect(table.pagination?.defaultPageSize).toBe(24)
+    const recall = UI_VIEWS.find(view => view.id === 'recall')
+    const search = recall?.widgets.find(widget => widget.kind === 'search')
+    if (search?.kind !== 'search') throw new Error('recall search is missing')
+    expect(search.pagination?.pageSizes.length).toBeGreaterThan(1)
+  })
+
   it('references only known data operations', () => {
     const known = new Set(UI_OPERATIONS)
     const unknown = uiReferencedOperations().filter(operation => !known.has(operation))

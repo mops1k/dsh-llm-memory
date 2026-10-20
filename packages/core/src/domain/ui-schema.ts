@@ -71,7 +71,13 @@ export interface UIEditorField {
 
 export type UIWidget =
   | { kind: 'stats'; source: UISourceRef; metrics: readonly UIMetric[] }
-  | { kind: 'table'; source: UISourceRef; columns: readonly UITableColumn[] }
+  | {
+      kind: 'table'
+      source: UISourceRef
+      columns: readonly UITableColumn[]
+      /** Page navigation of the list; every panel renders the same sizes. */
+      pagination?: { pageSizes: readonly number[]; defaultPageSize: number }
+    }
   | { kind: 'graph'; source: UISourceRef }
   | { kind: 'report'; source: UISourceRef }
   | { kind: 'form'; source: UISourceRef }
@@ -84,7 +90,12 @@ export type UIWidget =
       params?: readonly { name: string; label: string; min?: number; max?: number; step?: number }[]
     }
   | { kind: 'editor'; fields: readonly UIEditorField[] }
-  | { kind: 'search'; source: UISourceRef; columns: readonly UITableColumn[] }
+  | {
+      kind: 'search'
+      source: UISourceRef
+      columns: readonly UITableColumn[]
+      pagination?: { pageSizes: readonly number[]; defaultPageSize: number }
+    }
 
 export interface UIView {
   id: string
@@ -131,8 +142,9 @@ export const UI_VIEWS: readonly UIView[] = [
     widgets: [
       {
         kind: 'table',
-        source: { operation: 'items.list', params: { limit: '50', sort: 'updated' } },
+        source: { operation: 'items.list', params: { sort: 'updated' } },
         columns: ENTRY_COLUMNS,
+        pagination: { pageSizes: [12, 24, 48, 96], defaultPageSize: 24 },
       },
       { kind: 'actions', actions: ['import.run'] },
     ],
@@ -186,8 +198,9 @@ export const UI_VIEWS: readonly UIView[] = [
     widgets: [
       {
         kind: 'search',
-        source: { operation: 'items.list', params: { limit: '20' } },
+        source: { operation: 'items.list' },
         columns: ENTRY_COLUMNS,
+        pagination: { pageSizes: [10, 20, 50], defaultPageSize: 20 },
       },
     ],
   },
