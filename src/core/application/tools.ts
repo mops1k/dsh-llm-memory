@@ -45,13 +45,14 @@ export function createMemoryTools(service: MemoryService): Record<string, Memory
     llm_memory_recall: {
       name: 'llm_memory_recall',
       description:
-        'Search long-term memory. Call when the answer depends on earlier decisions, rules, preferences or project facts.',
+        'Search long-term memory. Call it at the start of a task when the answer depends on earlier decisions, rules, preferences or project facts.',
       args: {
         query: { type: 'string', description: 'Search text; empty returns the most important active entries.', optional: true },
         scope: { type: 'string', description: 'global — user layer, project — this repo, all — both.', optional: true, enum: ['global', 'project', 'all'] },
         kind: { type: 'string', description: 'Restrict to one memory kind.', optional: true, enum: KIND_ENUM },
         format: { type: 'string', description: 'Rendering format.', optional: true, enum: ['markdown', 'table', 'timeline', 'json'] },
         limit: { type: 'number', description: 'Maximum entries.', optional: true },
+        project: { type: 'string', description: 'Project key to restrict project-scope results.', optional: true },
       },
       async execute(args) {
         const result = await service.recall(asString(args, 'query'), {
@@ -59,13 +60,14 @@ export function createMemoryTools(service: MemoryService): Record<string, Memory
           ...(typeof args['scope'] === 'string' ? { scope: args['scope'] as 'global' | 'project' | 'all' } : {}),
           ...(typeof args['kind'] === 'string' ? { kind: args['kind'] as MemoryKind } : {}),
           ...(typeof args['format'] === 'string' ? { format: args['format'] as 'markdown' } : {}),
+          ...(typeof args['project'] === 'string' ? { project: args['project'] } : {}),
         })
         return result.text
       },
     },
     llm_memory_save: {
       name: 'llm_memory_save',
-      description: 'Save durable knowledge: a rule, decision with rationale, project fact or preference.',
+      description: 'Save durable knowledge immediately: a rule, decision with rationale, project fact or preference.',
       args: {
         text: { type: 'string', description: 'Self-contained entry body.' },
         title: { type: 'string', description: 'Short title.', optional: true },
@@ -75,6 +77,7 @@ export function createMemoryTools(service: MemoryService): Record<string, Memory
         importance: { type: 'number', description: '1..5.', optional: true },
         tags: { type: 'array', description: 'Search tags.', optional: true },
         keywords: { type: 'string', description: 'Extra search terms.', optional: true },
+        project: { type: 'string', description: 'Project key for a project-scope entry.', optional: true },
       },
       async execute(args) {
         const entry = service.save({
@@ -86,6 +89,7 @@ export function createMemoryTools(service: MemoryService): Record<string, Memory
           ...(typeof args['importance'] === 'number' ? { importance: args['importance'] } : {}),
           ...(Array.isArray(args['tags']) ? { tags: args['tags'].map(String) } : {}),
           ...(typeof args['keywords'] === 'string' ? { keywords: args['keywords'] } : {}),
+          ...(typeof args['project'] === 'string' ? { project: args['project'] } : {}),
         })
         return `Сохранено: ${entry.id} — ${entry.title}`
       },
@@ -111,9 +115,9 @@ export function createMemoryTools(service: MemoryService): Record<string, Memory
     llm_memory_status: {
       name: 'llm_memory_status',
       description: 'Memory state: totals, scopes, kinds and consolidation levels.',
-      args: {},
-      async execute() {
-        const status = service.status()
+      args: { project: { type: 'string', description: 'Restrict the counts to one project.', optional: true } },
+      async execute(args) {
+        const status = service.status(typeof args['project'] === 'string' ? args['project'] : undefined)
         return [
           `Всего: ${status.total}, активных: ${status.active}`,
           `Скоупы: ${Object.entries(status.byScope).map(([k, v]) => `${k}=${v}`).join(', ') || '—'}`,
@@ -125,9 +129,9 @@ export function createMemoryTools(service: MemoryService): Record<string, Memory
     llm_memory_lint: {
       name: 'llm_memory_lint',
       description: 'Report broken references, stale entries and duplicate titles.',
-      args: {},
-      async execute() {
-        const { issues } = service.lint()
+      args: { project: { type: 'string', description: 'Restrict the report to one project.', optional: true } },
+      async execute(args) {
+        const { issues } = service.lint(typeof args['project'] === 'string' ? args['project'] : undefined)
         if (issues.length === 0) return 'Проблем нет.'
         return issues.map(issue => `- ${issue.kind} ${issue.entryId}: ${issue.detail}`).join('\n')
       },
@@ -135,9 +139,9 @@ export function createMemoryTools(service: MemoryService): Record<string, Memory
     llm_memory_graph: {
       name: 'llm_memory_graph',
       description: 'Memory graph: entities, edges and the most connected hubs.',
-      args: {},
-      async execute() {
-        const graph = service.graph()
+      args: { project: { type: 'string', description: 'Restrict the graph to one project.', optional: true } },
+      async execute(args) {
+        const graph = service.graph(typeof args['project'] === 'string' ? args['project'] : undefined)
         const degree = new Map<string, number>()
         for (const edge of graph.edges) {
           degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1)

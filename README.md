@@ -59,6 +59,10 @@ and keeps its own markdown-first store.
   has Search & Browse, Create/Edit, Graph, Map, Recall, Status, Lint and Health (lint/heal)
   sections, in the same design as the Kilo/OpenCode panel. The same page is still
   served standalone at the plugin HTTP path (`<webPath>/ui`), using the same tokens.
+- **MCP server `llm-memory-mcp`**: the same memory for any MCP client (Claude Desktop,
+  Cursor, Zed) — a per-client store, stdio and Streamable HTTP transports, the
+  `memory-guide` prompt, the `memory://guide` resource and the shared panel on 8789.
+  See [docs/mcp.md](docs/mcp.md).
 
 ## Install
 

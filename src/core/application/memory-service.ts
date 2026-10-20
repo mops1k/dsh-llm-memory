@@ -92,6 +92,22 @@ export interface MemoryServiceOptions {
   uiLocale?: 'ru' | 'en'
   /** Repository root of the current window. */
   projectRoot?: string
+  /**
+   * Explicit store root for harnesses that resolve it themselves (MCP keeps one
+   * store per client id); wins over `config.memory.storageRoot` and leaves the
+   * config object untouched, so the panel and the service share one instance.
+   */
+  storeRoot?: string
+  /** Database file; defaults to `<store>/db/memory.db` (MCP keeps it in `<store>/_db`). */
+  dbPath?: string
+  /**
+   * Base directory for project-scope pages kept inside the store (MCP: project
+   * pages must not land in the repository). Without it pages go next to the
+   * repository, as Kilo and OpenCode expect.
+   */
+  projectPagesRoot?: string
+  /** Roots this store must never touch (coexistence isolation, ADR-007). */
+  forbiddenRoots?: readonly string[]
   /** Provider supplied by the host (tests); skips the embedding runtime. */
   embeddingProvider?: EmbeddingProvider
   /** Drive the embedding queue by hand instead of letting it run in the background. */
@@ -122,6 +138,8 @@ export interface RecallOptions {
   scope?: 'global' | 'project' | 'all'
   kind?: MemoryKind | 'all'
   format?: 'markdown' | 'table' | 'timeline' | 'json'
+  /** Restrict project-scope hits to one project key (MCP `project` argument). */
+  project?: string
   /** Reinforce returned entries (accessCount/confidence/consolidation). */
   touch?: boolean
 }
@@ -170,6 +188,8 @@ export class MemoryService {
   private vectorLeg: VectorLeg
   private readonly config: HarnessConfig
   private readonly projectRoot: string | undefined
+  private readonly projectPagesRoot: string | undefined
+  private readonly forbiddenRoots: readonly string[] | undefined
   private readonly embeddingProvider: EmbeddingProvider | undefined
   private readonly manualEmbeddings: boolean
   private readonly runtime: EmbeddingRuntimeInstaller
@@ -177,6 +197,8 @@ export class MemoryService {
   constructor(options: MemoryServiceOptions) {
     this.config = options.config
     this.projectRoot = options.projectRoot
+    this.projectPagesRoot = options.projectPagesRoot
+    this.forbiddenRoots = options.forbiddenRoots
     this.harness = options.harness
     this.layout = options.layout
     this.projectDir = options.projectDir
@@ -186,10 +208,15 @@ export class MemoryService {
     // An empty storageRoot means "this harness' own layout"; a configured one is
     // normalised (tilde/env vars) and refused when it points at a network share.
     const configuredRoot = (options.config.memory.storageRoot ?? '').trim()
-    const root = configuredRoot.length > 0 ? resolveStorageRoot(configuredRoot) : this.layout.userRoot()
+    const root =
+      options.storeRoot !== undefined
+        ? resolveStorageRoot(options.storeRoot)
+        : configuredRoot.length > 0
+          ? resolveStorageRoot(configuredRoot)
+          : this.layout.userRoot()
     // The HTTP-panel harnesses keep their database in <store>/db/memory.db
     // (the DSH engine uses the core `_db` dialect instead).
-    this.store = new MemoryStore({ storageRoot: root, dbPath: join(root, 'db', 'memory.db') })
+    this.store = new MemoryStore({ storageRoot: root, dbPath: options.dbPath ?? join(root, 'db', 'memory.db') })
     this.embeddingProvider = options.embeddingProvider
     this.manualEmbeddings = options.manualEmbeddings === true
     this.runtime = new EmbeddingRuntimeInstaller({
@@ -416,6 +443,7 @@ export class MemoryService {
     const isolation = createIsolation({
       identity: { harness: this.harness, instanceId: `${this.harness}-${process.pid}`, storeId: this.harness },
       storeRoot: this.store.root,
+      ...(this.forbiddenRoots ? { forbiddenRoots: this.forbiddenRoots } : {}),
     })
     isolation.assertNoForeignPaths()
     initMemoryRoot(this.store.root)
@@ -445,8 +473,26 @@ export class MemoryService {
       consolidation: 'episodic',
     })
     const stored = this.store.upsert(entry)
-    writeItemPage(this.store.root, stored, scope === 'project' ? project : null, this.projectDir)
+    const page = this.pageTarget(scope === 'project' ? project : '')
+    writeItemPage(this.store.root, stored, page.root, page.dir)
     return stored
+  }
+
+  /**
+   * Where the markdown page of a scope goes. With `projectPagesRoot` (MCP) the
+   * page lives in the store; otherwise it follows the repository, as Kilo and
+   * OpenCode expect. `dir` is the page directory under `root`.
+   */
+  private pageTarget(project: string): { root: string | null; dir: string } {
+    const base = this.projectPagesRoot
+    const trimmed = project.trim()
+    if (base === undefined) return { root: trimmed.length > 0 ? project : null, dir: this.projectDir }
+    return { root: trimmed.length > 0 ? join(base, this.layout.projectKey(trimmed)) : base, dir: '' }
+  }
+
+  private writeEntryPage(entry: MemoryEntry): void {
+    const page = this.pageTarget(entry.scope === 'project' ? entry.project : '')
+    writeItemPage(this.store.root, entry, page.root, page.dir)
   }
 
   async recall(query: string, options: RecallOptions = {}): Promise<RecallResult> {
@@ -455,6 +501,7 @@ export class MemoryService {
     const filter = {
       status: 'active' as const,
       ...(scope !== 'all' ? { scope: scope === 'global' ? ('user' as const) : ('project' as const) } : {}),
+      ...(typeof options.project === 'string' && options.project.length > 0 ? { project: options.project } : {}),
       ...(options.kind && options.kind !== 'all' ? { kind: options.kind } : {}),
       limit: Math.max(limit * 4, 40),
     }
@@ -513,7 +560,7 @@ export class MemoryService {
   private reinforced(entry: MemoryEntry): MemoryEntry {
     const next = reinforce(entry, DEFAULT_MAINTENANCE)
     const stored = this.store.upsert(next)
-    writeItemPage(this.store.root, stored, stored.scope === 'project' ? stored.project : null, this.projectDir)
+    this.writeEntryPage(stored)
     return stored
   }
 
@@ -522,14 +569,15 @@ export class MemoryService {
     if (!entry) return false
     const now = new Date().toISOString()
     const stored = this.store.upsert({ ...entry, status: 'superseded', updatedAt: now })
-    writeItemPage(this.store.root, stored, stored.scope === 'project' ? stored.project : null, this.projectDir)
+    this.writeEntryPage(stored)
     return true
   }
 
   delete(id: string): boolean {
     const entry = this.store.get(id)
     if (!entry) return false
-    const file = entryPathFor(this.store.root, entry, entry.scope === 'project' ? entry.project : null, this.projectDir)
+    const page = this.pageTarget(entry.scope === 'project' ? entry.project : '')
+    const file = entryPathFor(this.store.root, entry, page.root, page.dir)
     this.store.delete(id)
     deleteItemPage(file)
     return true
@@ -586,7 +634,7 @@ export class MemoryService {
     const { items, changed } = consolidate(this.store.list({ limit: 1_000_000 }).items, DEFAULT_MAINTENANCE)
     for (const entry of changed) {
       this.store.upsert(entry)
-      writeItemPage(this.store.root, entry, entry.scope === 'project' ? entry.project : null, this.projectDir)
+      this.writeEntryPage(entry)
     }
     return items.length
   }
@@ -594,10 +642,14 @@ export class MemoryService {
   /** Paths handed to the shared backup service (ADR-005). */
   backupTarget(): { storeDir: string; dbPath: string; projectDirs: string[]; backupsDir: string } {
     const storeDir = this.store.root
+    // Pages kept inside the store (MCP) are already part of `storeDir`; Kilo and
+    // OpenCode additionally carry the project tree that lives in the repository.
+    const projectDirs =
+      this.projectPagesRoot === undefined && this.projectRoot ? [join(this.projectRoot, this.projectDir)] : []
     return {
       storeDir,
       dbPath: this.store.dbPath,
-      projectDirs: this.projectRoot ? [join(this.projectRoot, this.projectDir)] : [],
+      projectDirs,
       backupsDir: resolveBackupDir(storeDir, this.config.memory.backupDir),
     }
   }

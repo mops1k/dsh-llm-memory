@@ -32,7 +32,13 @@
     },
     "./opencode": {
       "default": "./lib/opencode.js"
+    },
+    "./mcp": {
+      "default": "./lib/mcp.js"
     }
+  },
+  "bin": {
+    "llm-memory-mcp": "lib/mcp.js"
   },
   "files": [
     "lib",
@@ -63,7 +69,7 @@
     }
   },
   "scripts": {
-    "build": "node scripts/build-web-styles.mjs && tsc -p . && node scripts/build-ui.mjs && node scripts/build-panel.mjs && node scripts/build-kilo.mjs && node scripts/build-opencode.mjs && node scripts/build-client-css.mjs && node scripts/copy-client.mjs",
+    "build": "node scripts/build-web-styles.mjs && tsc -p . && node scripts/build-ui.mjs && node scripts/build-panel.mjs && node scripts/build-kilo.mjs && node scripts/build-opencode.mjs && node scripts/build-mcp.mjs && node scripts/build-client-css.mjs && node scripts/copy-client.mjs",
     "typecheck": "tsc -p .",
     "lint": "oxlint src tests client scripts packages",
     "test": "vitest run",

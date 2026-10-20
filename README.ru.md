@@ -60,6 +60,10 @@
   Search & Browse, Create/Edit, Graph, Map, Recall, Status, Lint и Health (lint/heal)
   в том же дизайне, что и панель Kilo/OpenCode. Та же страница по-прежнему доступна
   отдельно по HTTP-пути плагина (`<webPath>/ui`) и использует те же токены.
+- **MCP-сервер `llm-memory-mcp`**: та же память для любого MCP-клиента (Claude Desktop,
+  Cursor, Zed) — свой store на client-id, транспорты stdio и Streamable HTTP, prompt
+  `memory-guide`, resource `memory://guide` и общая панель на 8789. Подробности —
+  [docs/mcp.md](docs/mcp.md).
 
 ## Установка
 
