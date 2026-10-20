@@ -306,8 +306,10 @@ export class KiloService {
     const byScope: Record<string, number> = {}
     const byKind: Record<string, number> = {}
     const byConsolidation: Record<string, number> = {}
+    const projectKeys = new Set<string>()
     let active = 0
     for (const item of items) {
+      if (item.project) projectKeys.add(item.project)
       byScope[item.scope] = (byScope[item.scope] ?? 0) + 1
       byKind[item.kind] = (byKind[item.kind] ?? 0) + 1
       const key = item.consolidation ?? 'raw'
@@ -320,7 +322,9 @@ export class KiloService {
       byScope,
       byKind,
       byConsolidation,
-      projects: Object.keys(this.store.projectRoots()).length,
+      // Distinct project keys, not the (optional) root registry: entries carry
+      // their project even when projects.json is absent.
+      projects: projectKeys.size + Object.keys(this.store.projectRoots()).filter(key => !projectKeys.has(key)).length,
     }
   }
 

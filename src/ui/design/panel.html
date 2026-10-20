@@ -757,7 +757,7 @@ async function loadOverview() {
     ? statsWidget.metrics.map((metric, index) => [
         ["database", "check", "activity", "layers"][index % 4],
         metric.label,
-        pathValue(st, metric.path),
+        pathValue(st, metric.path) === undefined ? 0 : pathValue(st, metric.path),
         index === 0,
       ])
     : [

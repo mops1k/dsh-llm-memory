@@ -83,6 +83,21 @@ describe('kilo legacy panel API', () => {
     expect(settings.snapshot.groups[0].title).toBe('Хранилище и проекты')
   })
 
+  it('counts projects from entries even without a project root registry', async () => {
+    const service = makeService()
+    service.save({ text: 'one', project: 'alpha', scope: 'project' })
+    service.save({ text: 'two', project: 'beta', scope: 'project' })
+    handle = await startKiloWebServer({
+      service,
+      config: resolveKiloConfig({ memory: { storageRoot: service.store.root }, web: { enabled: true } }),
+      port: 0,
+    })
+    const status = await (await fetch(`${handle.url}api/legacy/status`)).json()
+    expect(status.status.projects).toBe(2)
+    const projects = await (await fetch(`${handle.url}api/legacy/projects`)).json()
+    expect(projects.projects).toEqual(['alpha', 'beta'])
+  })
+
   it('resolves a relative backupDir inside the store, not the process cwd', async () => {
     const root = mkdtempSync(join(tmpdir(), 'kilo-backup-dir-'))
     dirs.push(root)
