@@ -11,3 +11,6 @@ coverage/
 
 # Local acceptance harness output
 tmp/
+
+# Release artifacts
+dist/

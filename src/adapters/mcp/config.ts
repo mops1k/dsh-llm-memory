@@ -8,7 +8,7 @@
  *
  * @module dsh-llm-memory/adapters/mcp/config
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -194,5 +194,9 @@ export function loadMcpConfig(storeRoot: string): McpConfig {
 /** Persist the config next to the store; the panel calls this on every save. */
 export function saveMcpConfig(storeRoot: string, config: McpConfig): void {
   mkdirSync(storeRoot, { recursive: true })
-  writeFileSync(mcpConfigPath(storeRoot), `${JSON.stringify(config, null, 2)}\n`, 'utf8')
+  const file = mcpConfigPath(storeRoot)
+  // The file may hold the HTTP bearer token: keep it owner-only (POSIX) so a
+  // second local user cannot read the secret from the store.
+  writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
+  if (process.platform !== 'win32') chmodSync(file, 0o600)
 }

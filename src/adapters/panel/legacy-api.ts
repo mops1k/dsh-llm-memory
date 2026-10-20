@@ -17,6 +17,15 @@ import type { UiLocale } from '../../ui/headless/i18n.js'
 
 type Json = Record<string, unknown>
 
+/**
+ * Only the shared config sections leave the process. Adapter-private keys (the
+ * MCP `mcp.token` block) must never be serialized into a panel response: the
+ * panel is loopback, but any local process could read it.
+ */
+function publicConfig(config: HarnessConfig): HarnessConfig {
+  return { enabled: config.enabled, memory: config.memory, web: config.web, embeddings: config.embeddings }
+}
+
 export interface LegacyContext {
   service: MemoryService
   config: HarnessConfig
@@ -178,7 +187,7 @@ export async function handleLegacyApi(
     const body = await readJson(req)
     const result = service.applySettingsPatch(body as Json)
     ctx.saveConfig?.(config)
-    json(200, { ok: true, ...result, config })
+    json(200, { ok: true, ...result, config: publicConfig(config) })
     return true
   }
   if (path === '/vectors/status') {
@@ -252,7 +261,7 @@ export async function handleLegacyApi(
     return true
   }
   if (path === '/config') {
-    if (method === 'GET') json(200, { ok: true, config })
+    if (method === 'GET') json(200, { ok: true, config: publicConfig(config) })
     else {
       const body = await readJson(req)
       const next = { ...config, ...body, memory: { ...config.memory, ...(body.memory as Json | undefined) }, web: { ...config.web, ...(body.web as Json | undefined) }, embeddings: { ...config.embeddings, ...(body.embeddings as Json | undefined) } } as HarnessConfig
@@ -260,7 +269,7 @@ export async function handleLegacyApi(
       // a locale change must be visible to the next page request immediately.
       Object.assign(config, next)
       ctx.saveConfig?.(config)
-      json(200, { ok: true, config })
+      json(200, { ok: true, config: publicConfig(config) })
     }
     return true
   }

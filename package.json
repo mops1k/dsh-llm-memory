@@ -1,6 +1,6 @@
 {
   "name": "dsh-llm-memory",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "description": "Layered long-term memory plugin for DeepSeek Harness: memory tools, system-prompt guidance, FTS5 index and shell WebUI.",
   "license": "MIT",
   "repository": {

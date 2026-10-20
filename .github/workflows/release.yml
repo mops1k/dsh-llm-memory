@@ -1,0 +1,77 @@
+name: release
+
+# A tag builds one artifact per harness and opens a DRAFT release: nothing is
+# published to users until the draft is reviewed and published by hand.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  artifacts:
+    name: build release artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: typecheck, lint, tests
+        run: |
+          pnpm typecheck
+          pnpm lint
+          pnpm test
+
+      - name: build bundles
+        run: pnpm build
+
+      - name: per-harness artifacts + checksums
+        run: node scripts/build-release-artifacts.mjs --out dist/release
+
+      - name: show checksums
+        run: cat dist/release/checksums.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/release/*
+          if-no-files-found: error
+
+  draft-release:
+    name: draft GitHub release
+    needs: artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/release
+
+      - name: create draft release with artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/release/* \
+            --draft \
+            --title "dsh-llm-memory $TAG" \
+            --notes-file docs/release-notes.md \
+            --target "$GITHUB_SHA"

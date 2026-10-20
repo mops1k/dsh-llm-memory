@@ -74,10 +74,13 @@ export class McpService extends MemoryService {
   constructor(options: McpServiceOptions) {
     const home = options.home ?? homedir()
     const cwd = options.projectRoot ?? process.cwd()
+    // `--storage-root` wins; a config file may carry the same value, so a client
+    // built from config alone still lands in the store it names.
+    const configuredRoot = (options.storageRoot ?? options.config.memory.storageRoot ?? '').trim()
     const storeRoot = resolveMcpStoreRoot({
       clientId: options.clientId,
       home,
-      ...(options.storageRoot !== undefined ? { storageRoot: options.storageRoot } : {}),
+      ...(configuredRoot.length > 0 ? { storageRoot: configuredRoot } : {}),
     })
     const layout = options.layout ?? createLayout('mcp', { home, cwd, clientId: options.clientId })
     super({

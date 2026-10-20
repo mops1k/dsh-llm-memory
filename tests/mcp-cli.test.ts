@@ -4,10 +4,13 @@
  * launches it (`llm-memory-mcp --client-id ...`).
  */
 import { execFileSync, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+
+import { DEFAULT_MCP_CONFIG, resolveMcpConfig } from '@llm-memory/adapter/mcp/config'
+import { McpService } from '@llm-memory/adapter/mcp/service'
 
 const root = process.cwd()
 const dirs: string[] = []
@@ -108,11 +111,36 @@ describe('llm-memory-mcp binary', () => {
       out += chunk.toString('utf8')
     })
     expect(await exited(version)).toBe(0)
-    expect(out).toContain('llm-memory-mcp 1.4.0')
+    const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string }
+    expect(out).toContain(`llm-memory-mcp ${pkg.version}`)
 
     const { repo } = sandbox()
     const missing = startCli(['--no-ui'], repo, { LLM_MEMORY_MCP_CLIENT_ID: '' })
     expect(await exited(missing.child)).toBe(1)
     expect(missing.stderr()).toMatch(/client id is required/)
+  })
+
+  it('survives a killed process: the store opens again with the saved entry', async () => {
+    const { home, repo, store } = sandbox()
+    const cli = startCli(['--client-id', 'kill', '--storage-root', store, '--no-ui'], repo)
+    try {
+      cli.child.stdin?.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'llm_memory_save', arguments: { text: 'before the kill', title: 'kill guard' } } })}\n`)
+      await cli.waitFor(1)
+      expect(cli.child.kill('SIGKILL')).toBe(true)
+      expect(await exited(cli.child)).not.toBe(0)
+    } finally {
+      cli.child.kill('SIGKILL')
+    }
+
+    const config = resolveMcpConfig({ ...DEFAULT_MCP_CONFIG, memory: { ...DEFAULT_MCP_CONFIG.memory, storageRoot: store } })
+    const service = new McpService({ config, clientId: 'kill', home, projectRoot: repo })
+    service.init()
+    try {
+      expect(service.status().total).toBe(1)
+      const recalled = await service.recall('kill guard', { touch: false })
+      expect(recalled.items.map(item => item.title)).toContain('kill guard')
+    } finally {
+      service.close()
+    }
   })
 })
