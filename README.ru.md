@@ -180,9 +180,15 @@ pnpm test
 ## Структура репозитория
 
 ```
-src/core/          хранилище, движок, ranking, wiki, frontmatter
-src/dsh/           хост-обвязка: tools, context, settings, web, экспорт правил, workspaces
-src/tool-restrict.ts  subpath ограничения инструментов для scoped-пресета
+src/index.ts, tool-restrict.ts   точка входа DSH-плагина и subpath scoped-пресета
+src/core/          хранилище, движок, ranking, wiki, frontmatter (domain/application/infrastructure/port/layout/isolation/sync)
+src/ui/            headless view models, общие web-экраны, темы
+src/adapters/dsh/  обвязка DSH: tools, context, settings, web, workspaces
+src/adapters/kilo/ плагин Kilo: service, compat-API, сервер панели, миграция/cutover
+src/adapters/mcp/  MCP-инструменты (backup)
+src/testkit/       хелперы contract-тестов
+lib/               вывод сборки: DSH-энтри, client, web-ui.js, kilo.js
+pnpm-workspace.yaml  workspace из одного пакета: только allow-list сборки
 client/client.js   браузерный клиент (classic script, React.createElement, React-вкладка на токенах --dsw-* и раздел настроек)
 rules/en/          зашитые английские правила для экспорта
 cordis.patch.yml   bundle-patch

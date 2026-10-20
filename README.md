@@ -180,9 +180,15 @@ Then restart DSH.
 ## Repository layout
 
 ```
-src/core/          storage, engine, ranking, wiki, frontmatter
-src/dsh/           host plugin wiring: tools, context, settings, web, workspaces
-src/tool-restrict.ts  scoped preset restriction subpath
+src/index.ts, tool-restrict.ts   DSH plugin entrypoint and scoped preset subpath
+src/core/          storage, engine, ranking, wiki, frontmatter (domain/application/infrastructure/port/layout/isolation/sync)
+src/ui/            headless view models, shared web screens, themes
+src/adapters/dsh/  DSH wiring: tools, context, settings, web, workspaces
+src/adapters/kilo/ Kilo plugin: service, compatibility API, panel server, migration/cutover
+src/adapters/mcp/  MCP tools (backup)
+src/testkit/       contract-test helpers
+lib/               build output: DSH entry, client, web-ui.js, kilo.js
+pnpm-workspace.yaml  single-package workspace: only the build allow-list
 client/client.js   browser client (classic script, React.createElement, React view on --dsw-* tokens + settings section)
 rules/en/          bundled English rules used by the rules export
 cordis.patch.yml   bundle patch

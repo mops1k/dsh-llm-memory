@@ -4,10 +4,10 @@
 отрисовывает снимок в своём дизайне и своим способом встраивания (слоты DSH, отдельная страница Kilo/OpenCode/MCP).
 Панель не добавляет свои поля, экраны, колонки или действия: расхождение — дефект паритета, его ловят тесты.
 
-- `packages/core/src/domain/settings-schema.ts` — настройки и реестр действий.
-- `packages/core/src/domain/ui-schema.ts` — экраны, виджеты, операции, пагинация.
-- `packages/core/src/domain/ui-contract.ts` — снимки для панелей и версия контракта.
-- `packages/core/src/domain/settings-schema.ts` (`localizedSettingsGroups`) и `ui-schema.ts` (`localizedViews`) — локализация.
+- `src/core/domain/settings-schema.ts` — настройки и реестр действий.
+- `src/core/domain/ui-schema.ts` — экраны, виджеты, операции, пагинация.
+- `src/core/domain/ui-contract.ts` — снимки для панелей и версия контракта.
+- `src/core/domain/settings-schema.ts` (`localizedSettingsGroups`) и `ui-schema.ts` (`localizedViews`) — локализация.
 
 Версии: `UI_SCHEMA_VERSION = 1`, `UI_CONTRACT_VERSION = 1`. При несовместимом изменении формы снимка версия
 увеличивается, а панель обязана проверить поле `version`.
@@ -146,9 +146,9 @@ DSH-клиент берёт из снимка таб-бар и порядок э
 
 ## 5. Как добавить настройку
 
-1. Поле в `MemoryConfig` (`packages/core/src/domain/config.ts`) + default + нормализация в `mergeConfig`.
+1. Поле в `MemoryConfig` (`src/core/domain/config.ts`) + default + нормализация в `mergeConfig`.
 2. Поле в `SETTINGS_GROUPS` (правильная группа, `path`, подписи en/ru, `hint`, тип, ограничения).
-3. Если DSH должен сохранять поле — добавить в схему `src/dsh/settings.ts` и маппинг `SETTING_KEY_FOR_PATH`.
+3. Если DSH должен сохранять поле — добавить в схему `src/adapters/dsh/settings.ts` и маппинг `SETTING_KEY_FOR_PATH`.
 4. Прогнать тесты: `tests/settings-core-schema.test.ts`, `tests/settings-schema.test.ts`, `tests/ui-contract.test.ts`.
 5. Панели получают поле автоматически; отдельный код в панели запрещён.
 
