@@ -110,6 +110,17 @@ export async function handleLegacyApi(
   const method = (req.method ?? 'GET').toUpperCase()
   const { service, config } = ctx
 
+  if (path === '/settings/snapshot') {
+    json(200, { ok: true, ...service.settingsSnapshot() })
+    return true
+  }
+  if (path === '/settings' && method === 'PUT') {
+    const body = await readJson(req)
+    const result = service.applySettingsPatch(body as Json)
+    ctx.saveConfig?.(config)
+    json(200, { ok: true, ...result, config })
+    return true
+  }
   if (path === '/model/status') {
     json(200, { ok: true, status: service.modelStatus() })
     return true

@@ -8,7 +8,12 @@ import { buildGraph, deleteItemPage, initMemoryRoot, writeItemPage } from '@llm-
 import { entryFromKiloRow, entryToKiloRow } from '@llm-memory/core/domain/mapping'
 import { clampImportance, type MemoryEntry, type MemoryGraph, type MemoryKind, type MemoryScope, type MemoryTier } from '@llm-memory/core/domain/types'
 import { ModelManager, type ModelStatus } from '@llm-memory/core/application/model-manager'
-import { DEFAULT_CONFIG, type EmbeddingConfig } from '@llm-memory/core/domain/config'
+import { DEFAULT_CONFIG, type EmbeddingConfig, type MemoryConfig } from '@llm-memory/core/domain/config'
+import { writeSettingValue } from '@llm-memory/core/domain/settings-schema'
+import {
+  settingsSnapshot as buildSettingsSnapshot,
+  type UISettingsSnapshot,
+} from '@llm-memory/core/domain/ui-contract'
 import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
 import { entryPathFor } from '@llm-memory/core/layout/paths'
 import { createKiloLayout, type LayoutPort } from '@llm-memory/core/layout/index'
@@ -19,6 +24,35 @@ import { join } from 'node:path'
 import type { KiloMemoryConfig } from './config.js'
 
 const KILO_PROJECT_DIR = '.kilo/memory'
+
+/** Core settings the Kilo runtime does not apply yet (parity work in progress). */
+const SETTINGS_UNSUPPORTED_IN_KILO: string[] = [
+  'projectRoots',
+  'projectScanBudgetMs',
+  'webPath',
+  'recallTotalChars',
+  'recallFormat',
+  'recallScope',
+  'recallAllowFormatOverride',
+  'recallLiteralLookup',
+  'promptRulesLimit',
+  'rulesPromptScope',
+  'sessionStartGuide',
+  'systemPrompt',
+  'lintOverlapMinCommonWords',
+  'lintMaxPairs',
+  'autonomous',
+  'requireConfirmation',
+  'importAutoDetect',
+  'importRoots',
+  'embeddings.backend',
+  'embeddings.quantization',
+  'embeddings.batchSize',
+  'embeddings.queryPrefix',
+  'embeddings.passagePrefix',
+  'embeddings.semanticEdgesPerEntry',
+  'embeddings.semanticMaxEdges',
+]
 
 export interface KiloServiceOptions {
   config: KiloMemoryConfig
@@ -105,6 +139,71 @@ export class KiloService {
       prewarm: embeddings.prewarm,
       backend: embeddings.provider === 'off' ? 'off' : 'js',
     }
+  }
+
+  /**
+   * Settings surface of the core for the panel: the same schema and values as in
+   * every harness. Paths the Kilo runtime does not apply yet are reported as
+   * unsupported instead of being silently editable.
+   */
+  settingsSnapshot(): { snapshot: UISettingsSnapshot; unsupported: string[] } {
+    const values: Record<string, unknown> = structuredClone(DEFAULT_CONFIG) as unknown as Record<string, unknown>
+    const memory = this.config.memory
+    const supported: Record<string, unknown> = {
+      storageRoot: memory.storageRoot,
+      recallLimit: memory.recallLimit,
+      recallTextChars: memory.recallTextChars,
+      backupDir: memory.backupDir,
+    }
+    for (const [path, value] of Object.entries(supported)) writeSettingValue(values, path, value)
+    const embeddings = this.embeddingsConfig()
+    for (const key of ['provider', 'model', 'dim', 'topK', 'minScore', 'chunkChars', 'chunkOverlap', 'prewarm'] as const) {
+      writeSettingValue(values, `embeddings.${key}`, embeddings[key])
+    }
+    const snapshot = buildSettingsSnapshot(values as unknown as MemoryConfig, 'ru')
+    return { snapshot, unsupported: SETTINGS_UNSUPPORTED_IN_KILO.filter(path => !Object.hasOwn(supported, path) && !path.startsWith('embeddings.')) }
+  }
+
+  /**
+   * Apply a dotted settings patch from the panel. Returns the paths this runtime
+   * cannot apply yet so the panel can say so instead of pretending.
+   */
+  applySettingsPatch(patch: Record<string, unknown>): { applied: string[]; unsupported: string[] } {
+    const applied: string[] = []
+    const unsupported: string[] = []
+    for (const [path, value] of Object.entries(patch)) {
+      const memory = this.config.memory
+      switch (path) {
+        case 'storageRoot':
+          memory.storageRoot = String(value ?? '').trim()
+          break
+        case 'recallLimit':
+          memory.recallLimit = Number(value)
+          break
+        case 'recallTextChars':
+          memory.recallTextChars = Number(value)
+          break
+        case 'backupDir':
+          memory.backupDir = String(value ?? '').trim()
+          break
+        default: {
+          if (!path.startsWith('embeddings.')) {
+            unsupported.push(path)
+            break
+          }
+          const key = path.slice('embeddings.'.length) as keyof typeof this.config.embeddings
+          if (!(key in this.config.embeddings)) {
+            unsupported.push(path)
+            break
+          }
+          if (typeof this.config.embeddings[key] === 'number') (this.config.embeddings as Record<string, unknown>)[key] = Number(value)
+          else if (typeof this.config.embeddings[key] === 'boolean') (this.config.embeddings as Record<string, unknown>)[key] = Boolean(value)
+          else (this.config.embeddings as Record<string, unknown>)[key] = String(value ?? '')
+        }
+      }
+      if (!unsupported.includes(path)) applied.push(path)
+    }
+    return { applied, unsupported }
   }
 
   /** State of the embedding model shown by the panel. */

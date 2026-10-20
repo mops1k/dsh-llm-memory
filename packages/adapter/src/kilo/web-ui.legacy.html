@@ -924,151 +924,64 @@ $("btn-heal-apply").onclick = async () => {
   loadItems(false); loadOverview();
 };
 
-function fld(path, label, type, help, opts) { return { path, label, type, help: help || "", opts: opts || {} }; }
-const WEIGHT_FIELDS = [
-  ["rel", "Релевантность", "Вес совпадения с текстом запроса."],
-  ["age", "Свежесть", "Вес недавно обновлённых записей."],
-  ["imp", "Важность", "Вес поля importance (1–5)."],
-  ["acc", "Использования", "Вес числа попаданий в выдачу (accessCount)."],
-  ["conf", "Уверенность", "Вес confidence записи."],
-  ["consolidation", "Зрелость", "Вес уровня консолидации (raw→procedural)."],
-  ["tier", "Жёсткость", "Вес tier (normal/important/immutable)."],
-  ["kind", "Категория", "Вес совпадения категории с запросом."],
-  ["scope", "Scope", "Вес приоритета scope (project/global)."],
-].map(w => fld("memory.weights." + w[0], w[1], "number", w[2], { step: 0.05, min: 0 }));
-const CFG_GROUPS = [
-  { title: "Общее", fields: [
-    fld("enabled", "Плагин включён", "bool", "Полностью включает долгосрочную память: автоинъекцию и инструменты."),
-  ] },
-  { title: "Веб-панель", fields: [
-    fld("web.enabled", "Веб-панель включена", "bool", "Локальный дашборд на 127.0.0.1. Изменение поля применится после перезапуска Kilo."),
-    fld("web.host", "Адрес прослушивания", "text", "Лучше оставить 127.0.0.1 — доступ только с этой машины."),
-    fld("web.port", "Порт", "number", "Порт панели. Смена порта — после перезапуска Kilo.", { min: 0, max: 65535 }),
-  ] },
-  { title: "Инъекция в контекст", fields: [
-    fld("memory.injectTopRules", "Записей правил/предпочтений", "number", "Сколько базовых записей правил и предпочтений добавлять в системный промпт.", { min: 0 }),
-    fld("memory.injectRelevant", "Релевантных записей", "number", "Сколько записей, релевантных текущему запросу, добавлять в контекст.", { min: 0 }),
-    fld("memory.maxInjectionChars", "Лимит символов блока", "number", "Бюджет символов блока памяти в промпте.", { min: 0 }),
-    fld("memory.recencyHalfLifeDays", "Полураспад актуальности, дней", "number", "Через столько дней вес свежести записи падает вдвое.", { min: 1 }),
-    fld("memory.digestEnabled", "Писать сырые дайджесты (raw/)", "bool", "Сохранять переписку сессий в raw/ — для последующей кристаллизации."),
-    fld("memory.digestScope", "Куда писать дайджесты", "select", "auto — по теме сессии; global/project — жёстко в один уровень.", { options: [["auto", "авто (по теме)"], ["global", "глобально"], ["project", "проект"]] }),
-  ] },
-  { title: "Уверенность", fields: [
-    fld("memory.confidenceMin", "Минимальная уверенность", "number", "Ниже этого порога запись — кандидат на архивацию/забывание.", { step: 0.05, min: 0, max: 1 }),
-    fld("memory.confidenceBoostAmount", "Прирост при использовании", "number", "Насколько растёт confidence, когда запись попадает в выдачу.", { step: 0.01, min: 0 }),
-    fld("memory.confidenceConflictPenalty", "Штраф при конфликте", "number", "Насколько падает confidence при пересечении с новой записью.", { step: 0.01, min: 0 }),
-    fld("memory.confidenceDecayHalfLifeDays", "Полураспад уверенности, дней", "number", "Период авто-снижения confidence к минимальному порогу.", { min: 1 }),
-  ] },
-  { title: "Поиск и формат вывода", fields: [
-    fld("memory.useBM25", "BM25 + RRF", "bool", "Гибридный поиск: полнотекстовый BM25 (FTS5) со слиянием RRF."),
-    fld("memory.rrfK", "Сглаживание RRF (k)", "number", "Константа Reciprocal Rank Fusion, обычно 60.", { min: 1 }),
-    fld("memory.defaultRecallFormat", "Формат вывода по умолчанию", "select", "Формат выдачи памяти, если агент не задал его явно.", { options: [["markdown", "markdown"], ["table", "таблица"], ["timeline", "хронология"], ["json", "JSON"]] }),
-  ] },
-  { title: "Консолидация знаний", fields: [
-    fld("memory.consolidationDefault", "Стартовый уровень новых записей", "select", "Эпизодический — сводка сессии; raw — сырая заметка.", { options: [["episodic", "эпизодический (episodic)"], ["raw", "сырой (raw)"]] }),
-    fld("memory.promoteConfidence", "Порог уверенности для повышения", "number", "С этой уверенности возможен рост уровня зрелости записи.", { step: 0.05, min: 0, max: 1 }),
-    fld("memory.promoteHits", "Порог использований для промоуции", "number", "Столько попаданий в выдачу нужно для роста уровня.", { min: 1 }),
-  ] },
-  { title: "Самолечение", fields: [
-    fld("memory.selfHealEnabled", "Самолечение включено", "bool", "Поиск и безопасное исправление проблем памяти (битые ссылки, дубли, устаревшее)."),
-    fld("memory.selfHealStaleDays", "Устаревание, дней", "number", "После стольких дней без обновления запись считается устаревшей.", { min: 1 }),
-    fld("memory.selfHealMaxAutoFixes", "Лимит авто-исправлений", "number", "Максимум безопасных правок за один прогон self-heal.", { min: 0 }),
-  ] },
-  { title: "Граф знаний", fields: [
-    fld("memory.graphEnabled", "Граф включён", "bool", "Строить граф связей и учитывать связи при поиске."),
-    fld("memory.graphTraverseDepth", "Глубина обхода", "number", "На сколько шагов по рёбрам расширять выдачу.", { min: 0, max: 5 }),
-    fld("memory.graphBoost", "Вес связанных записей", "number", "Насколько усиливать соседей по графу при ранжировании.", { step: 0.05, min: 0 }),
-  ] },
-  { title: "Кристаллизация", fields: [
-    fld("memory.crystallizationEnabled", "Кристаллизация включена", "bool", "Формировать сводку значимых записей при компактировании сессии."),
-  ] },
-  { title: "Линт (аудит)", fields: [
-    fld("memory.lintOverlapMinCommonWords", "Порог значимых общих слов", "number", "Минимум значимых (редких) общих слов, чтобы пара считалась пересекающейся. Частые служебные и обще-доменные слова не учитываются.", { min: 1 }),
-    fld("memory.lintOverlapMinScore", "Порог перекрытия (0..1)", "number", "Минимальное idf-перекрытие значимых слов. 0.45 — максимально строго (остаются почти только реальные пересечения).", { step: 0.05, min: 0, max: 1 }),
-    fld("memory.lintMaxPairs", "Лимит пар пересечений", "number", "Сколько пар показывать (0 — без ограничения).", { min: 0 }),
-  ] },
-  { title: "RAG (векторный поиск)", fields: [
-    fld("embeddings.provider", "Провайдер эмбеддингов", "select", "off — лексический поиск; local — локальная модель (включается на этапе векторов).", { options: [["off", "off (лексический)"], ["local", "local"]] }),
-    fld("embeddings.model", "Модель", "text", "Имя локальной модели эмбеддингов."),
-    fld("embeddings.dim", "Размерность", "number", "Размерность вектора модели.", { min: 1 }),
-    fld("embeddings.topK", "Соседей в recall", "number", "Сколько ближайших записей добавлять к лексическим результатам.", { min: 1, max: 50 }),
-    fld("embeddings.minScore", "Минимальная близость", "number", "Порог косинусной близости (0..1).", { step: 0.05, min: 0, max: 1 }),
-    fld("embeddings.chunkChars", "Размер чанка (символы)", "number", "Длина фрагмента записи для индексации.", { min: 200, max: 8000, step: 50 }),
-    fld("embeddings.chunkOverlap", "Перекрытие чанков", "number", "Сколько символов соседние чанки делят.", { min: 0, max: 4000, step: 10 }),
-    fld("embeddings.prewarm", "Загружать модель при старте", "bool", "Прогрев модели в фоне вместо первого запроса."),
-  ] },
-  { title: "Веса ранжирования", fields: WEIGHT_FIELDS },
-];
-function getPath(obj, path) { return path.split(".").reduce((o, k) => (o ? o[k] : undefined), obj); }
-function fieldHtml(fld, cfg) {
-  const v = getPath(cfg, fld.path);
-  const help = fld.help ? '<span class="help">' + esc(fld.help) + "</span>" : "";
-  if (fld.type === "bool") {
-    return '<label class="field check"><input type="checkbox" data-cfg="' + fld.path + '"' + (v ? " checked" : "") + '><span class="txt"><span class="lbl">' + esc(fld.label) + "</span>" + help + "</span></label>";
+let SNAPSHOT = null;
+function escapeHtml(value) { return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function fieldHtml(f, value, disabled) {
+  const help = f.hint ? '<span class="help">' + escapeHtml(f.hint) + '</span>' : "";
+  const off = disabled ? ' disabled title="Пока не применяется в Kilo-адаптере"' : "";
+  const note = disabled ? ' <span class="muted">(не применяется)</span>' : "";
+  const label = '<span class="lbl">' + escapeHtml(f.label) + note + '</span>';
+  const raw = value === undefined || value === null ? "" : value;
+  if (f.type === "boolean") {
+    return '<label class="field check"><input type="checkbox" data-path="' + f.path + '"' + (raw ? " checked" : "") + off + '>' + label + help + '</label>';
   }
-  if (fld.type === "select") {
-    const options = (fld.opts.options || []).map(o => '<option value="' + esc(o[0]) + '"' + (String(v) === String(o[0]) ? " selected" : "") + ">" + esc(o[1]) + "</option>").join("");
-    return '<label class="field"><span class="lbl">' + esc(fld.label) + '</span><select data-cfg="' + fld.path + '">' + options + "</select>" + help + "</label>";
+  if (f.type === "select") {
+    const options = (f.options || []).map(o => '<option value="' + escapeHtml(o.value) + '"' + (String(raw) === String(o.value) ? " selected" : "") + ">" + escapeHtml(o.label) + "</option>").join("");
+    return '<label class="field">' + label + '<select data-path="' + f.path + '"' + off + '>' + options + "</select>" + help + "</label>";
+  }
+  if (f.type === "textarea" || f.type === "list") {
+    const text = f.type === "list" ? (Array.isArray(raw) ? raw.join("\n") : String(raw ?? "")) : String(raw ?? "");
+    return '<label class="field full">' + label + '<textarea data-path="' + f.path + '"' + (f.type === "list" ? ' data-list="1"' : "") + off + '>' + escapeHtml(text) + "</textarea>" + help + "</label>";
   }
   let attrs = ' type="text"';
-  if (fld.type === "number") {
+  if (f.type === "number") {
     attrs = ' type="number"';
-    if (fld.opts.min !== undefined) attrs += ' min="' + fld.opts.min + '"';
-    if (fld.opts.max !== undefined) attrs += ' max="' + fld.opts.max + '"';
-    if (fld.opts.step !== undefined) attrs += ' step="' + fld.opts.step + '"';
+    if (f.min !== undefined) attrs += ' min="' + f.min + '"';
+    if (f.max !== undefined) attrs += ' max="' + f.max + '"';
+    if (f.step !== undefined) attrs += ' step="' + f.step + '"';
   }
-  return '<label class="field"><span class="lbl">' + esc(fld.label) + '</span><input data-cfg="' + fld.path + '"' + attrs + ' value="' + esc(v) + '">' + help + "</label>";
+  return '<label class="field">' + label + '<input data-path="' + f.path + '"' + attrs + ' value="' + escapeHtml(raw) + '"' + off + '>' + help + "</label>";
 }
 async function loadConfig() {
-  const r = await api("GET", "/config");
-  if (!r.ok) { toast(r.error || "Ошибка конфига", true); return; }
-  const cfg = r.config;
-  $("cfg-body").innerHTML = CFG_GROUPS.map(gr =>
-    '<div class="cfg-group"><h4>' + esc(gr.title) + '</h4><div class="cfg-grid">' + gr.fields.map(fl => fieldHtml(fl, cfg)).join("") + "</div></div>"
+  const r = await api("GET", "/settings/snapshot", null, true);
+  if (!r.ok) { $("cfg-body").textContent = r.error || "Не удалось получить схему настроек"; return; }
+  SNAPSHOT = r;
+  const unsupported = new Set(r.unsupported || []);
+  $("cfg-body").innerHTML = r.snapshot.groups.map(gr =>
+    '<div class="cfg-group"><h4>' + escapeHtml(gr.title) + '</h4><div class="cfg-grid">' +
+    gr.fields.map(fl => fieldHtml(fl, r.snapshot.values[fl.path], unsupported.has(fl.path))).join("") + "</div></div>"
   ).join("");
 }
-async function loadModel() {
-  const r = await api("GET", "/model/status");
-  if (!r.ok) { $("model-info").textContent = r.error || "Модель недоступна"; return; }
-  const st = r.status;
-  const size = st.bytes ? (st.bytes / 1048576).toFixed(1) + " МБ" : "0 Б";
-  let text = st.model + " · " + (st.cached ? "в кэше (" + size + ", файлов " + st.files + ")" : "не скачана") +
-    " · провайдер " + st.provider + (st.configured ? "" : " (векторный поиск выключен: выберите local)");
-  if (st.dir) text += " · " + st.dir;
-  if (st.error) text += " · ошибка: " + st.error;
-  $("model-info").textContent = text;
-  $("model-progress").textContent = st.downloading ? "скачивание…" + (st.progress && st.progress.percent ? " " + Math.round(st.progress.percent) + "%" : "") : "";
-  if (st.downloading) setTimeout(loadModel, 1500);
-}
-$("btn-model-download").onclick = async () => {
-  $("model-progress").textContent = "запуск…";
-  const r = await api("POST", "/model/download", {}, true);
-  if (!r.ok) { toast(r.error || "Не удалось скачать модель", true); $("model-progress").textContent = ""; return; }
-  toast("Скачивание запущено");
-  loadModel();
-};
-$("btn-model-remove").onclick = async () => {
-  if (!confirm("Удалить скачанную модель из кэша?")) return;
-  const r = await api("POST", "/model/remove", {}, true);
-  toast(r.ok ? "Модель удалена из кэша" : (r.error || "Ошибка"), !r.ok);
-  loadModel();
-};
 $("btn-cfg-load").onclick = loadConfig;
 $("btn-cfg-save").onclick = async () => {
-  const body = {};
-  document.querySelectorAll("[data-cfg]").forEach(el => {
-    const path = el.dataset.cfg.split(".");
-    const val = el.type === "checkbox" ? el.checked : (el.type === "number" ? Number(el.value) : el.value);
-    let node = body;
-    for (let i = 0; i < path.length - 1; i++) {
-      if (!node[path[i]] || typeof node[path[i]] !== "object") node[path[i]] = {};
-      node = node[path[i]];
+  const patch = {};
+  document.querySelectorAll("[data-path]").forEach(el => {
+    if (el.disabled) return;
+    let value = el.type === "checkbox" ? el.checked : (el.type === "number" ? Number(el.value) : el.value);
+    if (el.dataset.list === "1") value = String(el.value).split("\n").map(line => line.trim()).filter(Boolean);
+    const parts = el.dataset.path.split(".");
+    let node = patch;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!node[parts[i]] || typeof node[parts[i]] !== "object") node[parts[i]] = {};
+      node = node[parts[i]];
     }
-    node[path[path.length - 1]] = val;
+    node[parts[parts.length - 1]] = value;
   });
-  const r = await api("PUT", "/config", body);
-  toast(r.ok ? "Настройки сохранены и применены" : (r.error || "Ошибка"), !r.ok);
-  if (r.ok) loadConfig();
+  const r = await api("PUT", "/settings", patch, true);
+  if (!r.ok) { toast(r.error || "Ошибка сохранения", true); return; }
+  const rest = (r.unsupported || []).length ? " (не применяется: " + r.unsupported.join(", ") + ")" : "";
+  toast("Настройки сохранены" + rest);
+  loadConfig();
 };
 
 (async function init() {

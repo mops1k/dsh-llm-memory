@@ -8,6 +8,7 @@ import type { MemoryConfig } from './config.js'
 import {
   SETTINGS_ACTIONS,
   SETTINGS_GROUPS,
+  localizedSettingsGroups,
   readSettingValue,
   type SettingsAction,
   type SettingsGroup,
@@ -46,15 +47,15 @@ export function isUIAction(name: string): boolean {
   return UI_ACTION_NAMES.includes(name)
 }
 
-/** Settings screen payload for a core config. */
-export function settingsSnapshot(config: MemoryConfig): UISettingsSnapshot {
+/** Settings screen payload for a core config, in the panel's locale. */
+export function settingsSnapshot(config: MemoryConfig, locale: 'en' | 'ru' = 'en'): UISettingsSnapshot {
   const values: Record<string, unknown> = {}
   for (const group of SETTINGS_GROUPS) {
     for (const field of group.fields) values[field.path] = readSettingValue(config, field.path)
   }
   return {
     version: UI_CONTRACT_VERSION,
-    groups: SETTINGS_GROUPS,
+    groups: locale === 'en' ? SETTINGS_GROUPS : localizedSettingsGroups('ru'),
     actions: SETTINGS_ACTIONS,
     values,
   }

@@ -22,6 +22,8 @@ export interface SettingsField {
   path: string
   /** Human label shown by every panel. */
   label: string
+  /** Russian label for panels that render a Russian UI. */
+  labelRu?: string
   /** One-line explanation of what the value does. */
   hint: string
   type: SettingsFieldType
@@ -36,6 +38,8 @@ export interface SettingsField {
 export interface SettingsGroup {
   id: string
   title: string
+  /** Russian title for panels that render a Russian UI. */
+  titleRu?: string
   fields: readonly SettingsField[]
 }
 
@@ -462,4 +466,66 @@ export function writeSettingValue(patch: Record<string, unknown>, path: string, 
 /** All field paths in render order (used by parity tests and panels). */
 export function settingsFieldPaths(): string[] {
   return SETTINGS_GROUPS.flatMap(group => group.fields.map(field => field.path))
+}
+
+/** Russian panel labels, keyed by the same paths/groups as the schema. */
+const RU_GROUP_TITLES: Record<string, string> = {
+  storage: 'Хранилище и проекты',
+  recall: 'Recall и контекст',
+  embeddings: 'RAG (векторный поиск)',
+  maintenance: 'Lint и жизненный цикл',
+  import: 'Импорт',
+}
+
+const RU_FIELD_LABELS: Record<string, string> = {
+  storageRoot: 'Корень хранилища',
+  projectRoots: 'Корни проектов (ключ -> путь)',
+  projectScanBudgetMs: 'Бюджет прохода индексации (мс)',
+  webPath: 'Базовый путь WebUI',
+  backupDir: 'Каталог бэкапов',
+  recallLimit: 'Записей в recall',
+  recallTextChars: 'Бюджет записи (символов)',
+  recallTotalChars: 'Общий бюджет (символов)',
+  recallFormat: 'Формат по умолчанию',
+  recallAllowFormatOverride: 'Разрешать формат в вызове',
+  recallLiteralLookup: 'Литеральный поиск',
+  recallScope: 'Область по умолчанию',
+  promptRulesLimit: 'Правил в промпте',
+  rulesPromptScope: 'Область правил',
+  sessionStartGuide: 'Гайд при старте сессии',
+  systemPrompt: 'Текст системного промпта',
+  'embeddings.provider': 'Провайдер эмбеддингов',
+  'embeddings.backend': 'Векторный бэкенд',
+  'embeddings.quantization': 'Квантование',
+  'embeddings.model': 'Модель',
+  'embeddings.dim': 'Размерность',
+  'embeddings.topK': 'Соседей в recall',
+  'embeddings.minScore': 'Минимальная близость',
+  'embeddings.batchSize': 'Размер батча',
+  'embeddings.chunkChars': 'Размер чанка (символов)',
+  'embeddings.chunkOverlap': 'Перекрытие чанков',
+  'embeddings.queryPrefix': 'Префикс запроса',
+  'embeddings.passagePrefix': 'Префикс пассажа',
+  'embeddings.semanticEdgesPerEntry': 'Семантических связей на запись',
+  'embeddings.semanticMaxEdges': 'Лимит семантических связей',
+  'embeddings.prewarm': 'Прогрев модели при старте',
+  lintOverlapMinCommonWords: 'Пересечение: минимум слов',
+  lintMaxPairs: 'Пересечение: лимит пар',
+  autonomous: 'Автономная память',
+  requireConfirmation: 'Подтверждать разрушительные операции',
+  importAutoDetect: 'Автоопределение корней импорта',
+  importRoots: 'Корни импорта',
+}
+
+/** Groups with the labels of the requested locale (English is the base). */
+export function localizedSettingsGroups(locale: 'en' | 'ru'): SettingsGroup[] {
+  if (locale === 'en') return SETTINGS_GROUPS.map(group => group)
+  return SETTINGS_GROUPS.map(group => ({
+    ...group,
+    title: group.titleRu ?? RU_GROUP_TITLES[group.id] ?? group.title,
+    fields: group.fields.map(field => ({
+      ...field,
+      label: field.labelRu ?? RU_FIELD_LABELS[field.path] ?? field.label,
+    })),
+  }))
 }
