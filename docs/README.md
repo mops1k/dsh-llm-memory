@@ -14,9 +14,13 @@
 
 - [dsh-migration.md](dsh-migration.md) — перенос DSH-памяти на единое ядро.
 - [opencode.md](opencode.md) — адаптер OpenCode: одна сборка для 1.x и 2.x, стор, панель 8788, живые проверки.
+- [mcp.md](mcp.md) — MCP-сервер `llm-memory-mcp`: stdio и Streamable HTTP, store на client-id,
+  инструменты, prompt/resource, панель 8789, лимиты и изоляция.
 - [kilo-migration.md](kilo-migration.md) — миграция Kilo-хранилища (снимки, проверки, fixtures).
 - [kilo-cutover.md](kilo-cutover.md) — production cutover Kilo.
 - [backup.md](backup.md) — формат `.llmmem`, создание/проверка/восстановление, CLI.
+- [sync.md](sync.md) — sync-groundwork: зарезервированные поля и `memory_revisions`,
+  tombstones, модель конфликтов, git как первый транспорт, write + review, non-goals.
 
 ## Кроссплатформенность и RAG
 
@@ -28,5 +32,6 @@
 
 ## Решения
 
-- [adr/](adr/) — ADR-001…ADR-010 (раздельные store, имена инструментов, UI-хосты, бэкапы,
-  sync-заготовка, изоляция, решения 19.10.2026, плоское дерево src/, доставка рантайма эмбеддингов).
+- [adr/](adr/) — ADR-001…ADR-011 (раздельные store, имена инструментов, UI-хосты, бэкапы,
+  sync-заготовка, изоляция, решения 19.10.2026, плоское дерево src/, доставка рантайма
+  эмбеддингов, MCP-адаптер).

@@ -7,6 +7,7 @@
  * merge helper.
  */
 import type { EmbeddingProviderMode, MemoryScope, VectorBackend, VectorQuantization } from './types.js'
+import { DEFAULT_SYNC_CONFIG, type SyncConfig } from '../sync/index.js'
 
 /** Recall scope accepted by the engine. */
 export type RecallScope = MemoryScope | 'all'
@@ -183,6 +184,11 @@ export interface MemoryConfig {
   backupDir: string
   /** Inject the short guide at session start when no richer system section is available. */
   sessionStartGuide: boolean
+  /**
+   * Reserved team-sync configuration (ADR-006). `enabled` is false today and
+   * enabling it starts nothing: no transport, no network, no background jobs.
+   */
+  sync: SyncConfig
 }
 
 /**
@@ -239,6 +245,7 @@ export const DEFAULT_CONFIG: MemoryConfig = {
   webPath: '/llm-memory',
   backupDir: '',
   sessionStartGuide: true,
+  sync: { ...DEFAULT_SYNC_CONFIG },
 }
 
 function asNumber(value: unknown, fallback: number, min: number, max: number): number {
@@ -396,5 +403,24 @@ export function mergeConfig(partial?: Partial<MemoryConfig> | null): MemoryConfi
     backupDir: typeof src.backupDir === 'string' ? src.backupDir.trim() : DEFAULT_CONFIG.backupDir,
     sessionStartGuide:
       typeof src.sessionStartGuide === 'boolean' ? src.sessionStartGuide : DEFAULT_CONFIG.sessionStartGuide,
+    sync: asSync(src.sync),
+  }
+}
+
+/** Reserved sync block: missing or invalid values fall back to the disabled default. */
+function asSync(value: unknown): SyncConfig {
+  const base = DEFAULT_CONFIG.sync
+  if (value === null || typeof value !== 'object') return { ...base }
+  const input = value as Partial<SyncConfig>
+  const asRemote = (raw: unknown, fallback: string | null): string | null => {
+    if (raw === null) return null
+    if (typeof raw !== 'string') return fallback
+    const trimmed = raw.trim()
+    return trimmed.length > 0 ? trimmed : null
+  }
+  return {
+    enabled: typeof input.enabled === 'boolean' ? input.enabled : base.enabled,
+    team: asRemote(input.team, base.team),
+    remote: asRemote(input.remote, base.remote),
   }
 }

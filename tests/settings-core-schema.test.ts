@@ -3,6 +3,7 @@ import { DEFAULT_CONFIG } from '@llm-memory/core/domain/config.js'
 import { settingsUiSchema } from '../src/adapters/dsh/settings'
 import { settingsSnapshot } from '@llm-memory/core/domain/ui-contract.js'
 import {
+  RESERVED_SETTING_PATHS,
   SETTINGS_ACTIONS,
   SETTINGS_GROUPS,
   readSettingValue,
@@ -23,10 +24,17 @@ function flatten(value: unknown, prefix = ''): string[] {
 }
 
 describe('core settings schema', () => {
-  it('covers every key of the core configuration', () => {
+  it('covers every key of the core configuration except the reserved sync block', () => {
     const declared = new Set(settingsFieldPaths())
-    const missing = flatten(DEFAULT_CONFIG).filter(path => !declared.has(path))
+    const reserved = new Set(RESERVED_SETTING_PATHS)
+    const missing = flatten(DEFAULT_CONFIG).filter(path => !declared.has(path) && !reserved.has(path))
     expect(missing).toEqual([])
+  })
+
+  it('keeps the reserved sync block out of the editable schema', () => {
+    const declared = new Set(settingsFieldPaths())
+    for (const path of RESERVED_SETTING_PATHS) expect(declared.has(path)).toBe(false)
+    expect(RESERVED_SETTING_PATHS.every(path => path.startsWith('sync.'))).toBe(true)
   })
 
   it('declares no path that the core configuration does not have', () => {

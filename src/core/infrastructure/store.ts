@@ -36,6 +36,7 @@ import type {
   VectorQuantization,
 } from '../domain/types.js'
 import { VECTOR_TABLE_DDL, VECTOR_TABLE_INDEX_DDL, createVectorIndex } from './vector-index.js'
+import { ensureRevisionsTable } from '../sync/index.js'
 import {
   decodePage,
   deleteItemPage,
@@ -487,7 +488,13 @@ export class MemoryStore {
         access_count INTEGER,
         last_access TEXT,
         consolidation TEXT,
-        origin TEXT
+        origin TEXT,
+        namespace TEXT NOT NULL DEFAULT 'local',
+        revision INTEGER NOT NULL DEFAULT 0,
+        device_id TEXT NOT NULL DEFAULT '',
+        updated_by TEXT NOT NULL DEFAULT '',
+        deleted_at TEXT,
+        sync_state TEXT NOT NULL DEFAULT 'local'
       );
     `)
     db.exec('CREATE INDEX IF NOT EXISTS idx_memories_scope_project ON memories(scope, project);')
@@ -504,6 +511,8 @@ export class MemoryStore {
     db.exec(VECTOR_TABLE_DDL)
     db.exec(VECTOR_TABLE_INDEX_DDL)
     this.ensureColumns()
+    // Reserved for the future sync layer (ADR-006); current writes never touch it.
+    ensureRevisionsTable(db)
     this.ftsAvailable = this.ensureFts()
   }
 
@@ -546,6 +555,14 @@ export class MemoryStore {
     add('last_access', 'last_access TEXT')
     add('consolidation', 'consolidation TEXT')
     add('origin', 'origin TEXT')
+    // Reserved sync fields (ADR-006): defaults only, written exclusively by a
+    // future sync layer; the write path below never lists them.
+    add('namespace', "namespace TEXT NOT NULL DEFAULT 'local'")
+    add('revision', 'revision INTEGER NOT NULL DEFAULT 0')
+    add('device_id', "device_id TEXT NOT NULL DEFAULT ''")
+    add('updated_by', "updated_by TEXT NOT NULL DEFAULT ''")
+    add('deleted_at', 'deleted_at TEXT')
+    add('sync_state', "sync_state TEXT NOT NULL DEFAULT 'local'")
     this.kiloMirror = ['content', 'createdAt', 'updatedAt', 'lastAccess', 'accessCount'].filter(name => columns.has(name))
     this.notNullNoDefault = new Set(
       (db.prepare('PRAGMA table_info(memories)').all() as Array<Record<string, unknown>>)

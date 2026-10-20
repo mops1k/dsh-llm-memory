@@ -477,6 +477,14 @@ export function settingsFieldPaths(): string[] {
   return SETTINGS_GROUPS.flatMap(group => group.fields.map(field => field.path))
 }
 
+/**
+ * Config keys that deliberately have no panel control. Team sync is groundwork
+ * only (ADR-006): enabling it must not be possible from a UI before a transport,
+ * review flow and conflict handling exist, so the block stays out of
+ * {@link SETTINGS_GROUPS} while remaining part of `MemoryConfig`.
+ */
+export const RESERVED_SETTING_PATHS: readonly string[] = ['sync.enabled', 'sync.team', 'sync.remote']
+
 /** Russian panel labels, keyed by the same paths/groups as the schema. */
 const RU_GROUP_TITLES: Record<string, string> = {
   storage: 'Хранилище и проекты',

@@ -30,13 +30,20 @@ CREATE TABLE IF NOT EXISTS memory_revisions (
 ```
 
 - `SyncTransport { capabilities(); pull(cursor); push(ops) }` и `NullSync` (no-op) в core.
-- Конфиг `sync: { enabled: false, team: null, remote: null }`; при `enabled=false` сеть не
-  вызывается, фоновых jobs нет, `memory_revisions` текущими записями не заполняется.
+- Конфиг `sync: { enabled: false, team: null, remote: null }` в `MemoryConfig`; при
+  `enabled=false` сеть не вызывается, фоновых jobs нет, `memory_revisions` текущими
+  записями не заполняется. Блок `sync.*` намеренно не входит в UI-схему
+  (`RESERVED_SETTING_PATHS` в `src/core/domain/settings-schema.ts`), чтобы sync нельзя было
+  включить из панели до появления транспорта.
 - Первый будущий транспорт — git-репозиторий; первый режим — write + review (изменения
   оформляются patch/PR и проходят review, а не пишутся напрямую в общую ветку).
 - Локальная память приватна по умолчанию: автоматической выгрузки личных записей нет,
   team-память — отдельный opt-in namespace.
 - Backup manifest переиспользуется как snapshot-формат будущего sync.
+
+Детали реализации, инварианты и чек-лист включения: [../sync.md](../sync.md)
+(tombstones через `deleted_at`, конфликты через `revision`/`base_revision`/`payload_hash`
+и три случая разрешения).
 
 Non-goals сейчас: сетевой sync, auth/ACL, team-UI, разрешение конфликтов в UI,
 синхронизация vector index/model cache.
