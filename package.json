@@ -29,6 +29,9 @@
     "./tool-restrict": {
       "types": "./lib/tool-restrict.d.ts",
       "default": "./lib/tool-restrict.js"
+    },
+    "./opencode": {
+      "default": "./lib/opencode.js"
     }
   },
   "files": [
@@ -60,7 +63,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p . && node scripts/build-ui.mjs && node scripts/build-kilo.mjs && node scripts/copy-client.mjs",
+    "build": "tsc -p . && node scripts/build-ui.mjs && node scripts/build-kilo.mjs && node scripts/build-opencode.mjs && node scripts/copy-client.mjs",
     "typecheck": "tsc -p .",
     "lint": "oxlint src tests client scripts packages",
     "test": "vitest run",

@@ -1,44 +1,21 @@
 /**
- * Kilo adapter configuration (`~/.config/kilo/kilo-memory.json`), reduced to
- * the fields the adapter needs. Defaults keep Kilo behaviour: dynamic prompt,
+ * Kilo adapter configuration (`~/.config/kilo/llm-memory.json`).
+ *
+ * The shape is shared with the other HTTP-panel harnesses (`HarnessConfig` in
+ * the core domain); Kilo supplies only its defaults: dynamic prompt,
  * global+project recall, panel on 127.0.0.1:8787.
  */
-export type PromptMode = 'dynamic' | 'frozen'
-export type RecallFormat = 'markdown' | 'table' | 'timeline' | 'json'
-export type RecallScope = 'global' | 'project' | 'all'
+import type { HarnessConfig } from '../../core/domain/harness-config.js'
 
-export interface KiloMemoryConfig {
-  enabled: boolean
-  memory: {
-    storageRoot: string
-    promptMode: PromptMode
-    recallLimit: number
-    recallFormat: RecallFormat
-    recallScope: RecallScope
-    recallTextChars: number
-    /** Kilo consolidation/reinforcement behaviour stays on by default. */
-    consolidateOnCompact: boolean
-    crystallizeOnCompact: boolean
-    /** Archive directory; empty means `<store>/backups`. */
-    backupDir: string
-  }
-  web: {
-    enabled: boolean
-    host: string
-    port: number
-  }
-  /** Vector RAG settings (provider off by default until stage 9 vectors land). */
-  embeddings: {
-    provider: 'off' | 'local'
-    model: string
-    dim: number
-    topK: number
-    minScore: number
-    chunkChars: number
-    chunkOverlap: number
-    prewarm: boolean
-  }
-}
+export type {
+  HarnessConfig,
+  HarnessEmbeddingConfig,
+  HarnessMemoryConfig,
+  HarnessWebConfig,
+  PromptMode,
+} from '../../core/domain/harness-config.js'
+
+export type KiloMemoryConfig = HarnessConfig
 
 export const DEFAULT_KILO_CONFIG: KiloMemoryConfig = {
   enabled: true,
