@@ -17,7 +17,7 @@
 | D-08 | Потеря полей | writer теряет `consolidation`, `accessCount`, `lastAccess` | writer теряет `extKey`, `project` | тихая порча данных | superset writer, проброс неизвестных полей | план |
 | D-09 | Индекс | `path + size + mtime`, budget на медленные монтирования | `file + mtime`, TTL | разный инкрементальный reconcile | fingerprint `path+size+mtime` в core | план |
 | D-10 | Ранжирование | RRF 3 ноги: BM25, metadata, vector; provenance; literal lookup | RRF + `accessCount` (log2), `consolidation`, confidence decay с half-life; graph boost | прямая замена ухудшит выдачу | superset ranking с флагами | код (graph boost — план) |
-| D-11 | Векторы | chunks, embeddings, worker, sqlite-vec/js, queue, model cache | нет: в БД нет векторных таблиц | новая подсистема | опционально, `off` до spike (этап 9) | код |
+| D-11 | Векторы | chunks, embeddings, worker, sqlite-vec/js, queue, model cache | `memory_vectors` создана миграцией v2 (DDL = ядро, 0 строк); нога выключена кодом (`isEnabled=false`), пакетов `@huggingface/transformers`/`sqlite-vec` в `~/.config/kilo/node_modules` нет; кэш модели 134 МБ уже в сторе | новая подсистема | `VectorLeg` в ядре + снятие флага (P2); доставка пакета — P4 (A/B/C) | код + живая БД (20.10, `rag-kilo-audit.md`) |
 | D-12 | Граф | вычисляется на чтение | persisted `memory_entities`/`memory_edges` | две модели | computed + persisted fallback | код |
 | D-13 | Инструменты | `llm_memory_recall/save/forget/status` | `memory_recall/save/forget/delete/status/lint/graph` | имена и набор | единые `llm_memory_*` без aliases (ADR-003) | код |
 | D-14 | Prompt | frozen при `agent/created` | dynamic на каждом `system.transform` | разное поведение контекста | `promptMode`, default `dynamic`; DSH — frozen в своём конфиге | код |
@@ -27,7 +27,7 @@
 | D-18 | Импорт | импортёры Kilo/mnemon/dsh-memory | нет | соблазн межхарнесного переноса | межхарнесный импорт не портируется (ADR-002) | план |
 | D-19 | Проекты | `projects.json`, basename-ключ | `pickProjectRoot`, маркеры проекта, `<repo>/.kilo/memory` | разные правила | у каждого layout свой реестр | код |
 | D-20 | Конкурентность | долгоживущий store | open-on-demand, close-after-op | блокировки SQLite | оба режима + WAL, busy_timeout | план |
-| D-21 | Индексирование | FTS по всем записям | FTS только по `active` (301 из 351) | после миграции индекс неполный | перестроить FTS по всем записям, зафиксировать семантику в тестах | код |
+| D-21 | Индексирование | FTS по всем записям | FTS только по `active` (20.10: 298 строк при 277 `active` — 21 устаревшая) | после миграции индекс неполный и со stale-строками | перестроить FTS перед включением семантики (P2), зафиксировать семантику в тестах | код + живая БД (20.10) |
 
 ## Уточнения к плану, снятые при baseline
 
@@ -38,3 +38,7 @@
 - DSH-ядро использует `node:sqlite` `DatabaseSync` напрямую (`src/core/store.ts:11`) —
   это подтверждает правило импортов по слоям (ADR-008).
 - Sanitized fixture Kilo собрана из настоящей схемы: `tests/fixtures/kilo/`.
+- Дрейф живой Kilo-БД к 20.10.2026: **323** записи (`active` 277, `global` 12,
+  `project` 311), `memory_vectors` 0, `memory_revisions` 0, `integrity_check` ok.
+  Приёмка миграции сверяется с текущим срезом, а не с 351 из baseline
+  (`docs/adr/rag-kilo-audit.md`).

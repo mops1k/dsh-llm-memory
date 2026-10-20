@@ -21,15 +21,7 @@ import {
   type RulesPromptScope,
 } from '../domain/config.js'
 import { entryChunks } from './chunks.js'
-import { EmbeddingQueue, type EmbeddingQueueStatus } from '../infrastructure/embed-queue.js'
-import { createEmbeddingProvider } from '../infrastructure/embeddings.js'
-import {
-  removeModelCache,
-  scanModelCache,
-  sweepModelTempFiles,
-  type ModelCacheStatus,
-  type ModelDownloadProgress,
-} from '../infrastructure/model-cache.js'
+import type { EmbeddingQueueStatus } from '../infrastructure/embed-queue.js'
 import { appendLog, debug } from '../infrastructure/log.js'
 import { sanitizeProjectKey } from '../layout/paths.js'
 import {
@@ -46,6 +38,8 @@ import type { RankProvenance } from './ranking.js'
 import type { SemanticPair } from './ranking.js'
 import { MemoryStore, genMemoryId, newMemoryEntry } from '../infrastructure/store.js'
 import { buildGraph } from './wiki.js'
+import { VectorLeg, type HealVectorsReport, type VectorHealth } from './vector-leg.js'
+import type { ModelStatus } from './model-manager.js'
 import type {
   EmbeddingProvider,
   MemoryEntry,
@@ -57,13 +51,11 @@ import type {
   MemoryScope,
   MemoryStatus,
   MemoryTier,
-  VectorIndex,
   VectorMap,
   VectorMapPoint,
   VectorMapQuery,
 } from '../domain/types.js'
 import { clampImportance } from '../domain/types.js'
-import { projectInto, projectVectors, type VectorProjection } from './projection.js'
 
 /** Output format of `recall`; the list itself lives in the config module. */
 export type { RecallFormat }
@@ -221,23 +213,7 @@ export interface StatusReport {
   vectors: EmbeddingQueueStatus | null
 }
 
-/** State of the embedding model shown by the settings page. */
-export interface ModelStatus extends ModelCacheStatus {
-  /** Configured embedding provider (`off`, `local` or the reserved `http`). */
-  provider: string
-  /** Configured model id. */
-  model: string
-  /** Whether the settings ask for semantic search at all (provider and backend). */
-  configured: boolean
-  /** Whether the vector leg is active right now; false also when the model is absent. */
-  enabled: boolean
-  /** Whether a download is running right now. */
-  downloading: boolean
-  /** Live download progress, or null when nothing is downloading. */
-  progress: ModelDownloadProgress | null
-  /** Message of the last failed download, or null. */
-  error: string | null
-}
+export type { ModelStatus } from './model-manager.js'
 
 /** A link pointing at an entry that does not exist. */
 export interface LintBrokenLink {
@@ -312,43 +288,7 @@ export interface HealReport {
   vectors: HealVectorsReport
 }
 
-/** Differences between the vector table and the pages. */
-export interface VectorHealth {
-  /** Entries present in the vector table. */
-  checked: number
-  /** Vector rows whose page is gone. */
-  orphans: string[]
-  /** Entries whose stored metadata copy no longer matches the page. */
-  metadataStale: string[]
-  /** Pages with no vectors at all. */
-  missing: string[]
-  /** Pages whose stored chunk set differs from what the text chunks into. */
-  partial: string[]
-  /** Entries stored under another model (a model switch leaves these behind). */
-  foreign: string[]
-  /** Entries holding chunks of a wrong length for the configured dimension. */
-  badDim: string[]
-  /** Entries holding zero or non-finite vectors. */
-  broken: string[]
-}
-
-/** What the vector part of `heal` repaired. */
-export interface HealVectorsReport {
-  /** Entries found in the vector table. */
-  checked: number
-  /** Leftover rows deleted (page removed). */
-  orphansRemoved: number
-  /** Metadata copies rewritten from the page. */
-  metadataFixed: number
-  /** Rows deleted for a wrong vector length or a broken vector. */
-  badRemoved: number
-  /** Rows of another model deleted. */
-  foreignRemoved: number
-  /** Entries handed back to the embedding queue (missing, partial, deleted). */
-  queued: number
-  /** Leftover download files removed from the model cache. */
-  tempFilesSwept: number
-}
+export type { HealVectorsReport, VectorHealth } from './vector-leg.js'
 
 function firstLine(text: string, maxLength = 120): string {
   const line = text.split(/\r?\n/, 1)[0]?.trim() ?? ''
@@ -513,30 +453,8 @@ export class MemoryEngine {
   readonly project: string
   private readonly store: MemoryStore
   private readonly externalResolver?: (key: string) => string | null | undefined
-  private readonly injectedProvider?: EmbeddingProvider
-  private readonly manualEmbeddings: boolean
-  /** Lazy vector stack: provider, index and the background embedding queue. */
-  private vectors: { provider: EmbeddingProvider; index: VectorIndex; queue: EmbeddingQueue } | null = null
-  /** Set when the vector leg cannot be built, so it is not retried per call. */
-  private vectorUnavailable = false
-  /** Provider kept for downloads even while the vector leg is off. */
-  private modelProvider: EmbeddingProvider | null = null
-  /** The model is configured but not in the cache: the settings page must fetch it. */
-  private modelMissing = false
-  /** Model cache and download state shown by the settings page. */
-  private modelState: {
-    downloading: boolean
-    progress: ModelDownloadProgress | null
-    error: string | null
-  } = { downloading: false, progress: null, error: null }
-  /** Consecutive failures of the query-embedding path. */
-  private vectorFailures = 0
-  /**
-   * Cached semantic map and its basis. The key holds the index counters, so the
-   * coordinates are rebuilt as soon as an entry is embedded — the basis has to
-   * match the data it was computed from, otherwise the query marker drifts.
-   */
-  private mapCache: { key: string; projection: VectorProjection; map: VectorMap } | null = null
+  /** Shared vector stack: provider, index, queue, map, health and model. */
+  private readonly vectorLeg: VectorLeg
 
   constructor(options: MemoryEngineOptions = {}) {
     this.config = mergeConfig({
@@ -552,114 +470,28 @@ export class MemoryEngine {
       allowExtension: this.config.embeddings.backend === 'sqlite-vec',
     })
     if (options.resolveProjectRoot) this.externalResolver = options.resolveProjectRoot
-    if (options.embeddingProvider) this.injectedProvider = options.embeddingProvider
-    this.manualEmbeddings = options.manualEmbeddings === true
+    this.vectorLeg = new VectorLeg({
+      store: this.store,
+      settings: this.config.embeddings,
+      cacheDir: join(this.store.root, '_models'),
+      ...(options.embeddingProvider ? { injectedProvider: options.embeddingProvider } : {}),
+      manual: options.manualEmbeddings === true,
+    })
   }
 
   /** Whether the settings (or an injected provider) ask for semantic search. */
   private vectorsConfigured(): boolean {
-    if (this.injectedProvider) return true
-    const settings = this.config.embeddings
-    return settings.provider !== 'off' && settings.backend !== 'off'
-  }
-
-  /**
-   * Provider for the vector leg and for model downloads.
-   *
-   * Cached so a download that ran while the vector leg was off (no model in the
-   * cache) is reused once the model is there.
-   */
-  private resolveProvider(): EmbeddingProvider | null {
-    if (this.vectors) return this.vectors.provider
-    if (this.modelProvider) return this.modelProvider
-    const settings = this.config.embeddings
-    const provider =
-      this.injectedProvider ??
-      (settings.provider === 'off' || settings.provider === 'http'
-        ? null
-        : createEmbeddingProvider(settings, { cacheDir: this.modelCacheDir(), debug }))
-    if (provider) this.modelProvider = provider
-    return provider
-  }
-
-  /**
-   * Whether the local model is on disk; a missing one keeps the vector leg off.
-   *
-   * Downloading it implicitly would block every recall on a 130 MB transfer (and
-   * on a restart it would start over), so an explicit download from the settings
-   * page is the only path that fetches the model.
-   */
-  private modelAvailable(provider: EmbeddingProvider): boolean {
-    if (!provider.id.startsWith('local')) return true
-    return scanModelCache(this.modelCacheDir(), provider.model).cached
-  }
-
-  /**
-   * Build the vector stack on first use.
-   *
-   * Every failure path — the optional dependency is missing, the worker cannot
-   * start, the settings disable vectors, the model is not downloaded — leaves
-   * `vectors` null, so a broken embedding setup degrades to the lexical path
-   * instead of breaking recall.
-   */
-  private ensureVectors(): { provider: EmbeddingProvider; index: VectorIndex; queue: EmbeddingQueue } | null {
-    if (this.vectors) return this.vectors
-    if (this.vectorUnavailable) return null
-    const settings = this.config.embeddings
-    if (!this.injectedProvider && (settings.provider === 'off' || settings.backend === 'off')) {
-      this.vectorUnavailable = true
-      return null
-    }
-    try {
-      const provider = this.resolveProvider()
-      if (!provider) {
-        this.vectorUnavailable = true
-        return null
-      }
-      if (!this.modelAvailable(provider)) {
-        this.modelMissing = true
-        debug(
-          `embeddings: ${provider.model} is not in the cache; semantic search stays off until it is downloaded from the settings page`,
-        )
-        return null
-      }
-      const index = this.store.initVectorIndex({
-        model: provider.model,
-        dim: provider.dim,
-        backend: settings.backend,
-        quantization: settings.quantization,
-      })
-      if (!index) {
-        this.vectorUnavailable = true
-        return null
-      }
-      const queue = new EmbeddingQueue({
-        store: this.store,
-        index,
-        provider,
-        config: settings,
-        debug,
-        manual: this.manualEmbeddings,
-      })
-      this.store.onEntryChanged = (id) => queue.enqueue([id])
-      this.vectors = { provider, index, queue }
-      if (settings.prewarm && !this.manualEmbeddings) queue.start()
-      return this.vectors
-    } catch (error) {
-      this.vectorUnavailable = true
-      debug(`vectors: disabled (${error instanceof Error ? error.message : String(error)})`)
-      return null
-    }
+    return this.vectorLeg.configured()
   }
 
   /** Start the vector leg in the background (plugin startup); idempotent. */
   startVectors(): void {
-    this.ensureVectors()
+    this.vectorLeg.start()
   }
 
   /** Progress of the vector index, or null when the vector leg is off. */
   vectorStatus(): EmbeddingQueueStatus | null {
-    return this.vectors?.queue.status() ?? null
+    return this.vectorLeg.status()
   }
 
   /**
@@ -670,54 +502,7 @@ export class MemoryEngine {
    * index counters change; `refresh` forces a rebuild (the button in the UI).
    */
   vectorsMap(options: { refresh?: boolean } = {}): VectorMap | null {
-    const vectors = this.ensureVectors()
-    if (!vectors) return null
-    const stats = vectors.index.stats()
-    const key = `${stats.model}:${stats.dim}:${stats.entries}:${stats.chunks}`
-    if (!options.refresh && this.mapCache && this.mapCache.key === key) {
-      return { ...this.mapCache.map, cached: true }
-    }
-
-    const entryVectors = vectors.index.entryVectors()
-    if (entryVectors.size === 0) return null
-
-    const ids = [...entryVectors.keys()]
-    const projection = projectVectors(ids.map((id) => entryVectors.get(id)!))
-    const chunkCounts = vectors.index.chunkCounts()
-    const entries = new Map(this.store.list({ status: 'all' }).items.map((entry) => [entry.id, entry]))
-    const points: VectorMapPoint[] = []
-    for (const [index, id] of ids.entries()) {
-      const entry = entries.get(id)
-      // A vector without a page (deleted entry, pending cleanup) cannot be opened
-      // in the UI, so it is left out of the map instead of drawn as a ghost.
-      if (!entry) continue
-      points.push({
-        id,
-        title: entry.title.slice(0, 120),
-        x: round(projection.points[index * 2] ?? 0, 4),
-        y: round(projection.points[index * 2 + 1] ?? 0, 4),
-        kind: entry.kind,
-        project: entry.project,
-        scope: entry.scope,
-        tier: entry.tier,
-        status: entry.status,
-        chunks: chunkCounts.get(id) ?? 0,
-      })
-    }
-    if (points.length === 0) return null
-
-    const map: VectorMap = {
-      model: stats.model,
-      dim: stats.dim,
-      backend: stats.backend,
-      entries: points.length,
-      chunks: stats.chunks,
-      explained: [round(projection.explained[0], 4), round(projection.explained[1], 4)],
-      points,
-      cached: false,
-    }
-    this.mapCache = { key, projection, map }
-    return map
+    return this.vectorLeg.map(options)
   }
 
   /**
@@ -725,164 +510,41 @@ export class MemoryEngine {
    * to it, so the UI can show *where* recall is looking.
    */
   async projectQuery(text: string, limit = 5): Promise<VectorMapQuery | null> {
-    const trimmed = text.trim()
-    if (trimmed.length === 0) return null
-    const vectors = this.ensureVectors()
-    if (!vectors) return null
-    // Build (or reuse) the map first: the query is projected with its basis.
-    if (!this.vectorsMap()) return null
-    const cache = this.mapCache
-    if (!cache) return null
-
-    const batch = await vectors.provider.embed([trimmed], 'query')
-    const vector = batch.vectors[0]
-    if (!vector) return null
-
-    const placed = projectInto(vector, cache.projection)
-    const matches = vectors.index.search({
-      vector,
-      limit: Math.max(1, Math.min(50, Math.floor(limit))),
-      filter: undefined,
-    })
-    const best = new Map<string, number>()
-    for (const match of matches) {
-      const previous = best.get(match.entryId)
-      if (previous === undefined || previous < match.score) best.set(match.entryId, match.score)
-    }
-    const hits = [...best]
-      .map(([id, score]) => ({ id, score: round(score, 4) }))
-      .sort((left, right) => right.score - left.score)
-    return { x: round(placed.x, 4), y: round(placed.y, 4), model: cache.map.model, hits }
+    return this.vectorLeg.projectQuery(text, limit)
   }
 
   /** Directory the embedding model is cached in, inside the memory root. */
   modelCacheDir(): string {
-    return join(this.store.root, '_models')
+    return this.vectorLeg.cacheDir
   }
 
-  /**
-   * State of the embedding model: what is on disk and whether a download runs.
-   *
-   * Works even when the vector leg is off: the settings page still has to say
-   * what a click on "Download model" would do.
-   */
+  /** State of the embedding model: what is on disk and whether a download runs. */
   modelStatus(): ModelStatus {
-    const settings = this.config.embeddings
-    // Prefer the model the provider actually loads (an injected provider may
-    // differ from the configured one in tests).
-    const model = this.vectors?.provider.model ?? this.modelProvider?.model ?? settings.model
-    const cache = scanModelCache(this.modelCacheDir(), model)
-    return {
-      provider: settings.provider,
-      model,
-      configured: this.vectorsConfigured(),
-      enabled: this.vectors !== null,
-      dir: cache.dir,
-      cached: cache.cached,
-      files: cache.files,
-      bytes: cache.bytes,
-      downloading: this.modelState.downloading,
-      // Progress belongs to a running download; a plain prewarm of an already
-      // cached model would otherwise leave a stale 100 % behind.
-      progress: this.modelState.downloading ? this.modelState.progress : null,
-      error: this.modelState.error,
-    }
+    return this.vectorLeg.modelStatus()
   }
 
   /**
    * Download (and load) the embedding model in the background.
    *
-   * `prewarm` runs inside the embedding worker, so the download neither blocks
-   * the host nor touches the vector index; progress streams through
-   * {@link modelStatus}. Calling it while a download runs is a no-op.
-   *
    * @returns The state right after the download was started.
    * @throws when the vector leg is disabled, because nothing would use the model.
    */
   downloadModel(): ModelStatus {
-    const settings = this.config.embeddings
-    if (!this.vectorsConfigured()) {
-      throw new Error(
-        'Vector search is disabled: switch the embeddings provider to "local" and the backend away from "off" first.',
-      )
-    }
-    const provider = this.resolveProvider()
-    if (!provider) {
-      throw new Error('No embedding provider is available; install @huggingface/transformers and retry.')
-    }
-    if (this.modelState.downloading) return this.modelStatus()
-
-    const model = provider.model
-    const cache = scanModelCache(this.modelCacheDir(), model)
-    if (!cache.cached) {
-      // A model already in memory would make `prewarm` return without fetching
-      // anything, and leftovers of a killed download are useless to the loader.
-      const swept = sweepModelTempFiles(this.modelCacheDir(), model)
-      if (swept.files > 0) {
-        debug(`embeddings: removed ${swept.files} partial downloads (${swept.bytes} bytes) of ${model}`)
-      }
-      provider.reload?.()
-      debug(`embeddings: reloading ${model}, the cache is incomplete`)
-    }
-
-    this.modelState = { downloading: true, progress: null, error: null }
-    provider.watchProgress?.((progress) => {
-      this.modelState.progress = progress
-    })
-    void provider
-      .prewarm()
-      .then(() => {
-        const after = scanModelCache(this.modelCacheDir(), model)
-        if (after.cached || !provider.id.startsWith('local')) {
-          this.modelState = { downloading: false, progress: null, error: null }
-          this.modelMissing = false
-          // The model arrived now: let the vector leg come up without a restart.
-          this.vectorUnavailable = false
-          this.startVectors()
-          debug(`embeddings: ${model} is cached and loaded`)
-        } else {
-          this.modelState = {
-            downloading: false,
-            progress: null,
-            error: `No model files were written to ${after.dir}; check the network and the plugin log.`,
-          }
-          debug(`embeddings: ${this.modelState.error}`)
-        }
-      })
-      .catch((error: unknown) => {
-        this.modelState = {
-          downloading: false,
-          progress: null,
-          error: error instanceof Error ? error.message : String(error),
-        }
-        debug(`embeddings: model download failed (${this.modelState.error})`)
-      })
-      .finally(() => {
-        provider.watchProgress?.(null)
-      })
-    return this.modelStatus()
+    return this.vectorLeg.downloadModel()
   }
 
   /**
    * Delete the cached model files (settings action).
    *
-   * The next load downloads them again; the vector index itself is untouched.
-   *
    * @returns The cache state after the removal.
    */
   removeModel(): ModelStatus {
-    const settings = this.config.embeddings
-    removeModelCache(this.modelCacheDir(), this.vectors?.provider.model ?? settings.model)
-    this.modelState = { downloading: false, progress: null, error: null }
-    return this.modelStatus()
+    return this.vectorLeg.removeModel()
   }
 
   /** Drop the vector cache and queue a full re-embed (settings action). */
   rebuildVectors(): void {
-    const vectors = this.ensureVectors()
-    if (!vectors) return
-    vectors.index.clear()
-    vectors.queue.sweep()
+    this.vectorLeg.rebuild()
   }
 
   /**
@@ -890,9 +552,7 @@ export class MemoryEngine {
    * backfill script, which passes one slice of ids at a time to report progress).
    */
   async embedPending(ids?: readonly string[]): Promise<void> {
-    const vectors = this.ensureVectors()
-    if (!vectors) return
-    await vectors.queue.processAll(ids)
+    await this.vectorLeg.embedPending(ids)
   }
 
   /**
@@ -903,39 +563,7 @@ export class MemoryEngine {
     query: string,
     filter: MemoryFilter,
   ): Promise<{ scores: Map<string, number>; chunks: Map<string, number> }> {
-    const scores = new Map<string, number>()
-    const chunks = new Map<string, number>()
-    const text = (query ?? '').trim()
-    if (text.length === 0) return { scores, chunks }
-    const vectors = this.ensureVectors()
-    if (!vectors) return { scores, chunks }
-    try {
-      const batch = await vectors.provider.embed([text], 'query')
-      const vector = batch.vectors[0]
-      if (!vector) return { scores, chunks }
-      const matches = vectors.index.search({
-        vector,
-        limit: this.config.embeddings.topK,
-        filter,
-        minScore: this.config.embeddings.minScore,
-      })
-      for (const match of matches) {
-        const previous = scores.get(match.entryId)
-        if (previous === undefined || previous < match.score) {
-          scores.set(match.entryId, match.score)
-          chunks.set(match.entryId, match.chunkIndex)
-        }
-      }
-      this.vectorFailures = 0
-    } catch (error) {
-      this.vectorFailures++
-      debug(`vectors: query embedding failed (${error instanceof Error ? error.message : String(error)})`)
-      if (this.vectorFailures >= 3) {
-        this.vectorUnavailable = true
-        debug('vectors: disabled after 3 consecutive query failures; lexical search stays active')
-      }
-    }
-    return { scores, chunks }
+    return this.vectorLeg.semanticRanks(query, filter)
   }
 
   /**
@@ -1368,11 +996,9 @@ export class MemoryEngine {
    * caller passes the candidate set rather than a score threshold.
    */
   private semanticNeighbours(entries: readonly MemoryEntry[]): SemanticPair[] {
-    const vectors = this.ensureVectors()
-    if (!vectors) return []
     const ids = new Set(entries.map((entry) => entry.id))
     const entryVectors = new Map<string, Float32Array>()
-    for (const [id, vector] of vectors.index.entryVectors()) {
+    for (const [id, vector] of this.vectorLeg.entryVectors()) {
       if (ids.has(id)) entryVectors.set(id, vector)
     }
     if (entryVectors.size < 2) return []
@@ -1505,125 +1131,18 @@ export class MemoryEngine {
     return { removedLinks, addedBacklinks, reindexed: reconciled.read, brokenBefore, brokenAfter, vectors }
   }
 
-  /**
-   * Compares the vector table with the pages. Cheap: it reads the table once and
-   * never touches the model, so it works with the vector leg off as well.
-   */
+  /** Differences between the vector table and the pages (read-only, no model). */
   vectorHealth(): VectorHealth | null {
-    const vectors = this.vectors
-    if (!vectors) return null
-    const audit = vectors.index.audit()
-    const pages = this.store.list({ status: 'all' }).items
-    const byId = new Map(pages.map((entry) => [entry.id, entry]))
-    const health: VectorHealth = {
-      checked: audit.entries.size,
-      orphans: [],
-      metadataStale: [],
-      missing: [],
-      partial: [],
-      foreign: [],
-      badDim: [],
-      broken: [],
-    }
-    for (const [id, stored] of audit.entries) {
-      const entry = byId.get(id)
-      if (!entry) {
-        health.orphans.push(id)
-        continue
-      }
-      if (stored.model !== audit.model) {
-        // Another embedding space: the row is a leftover and is re-embedded
-        // rather than judged against this model's metadata.
-        health.foreign.push(id)
-        continue
-      }
-      if (stored.badDim > 0) health.badDim.push(id)
-      if (stored.broken > 0) health.broken.push(id)
-      // The buckets are independent on purpose: an entry with a damaged vector
-      // may also have a partial chunk set, and hiding one behind the other would
-      // make the report less useful than the repair that follows it.
-      const stale =
-        stored.scope !== entry.scope ||
-        stored.project !== entry.project ||
-        stored.kind !== entry.kind ||
-        stored.tier !== entry.tier ||
-        stored.status !== entry.status
-      if (stale) health.metadataStale.push(id)
-      const expected = entryChunks(entry, this.config.embeddings).map((chunk) => chunk.chunkIndex)
-      const storedIndexes = [...stored.chunkIndexes].sort((left, right) => left - right)
-      if (
-        expected.length !== storedIndexes.length ||
-        expected.some((value, index) => value !== storedIndexes[index])
-      ) {
-        health.partial.push(id)
-      }
-    }
-    for (const entry of pages) {
-      if (!audit.entries.has(entry.id)) health.missing.push(entry.id)
-    }
-    return health
+    return this.vectorLeg.health()
   }
 
   /**
    * Cheap vector repairs: leftovers and broken rows are dropped, metadata copies
    * are rewritten from the pages, and everything that has to be embedded again
-   * goes to the background queue — heal itself stays fast, and the heavy work
-   * (re-embedding) happens where it always does.
+   * goes to the background queue.
    */
   repairVectors(): HealVectorsReport {
-    const report: HealVectorsReport = {
-      checked: 0,
-      orphansRemoved: 0,
-      metadataFixed: 0,
-      badRemoved: 0,
-      foreignRemoved: 0,
-      queued: 0,
-      tempFilesSwept: 0,
-    }
-    const vectors = this.vectors
-    if (!vectors) return report
-    const health = this.vectorHealth()
-    if (!health) return report
-    report.checked = health.checked
-
-    for (const id of health.orphans) {
-      vectors.index.remove(id)
-      report.orphansRemoved++
-    }
-    for (const id of health.foreign) {
-      vectors.index.remove(id)
-      report.foreignRemoved++
-    }
-    for (const id of [...health.badDim, ...health.broken]) {
-      vectors.index.remove(id)
-      report.badRemoved++
-    }
-    for (const id of health.metadataStale) {
-      const entry = this.store.get(id)
-      if (!entry) continue
-      const rows = vectors.index.records([id])
-      if (rows.length === 0) continue
-      vectors.index.upsert(
-        rows.map((row) => ({
-          ...row,
-          scope: entry.scope,
-          project: entry.project,
-          kind: entry.kind,
-          tier: entry.tier,
-          status: entry.status,
-        })),
-      )
-      report.metadataFixed++
-    }
-
-    const requeue = [
-      ...new Set([...health.missing, ...health.partial, ...health.badDim, ...health.broken, ...health.foreign]),
-    ]
-    if (requeue.length > 0) vectors.queue.enqueue(requeue)
-    report.queued = requeue.length
-
-    report.tempFilesSwept = sweepModelTempFiles(this.modelCacheDir(), vectors.provider.model).files
-    return report
+    return this.vectorLeg.repair()
   }
 
   /**
@@ -1631,25 +1150,12 @@ export class MemoryEngine {
    * in-process scan reads the table itself, so there it is a no-op.
    */
   rebuildAnnIndex(): boolean {
-    const vectors = this.vectors
-    if (!vectors) return false
-    vectors.index.rebuildAnn()
-    return vectors.index.backend === 'sqlite-vec'
+    return this.vectorLeg.rebuildAnnIndex()
   }
 
   /** Stop the embedding queue and close the underlying database connection. */
   close(): void {
-    const vectors = this.vectors
-    const modelProvider = this.modelProvider
-    this.vectors = null
-    this.modelProvider = null
-    this.store.onEntryChanged = null
-    if (vectors) {
-      vectors.queue.stop()
-      vectors.provider.close?.()
-    }
-    // A provider kept for downloads (the vector leg was off) owns its own worker.
-    if (modelProvider && modelProvider !== vectors?.provider) modelProvider.close?.()
+    this.vectorLeg.close()
     this.store.close()
   }
 
