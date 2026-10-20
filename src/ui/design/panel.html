@@ -633,21 +633,19 @@ function projectLabel(root) {
 async function loadHealthHeader() {
   const h = await api("GET", "/health");
   serverProject = h.projectRoot || "";
-  const saved = localStorage.getItem("km-project");
-  curProject = saved || serverProject || "all";
   $("hdr-project").textContent = serverProject ? ("сервер: " + serverProject) : "проект не определён";
+  // The store root is a path, not a project key: only a real key may filter.
   const s = await api("GET", "/status", undefined, true);
   if (s.ok) {
     const st = s.status;
-    $("hdr-stat").textContent = "записей: " + st.total + " · активных: " + st.active + " · средняя уверенность: " + st.avgConfidence;
+    const conf = typeof st.avgConfidence === "number" ? " · средняя уверенность: " + st.avgConfidence : "";
+    $("hdr-stat").textContent = "записей: " + st.total + " · активных: " + st.active + conf;
     $("chip-health").textContent = "здоровье: " + st.active + " активных / " + st.total;
   }
 }
 async function loadProjects() {
   const r = await api("GET", "/projects");
-  const list = r.ok ? (r.projects || []) : [];
-  if (serverProject && !list.includes(serverProject)) list.unshift(serverProject);
-  projects = list;
+  projects = r.ok ? (r.projects || []) : [];
   $("t-project").innerHTML = ['<option value="all">Все проекты</option>']
     .concat(projects.map(p => '<option value="' + esc(p) + '" title="' + esc(p) + '">' + esc(projectLabel(p)) + "</option>")).join("");
   $("c-project").innerHTML = projects.map(p => '<option value="' + esc(p) + '" title="' + esc(p) + '">' + esc(projectLabel(p)) + "</option>").join("");
@@ -655,6 +653,8 @@ async function loadProjects() {
 }
 function applyProjectSelection() {
   const sel = $("t-project");
+  const saved = localStorage.getItem("km-project");
+  if (saved && (saved === "all" || projects.includes(saved))) curProject = saved;
   const known = projects.includes(curProject) || curProject === "all";
   sel.value = known ? curProject : "all";
   curProject = sel.value;
