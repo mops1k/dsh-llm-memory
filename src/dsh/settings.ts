@@ -17,6 +17,7 @@ import type { SettingsForms } from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 
 import { DEFAULT_CONFIG, DEFAULT_EMBEDDINGS, DEFAULT_SYSTEM_PROMPT, type MemoryConfig } from '@llm-memory/core/domain/config.js'
+import { localizedSettingsGroups, type SettingsField } from '@llm-memory/core/domain/settings-schema.js'
 
 /** Settings namespace owned by this plugin (lowercase, hyphenated). */
 export const SETTINGS_NAMESPACE = 'dsh-llm-memory'
@@ -385,5 +386,59 @@ export function registerMemorySettings(ctx: Context): void {
     ctx.effect(() => dispose)
   } catch (error) {
     warnSettings(ctx, `Settings page for "${SETTINGS_NAMESPACE}" was not registered: ${String(error)}`)
+  }
+}
+
+
+/**
+ * Flat dsh setting key for a core config path. dsh's settings UI renders schema
+ * leaves only, so `embeddings.*` is flattened; every other path keeps its name.
+ */
+export const SETTING_KEY_FOR_PATH: Record<string, string> = {
+  ...Object.fromEntries(
+    Object.entries(EMBEDDING_SETTING_KEYS).map(([flat, nested]) => [`embeddings.${nested}`, flat]),
+  ),
+  storageRoot: 'storageRoot',
+  recallLimit: 'recallLimit',
+  recallTextChars: 'recallTextChars',
+  recallTotalChars: 'recallTotalChars',
+  recallFormat: 'recallFormat',
+  recallAllowFormatOverride: 'recallAllowFormatOverride',
+  recallLiteralLookup: 'recallLiteralLookup',
+  promptRulesLimit: 'promptRulesLimit',
+  rulesPromptScope: 'rulesPromptScope',
+  recallScope: 'recallScope',
+  autonomous: 'autonomous',
+  requireConfirmation: 'requireConfirmation',
+  systemPrompt: 'systemPrompt',
+  importRoots: 'importRoots',
+  projectScanBudgetMs: 'projectScanBudgetMs',
+  importAutoDetect: 'importAutoDetect',
+  lintOverlapMinCommonWords: 'lintOverlapMinCommonWords',
+  lintMaxPairs: 'lintMaxPairs',
+  webPath: 'webPath',
+  backupDir: 'backupDir',
+  sessionStartGuide: 'sessionStartGuide',
+}
+
+export interface SettingsUiField extends SettingsField {
+  /** Flat settings key; absent when dsh does not expose the path. */
+  key?: string
+}
+
+/**
+ * Settings screen description for the dsh client: the same groups every panel
+ * renders, with `key` filled for the flat settings keys dsh can save.
+ */
+export function settingsUiSchema(): { groups: Array<{ id: string; title: string; fields: SettingsUiField[] }> } {
+  return {
+    groups: localizedSettingsGroups('en').map(group => ({
+      id: group.id,
+      title: group.title,
+      fields: group.fields.map(field => {
+        const key = SETTING_KEY_FOR_PATH[field.path]
+        return key === undefined ? { ...field } : { ...field, key }
+      }),
+    })),
   }
 }

@@ -62,9 +62,7 @@ const QUANTIZATION: readonly SettingsOption[] = [
 ]
 
 const RECALL_FORMATS: readonly SettingsOption[] = [
-  { value: 'digest', label: 'digest' },
-  { value: 'excerpt', label: 'excerpt' },
-  { value: 'full', label: 'full' },
+  { value: 'markdown', label: 'markdown' },
   { value: 'table', label: 'table' },
   { value: 'timeline', label: 'timeline' },
   { value: 'json', label: 'json' },

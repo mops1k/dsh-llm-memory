@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG } from '@llm-memory/core/domain/config.js'
+import { settingsUiSchema } from '../src/dsh/settings'
+import { settingsSnapshot } from '@llm-memory/core/domain/ui-contract.js'
 import {
   SETTINGS_ACTIONS,
   SETTINGS_GROUPS,
@@ -104,5 +106,20 @@ describe('settings helpers', () => {
     expect(patch).toEqual({ embeddings: { model: 'e5' }, recallLimit: 5 })
     expect(readSettingValue(patch, 'embeddings.model')).toBe('e5')
     expect(readSettingValue(patch, 'missing.path')).toBeUndefined()
+  })
+})
+
+
+describe('panel parity', () => {
+  it('dsh and Kilo render exactly the same groups and field paths', () => {
+    const dsh = settingsUiSchema().groups.map(group => ({
+      id: group.id,
+      paths: group.fields.map(field => field.path),
+    }))
+    const kilo = settingsSnapshot(DEFAULT_CONFIG, 'ru').groups.map(group => ({
+      id: group.id,
+      paths: group.fields.map(field => field.path),
+    }))
+    expect(kilo).toEqual(dsh)
   })
 })

@@ -13,6 +13,8 @@ import { DEFAULT_EMBEDDINGS, mergeConfig } from '@llm-memory/core/domain/config'
 import {
   MemoryPluginConfigSchema,
   MemorySettingsSchema,
+  SETTING_KEY_FOR_PATH,
+  settingsUiSchema,
   toMemoryConfig,
   unwrapSettings,
   type VolatileValue,
@@ -117,5 +119,32 @@ describe('memory settings schema', () => {
 
   it('rejects an unknown embedding provider', () => {
     expect(() => MemorySettingsSchema({ embeddingsProvider: 'remote' })).toThrow()
+  })
+})
+
+
+describe('universal settings schema in the dsh client', () => {
+  it('maps every flat dsh setting to a core config path', () => {
+    const schema = MemoryPluginConfigSchema as unknown as SchemaNode
+    const keys = new Set(Object.values(SETTING_KEY_FOR_PATH))
+    const missing = visibleFields(schema).filter(key => !keys.has(key))
+    expect(missing).toEqual([])
+  })
+
+  it('fills keys for exposed paths and leaves the rest without one', () => {
+    const groups = settingsUiSchema().groups
+    const byPath = new Map(groups.flatMap(group => group.fields).map(field => [field.path, field]))
+    expect(byPath.get('embeddings.provider')?.key).toBe('embeddingsProvider')
+    expect(byPath.get('recallLimit')?.key).toBe('recallLimit')
+    expect(byPath.get('sessionStartGuide')?.key).toBe('sessionStartGuide')
+    expect(byPath.get('projectRoots')?.key).toBeUndefined()
+    expect(byPath.get('embeddings.queryPrefix')?.key).toBeUndefined()
+    expect(byPath.get('embeddings.passagePrefix')?.key).toBeUndefined()
+  })
+
+  it('keeps the recall formats in sync with the core union', () => {
+    const fields = settingsUiSchema().groups.flatMap(group => group.fields)
+    const formats = fields.find(field => field.path === 'recallFormat')?.options?.map(option => option.value)
+    expect(formats).toEqual(['markdown', 'table', 'timeline', 'json'])
   })
 })

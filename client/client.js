@@ -2637,6 +2637,101 @@ window.__ModuleLoader__.load({
      * settings.section — dedicated entry in the Settings left menu
      * ------------------------------------------------------------------ */
 
+
+    /**
+     * Settings fields rendered from the universal schema served by the plugin:
+     * one source of truth for every panel (dsh, Kilo, OpenCode, MCP).
+     */
+    function SchemaSettings({ form, update, scope }) {
+      const [schema, setSchema] = React.useState(null);
+      const [error, setError] = React.useState(null);
+      React.useEffect(() => {
+        let alive = true;
+        fetch(webBase(scope) + "/api/settings/schema")
+          .then((response) => (response.ok ? response.json() : Promise.reject(new Error("HTTP " + response.status))))
+          .then((data) => { if (alive) setSchema(data); })
+          .catch((failure) => { if (alive) setError(errorText(failure)); });
+        return () => { alive = false; };
+      }, [scope]);
+      if (error) return h("p", { style: S.status }, "Settings schema is unavailable: " + error);
+      if (!schema) return h("p", { style: S.hint }, "Loading settings schema\u2026");
+      return h(
+        "div",
+        null,
+        (schema.groups || []).map((group) =>
+          h(
+            "div",
+            { key: group.id },
+            h("h3", { style: S.sectionTitle }, group.title),
+            group.fields.map((field) => {
+              if (field.key === undefined) {
+                return h(
+                  Field,
+                  { key: field.path, label: field.label, hint: field.hint + " (Not exposed by the dsh settings service.)" },
+                  h("input", { type: "text", style: S.input, value: "", disabled: true }),
+                );
+              }
+              const key = field.key;
+              const value = form[key];
+              if (field.type === "boolean") {
+                return h(
+                  "label",
+                  { key: field.path, style: Object.assign({}, S.status, { display: "flex", gap: "6px", alignItems: "center" }) },
+                  h("input", {
+                    type: "checkbox",
+                    style: undefined,
+                    checked: !!value,
+                    onChange: (event) => update(key, event.target.checked),
+                  }),
+                  h("span", null, field.label),
+                );
+              }
+              if (field.type === "select") {
+                return h(
+                  Field,
+                  { key: field.path, label: field.label, hint: field.hint },
+                  h(
+                    "select",
+                    { style: S.input, value: value === undefined ? "" : String(value), onChange: (event) => update(key, event.target.value) },
+                    (field.options || []).map((option) => h("option", { key: option.value, style: S.option, value: option.value }, option.label)),
+                  ),
+                );
+              }
+              if (field.type === "textarea" || field.type === "list") {
+                const text = field.type === "list" ? (Array.isArray(value) ? value.join("\n") : "") : (value === undefined ? "" : String(value));
+                return h(
+                  Field,
+                  { key: field.path, label: field.label, hint: field.hint },
+                  h("textarea", {
+                    style: Object.assign({}, S.input, { minHeight: "64px" }),
+                    value: text,
+                    onChange: (event) =>
+                      update(
+                        key,
+                        field.type === "list" ? event.target.value.split("\n").map((line) => line.trim()).filter(Boolean) : event.target.value,
+                      ),
+                  }),
+                );
+              }
+              return h(
+                Field,
+                { key: field.path, label: field.label, hint: field.hint },
+                h("input", {
+                  type: field.type === "number" ? "number" : "text",
+                  ...(field.min !== undefined ? { min: field.min } : {}),
+                  ...(field.max !== undefined ? { max: field.max } : {}),
+                  ...(field.step !== undefined ? { step: field.step } : {}),
+                  style: S.input,
+                  value: value === undefined ? "" : value,
+                  onChange: (event) => update(key, event.target.value),
+                }),
+              );
+            }),
+          ),
+        ),
+      );
+    }
+
     function createSettingsCard(scope) {
       return function SettingsCard() {
         const [snapshot, setSnapshot] = React.useState(() => scope.getSnapshot());
@@ -2860,337 +2955,7 @@ window.__ModuleLoader__.load({
             ),
             statusNote ? h("p", { key: "status", style: S.hint }, statusNote) : null,
           ]),
-          h(
-            Field,
-            { label: "Storage root", hint: "Memory root directory. Empty uses $DSH_HOME/llm-memory." },
-            h("input", inputProps("storageRoot")),
-          ),
-          h(
-            Field,
-            { label: "Recall limit", hint: "Maximum number of entries returned by llm_memory_recall." },
-            h("input", {
-              type: "number",
-              min: 1,
-              max: 1000,
-              style: S.input,
-              value: form.recallLimit,
-              onChange: (event) => update("recallLimit", event.target.value),
-            }),
-          ),
-          h("h3", { style: S.sectionTitle }, "Recall digest"),
-          numberField(
-            form,
-            update,
-            "recallTextChars",
-            "Recall text chars per entry",
-            "Characters of one entry body in the default digest mode (0 keeps titles and metadata only).",
-            { min: 0, max: 100000, step: 50 },
-          ),
-          numberField(
-            form,
-            update,
-            "recallTotalChars",
-            "Recall total chars",
-            "Hard character budget of one llm_memory_recall rendering in digest mode.",
-            { min: 500, max: 1000000, step: 500 },
-          ),
-          selectField(
-            form,
-            update,
-            "recallFormat",
-            "Recall output format",
-            "What llm_memory_recall returns when the agent does not ask for a format. markdown reads best in context, json is for parsing.",
-            [
-              ["markdown", "markdown"],
-              ["table", "table"],
-              ["timeline", "timeline"],
-              ["json", "json"],
-            ],
-          ),
-          checkboxField(
-            form,
-            update,
-            "recallAllowFormatOverride",
-            "Let the agent choose another format per call (off pins the format above)",
-          ),
-          checkboxField(
-            form,
-            update,
-            "recallLiteralLookup",
-            "Read a literal-looking query (error code, version, file name, id) as an exact lookup",
-          ),
-          numberField(
-            form,
-            update,
-            "promptRulesLimit",
-            "Prompt rules limit",
-            "Rules and preferences lines injected into the system prompt; the digest is part of every request.",
-            { min: 1, max: 100 },
-          ),
-          selectField(
-            form,
-            update,
-            "rulesPromptScope",
-            "Prompt rules scope",
-            "project keeps the user layer plus the current workspace, all keeps every project.",
-            [
-              ["project", "Current project + user layer"],
-              ["all", "Every project"],
-            ],
-          ),
-          h(
-            "label",
-            { style: S.checkboxRow },
-            h("input", {
-              type: "checkbox",
-              checked: !!form.autonomous,
-              onChange: (event) => update("autonomous", event.target.checked),
-            }),
-            "Autonomous memory management (no user confirmation)",
-          ),
-          h(
-            "label",
-            { style: S.checkboxRow },
-            h("input", {
-              type: "checkbox",
-              checked: !!form.requireConfirmation,
-              onChange: (event) => update("requireConfirmation", event.target.checked),
-            }),
-            "Require confirmation for irreversible operations",
-          ),
-          h(
-            Field,
-            {
-              label: "System prompt guidance",
-              hint: "Injected into the agent context. English by default; edit to override.",
-            },
-            h("textarea", {
-              style: Object.assign({}, S.input, { minHeight: "96px", width: "100%", resize: "vertical" }),
-              value: form.systemPrompt,
-              onChange: (event) => update("systemPrompt", event.target.value),
-            }),
-          ),
-          h(
-            Field,
-            { label: "Import roots", hint: "Extra directories to scan for foreign memory, one path per line." },
-            h("textarea", {
-              style: Object.assign({}, S.input, { minHeight: "96px", width: "100%", resize: "vertical" }),
-              value: form.importRoots,
-              onChange: (event) => update("importRoots", event.target.value),
-            }),
-          ),
-          h(
-            "label",
-            { style: S.checkboxRow },
-            h("input", {
-              type: "checkbox",
-              checked: !!form.importAutoDetect,
-              onChange: (event) => update("importAutoDetect", event.target.checked),
-            }),
-            "Auto-detect Kilo / mnemon / dsh-memory roots",
-          ),
-          h(
-            Field,
-            {
-              label: "Rules export source",
-              hint: "Bundled English translation reads the rules shipped with the plugin; Verbatim Kilo files reads the original Kilo config files.",
-            },
-            h(
-              "select",
-              {
-                style: S.input,
-                value: form.rulesSource,
-                onChange: (event) => update("rulesSource", event.target.value),
-              },
-              h("option", { style: S.option, value: "bundled-en" }, "Bundled English translation"),
-              h("option", { style: S.option, value: "kilo-verbatim" }, "Verbatim Kilo files"),
-            ),
-          ),
-          h(
-            Field,
-            {
-              label: "Lint overlap minimum common words",
-              hint: "Minimum shared significant words before two memories are reported as overlapping.",
-            },
-            h("input", {
-              type: "number",
-              min: 1,
-              max: 1000,
-              style: S.input,
-              value: form.lintOverlapMinCommonWords,
-              onChange: (event) => update("lintOverlapMinCommonWords", event.target.value),
-            }),
-          ),
-          h(
-            Field,
-            { label: "Lint maximum pairs", hint: "Maximum number of overlap pairs checked (0 means unlimited)." },
-            h("input", {
-              type: "number",
-              min: 0,
-              max: 100000,
-              style: S.input,
-              value: form.lintMaxPairs,
-              onChange: (event) => update("lintMaxPairs", event.target.value),
-            }),
-          ),
-          numberField(
-            form,
-            update,
-            "projectScanBudgetMs",
-            "Index time budget (ms)",
-            "Time budget per storage directory for one index pass (0 means no budget).",
-            { min: 0, max: 600000, step: 100 },
-          ),
-          h("h3", { style: S.sectionTitle }, "Vector search (semantic RAG)"),
-          selectField(
-            form,
-            update,
-            "embeddingsProvider",
-            "Embeddings provider",
-            "off keeps lexical FTS5 only, local runs the in-process multilingual model, http is reserved and not implemented.",
-            [
-              ["local", "local (in-process model)"],
-              ["off", "off (lexical FTS5 only)"],
-              ["http", "http (reserved)"],
-            ],
-          ),
-          h(
-            Field,
-            {
-              label: "Embedding model",
-              hint: "transformers.js model id for the local provider (Xenova/multilingual-e5-small by default).",
-            },
-            h("input", inputProps("embeddingsModel")),
-          ),
-          h(
-            "div",
-            { style: S.field },
-            h("span", { style: S.label }, "Model cache"),
-            h("div", { style: S.hint }, modelStatusText(model)),
-            h(
-              "div",
-              { style: S.actions },
-              h(
-                "button",
-                {
-                  type: "button",
-                  style: S.primary,
-                  disabled: modelBusy || downloading,
-                  onClick: downloadModel,
-                },
-                downloading ? "Downloading\u2026" : "Download model",
-              ),
-              h(
-                "button",
-                { type: "button", style: S.button, disabled: modelBusy, onClick: loadModelStatus },
-                "Check again",
-              ),
-              h(
-                "button",
-                {
-                  type: "button",
-                  style: S.button,
-                  disabled: modelBusy || !model || model.files === 0,
-                  onClick: removeModel,
-                },
-                "Delete cached model",
-              ),
-            ),
-          ),
-          numberField(
-            form,
-            update,
-            "embeddingsDim",
-            "Vector length",
-            "Vector length the model produces. Vectors of another length are re-embedded.",
-            { min: 64, max: 4096 },
-          ),
-          selectField(
-            form,
-            update,
-            "embeddingsBackend",
-            "Vector index backend",
-            "js scans vectors in process, sqlite-vec runs KNN in SQL, off disables vector search.",
-            [
-              ["js", "js (in-process scan)"],
-              ["sqlite-vec", "sqlite-vec (SQL KNN)"],
-              ["off", "off"],
-            ],
-          ),
-          selectField(
-            form,
-            update,
-            "embeddingsQuantization",
-            "sqlite-vec precision",
-            "float is full 32-bit, int8 is four times smaller, bit is 32 times smaller and needs a length divisible by 8.",
-            [
-              ["float", "float"],
-              ["int8", "int8"],
-              ["bit", "bit"],
-            ],
-          ),
-          numberField(
-            form,
-            update,
-            "embeddingsTopK",
-            "Vector hits (topK)",
-            "Chunk hits the vector leg contributes before rank fusion with the FTS5 leg.",
-            { min: 5, max: 500, step: 5 },
-          ),
-          numberField(
-            form,
-            update,
-            "embeddingsMinScore",
-            "Minimum cosine score",
-            "0 keeps every candidate; e5 cosine is compressed, so ranking matters more than an absolute threshold.",
-            { min: 0, max: 1, step: 0.01 },
-          ),
-          numberField(
-            form,
-            update,
-            "embeddingsBatchSize",
-            "Embedding batch size",
-            "Texts embedded per model call while indexing.",
-            { min: 1, max: 256 },
-          ),
-          numberField(
-            form,
-            update,
-            "embeddingsChunkChars",
-            "Chunk size (chars)",
-            "Target characters per chunk of an entry body.",
-            { min: 200, max: 8000, step: 50 },
-          ),
-          numberField(
-            form,
-            update,
-            "embeddingsChunkOverlap",
-            "Chunk overlap (chars)",
-            "Characters shared by neighbouring chunks (capped at half the chunk size).",
-            { min: 0, max: 4000, step: 10 },
-          ),
-          numberField(
-            form,
-            update,
-            "embeddingsSemanticEdgesPerEntry",
-            "Semantic neighbours per entry",
-            "Related edges kept per entry in the knowledge graph (a relative top-N cut).",
-            { min: 1, max: 20 },
-          ),
-          numberField(
-            form,
-            update,
-            "embeddingsSemanticMaxEdges",
-            "Semantic edges cap",
-            "Overall cap on semantic related edges in the graph.",
-            { min: 10, max: 10000, step: 10 },
-          ),
-          checkboxField(form, update, "embeddingsPrewarm", "Load the embedding model in the background at startup"),
-          h(
-            Field,
-            { label: "WebUI base path", hint: "Base HTTP path of the WebUI and API. Takes effect after the plugin restarts." },
-            h("input", inputProps("webPath")),
-          ),
+          h(SchemaSettings, { form, update, scope }),
           h(BackupSection, { scope }),
           h(
             "div",
