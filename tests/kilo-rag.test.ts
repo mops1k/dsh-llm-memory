@@ -5,7 +5,7 @@
  * the lexical one, the map, health and rebuild — without the real model: a
  * deterministic fake provider maps word groups to dimensions.
  */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -141,6 +141,40 @@ describe('Kilo RAG', () => {
     expect(status.dir).toContain('_models')
     expect(() => created.downloadModel()).toThrow(/disabled/)
     expect(created.vectorStatus()).toBeNull()
+  })
+
+  it('installs the embedding runtime only on an explicit request', async () => {
+    const root = makeRoot()
+    const configDir = makeRoot()
+    const calls: string[] = []
+    const config = resolveKiloConfig({
+      memory: { storageRoot: root },
+      web: { enabled: false },
+      embeddings: { provider: 'local', model: 'fake-vocab-3', dim: VOCABULARY.length },
+    })
+    const created = new KiloService({
+      config,
+      configDir,
+      runtimeRunner: async (_args, cwd) => {
+        calls.push(cwd)
+        const pkg = join(configDir, 'node_modules', '@huggingface', 'transformers')
+        mkdirSync(pkg, { recursive: true })
+        writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: '@huggingface/transformers', version: '4.3.1', main: 'index.js' }))
+        writeFileSync(join(pkg, 'index.js'), 'module.exports = {}')
+      },
+    })
+    created.init()
+    service = created
+    // Startup never installs anything.
+    expect(created.runtimeStatus().present).toBe(false)
+    expect(calls).toEqual([])
+
+    const running = created.installRuntime()
+    expect(created.runtimeStatus().installing).toBe(true)
+    const done = await running
+    expect(calls).toHaveLength(1)
+    expect(done.present).toBe(true)
+    expect(created.modelStatus().runtime?.present).toBe(true)
   })
 
   it('serves vectors.health, vectors.map and vectors.rebuild over the panel API', async () => {

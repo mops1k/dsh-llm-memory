@@ -27,6 +27,7 @@ import {
 import type { EmbeddingQueueStatus } from '../../core/infrastructure/embed-queue.js'
 import { VectorLeg, type HealVectorsReport, type VectorHealth } from '../../core/application/vector-leg.js'
 import type { ModelStatus } from '../../core/application/model-manager.js'
+import { EmbeddingRuntimeInstaller, type EmbeddingRuntimeStatus, type RuntimeRunner } from './runtime-install.js'
 import { DEFAULT_CONFIG, type EmbeddingConfig, type MemoryConfig } from '../../core/domain/config.js'
 import { writeSettingValue } from '../../core/domain/settings-schema.js'
 import {
@@ -39,6 +40,7 @@ import { entryPathFor, resolveStorageRoot } from '../../core/layout/paths.js'
 import { createKiloLayout, type LayoutPort } from '../../core/layout/index.js'
 import { createIsolation } from '../../core/isolation/index.js'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { basename } from 'node:path'
 import { join } from 'node:path'
 
@@ -82,6 +84,10 @@ export interface KiloServiceOptions {
   embeddingProvider?: EmbeddingProvider
   /** Drive the embedding queue by hand instead of letting it run in the background. */
   manualEmbeddings?: boolean
+  /** Kilo config directory the plugin resolves its runtime from. */
+  configDir?: string
+  /** Runner used to install the embedding runtime (tests). */
+  runtimeRunner?: RuntimeRunner
 }
 
 export interface SaveInput {
@@ -134,6 +140,7 @@ export class KiloService {
   private readonly projectRoot: string | undefined
   private readonly embeddingProvider: EmbeddingProvider | undefined
   private readonly manualEmbeddings: boolean
+  private readonly runtime: EmbeddingRuntimeInstaller
 
   constructor(options: KiloServiceOptions) {
     this.config = options.config
@@ -147,6 +154,10 @@ export class KiloService {
     this.store = new MemoryStore({ storageRoot: root, dbPath: join(root, 'db', 'memory.db') })
     this.embeddingProvider = options.embeddingProvider
     this.manualEmbeddings = options.manualEmbeddings === true
+    this.runtime = new EmbeddingRuntimeInstaller({
+      dir: options.configDir ?? join(homedir(), '.config', 'kilo'),
+      ...(options.runtimeRunner ? { run: options.runtimeRunner } : {}),
+    })
     this.vectorLeg = this.createVectorLeg()
   }
 
@@ -240,14 +251,53 @@ export class KiloService {
     return { applied, unsupported }
   }
 
-  /** State of the embedding model shown by the panel. */
+  /** State of the embedding model and of the runtime that loads it. */
   modelStatus(): ModelStatus {
-    return this.vectorLeg.modelStatus()
+    return { ...this.vectorLeg.modelStatus(), runtime: this.runtime.status() }
   }
 
-  /** Start (or report) the model download. */
+  /**
+   * Start (or report) the model download.
+   *
+   * The single-file plugin may not have the embedding runtime yet: the explicit
+   * "download model" action installs it first (never on startup), then the
+   * weights are fetched through the normal path.
+   */
   downloadModel(): ModelStatus {
+    const needsRuntime =
+      this.config.embeddings.provider !== 'off' && !this.embeddingProvider && !this.runtime.status().present
+    if (needsRuntime) {
+      void this.installRuntime().then((done) => {
+        if (!done.present) return
+        try {
+          this.vectorLeg.downloadModel()
+        } catch (error) {
+          // The status carries the reason; keep the panel usable.
+          this.vectorLeg.modelStatus()
+        }
+      })
+      return this.modelStatus()
+    }
     return this.vectorLeg.downloadModel()
+  }
+
+  /** State of the optional embedding runtime (single-file plugin). */
+  runtimeStatus(): EmbeddingRuntimeStatus {
+    return this.runtime.status()
+  }
+
+  /**
+   * Install the embedding runtime into the plugin's resolution path and rebuild
+   * the vector stack so the new provider can load.
+   */
+  async installRuntime(): Promise<EmbeddingRuntimeStatus> {
+    const done = await this.runtime.install()
+    if (done.present) {
+      this.vectorLeg.close()
+      this.vectorLeg = this.createVectorLeg()
+      this.vectorLeg.start()
+    }
+    return done
   }
 
   /** Delete the cached model files. */

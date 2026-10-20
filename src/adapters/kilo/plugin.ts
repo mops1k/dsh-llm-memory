@@ -71,7 +71,7 @@ const server = async (context: KiloPluginContext = {}) => {
   if (projectRoot && !existsSync(projectRoot)) {
     return { tool: {}, dispose: async () => {} }
   }
-  const service = new KiloService({ config, ...(projectRoot ? { projectRoot } : {}) })
+  const service = new KiloService({ config, configDir: configDir(), ...(projectRoot ? { projectRoot } : {}) })
   service.init()
   const sdkTool = await loadToolHelper()
   const runtime = createKiloRuntime({ service, config, ...(sdkTool ? { sdkTool } : {}) })

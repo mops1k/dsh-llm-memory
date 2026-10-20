@@ -1111,6 +1111,10 @@ async function loadModel() {
   const size = st.bytes ? (st.bytes / 1048576).toFixed(1) + " МБ" : "0 Б";
   let text = st.model + " · " + (st.cached ? "в кэше (" + size + ", файлов " + st.files + ")" : "не скачана") +
     " · провайдер " + st.provider + (st.configured ? "" : " (векторный поиск выключен: выберите local)");
+  if (st.runtime && !st.runtime.present) {
+    text += " · рантайм: " + (st.runtime.installing ? "устанавливается…" : "не установлен (поставится при скачивании модели)");
+    if (st.runtime.error) text += " · " + st.runtime.error;
+  }
   if (st.dir) text += " · " + st.dir;
   if (st.missing && st.missing.length) text += " · не хватает: " + st.missing.join(", ");
   if (st.error) text += " · ошибка: " + st.error;
@@ -1125,7 +1129,7 @@ async function loadModel() {
     }
   }
   $("model-progress").textContent = progressText;
-  if (st.downloading) setTimeout(loadModel, 1500);
+  if (st.downloading || (st.runtime && st.runtime.installing)) setTimeout(loadModel, 1500);
 }
 $("btn-model-download").onclick = async () => {
   $("model-progress").textContent = "запуск…";

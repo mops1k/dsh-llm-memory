@@ -36,6 +36,18 @@ export interface ModelStatus extends ModelCacheStatus {
   error: string | null
   /** Required model files the cache is missing; empty when the model is complete. */
   missing?: string[]
+  /**
+   * Embedding runtime of a single-file host (the Kilo plugin): whether the
+   * optional package is resolvable, an installation in flight and how to
+   * install it by hand. Absent for hosts that bundle the runtime.
+   */
+  runtime?: {
+    present: boolean
+    installing: boolean
+    error: string | null
+    dir: string
+    command: string
+  }
 }
 
 export interface ModelManagerOptions {
