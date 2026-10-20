@@ -5,7 +5,7 @@ import {
   toLocalPath,
   type WorkspaceLike,
   type WorkspaceRegistryLike,
-} from '../src/dsh/workspaces'
+} from '../src/adapters/dsh/workspaces'
 
 /** In-memory registry double. */
 class FakeRegistry implements WorkspaceRegistryLike {

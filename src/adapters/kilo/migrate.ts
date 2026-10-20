@@ -5,10 +5,10 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { ensureSchemaV2, CORE_SCHEMA_VERSION } from '@llm-memory/core/infrastructure/schema'
-import { ensureRevisionsTable } from '@llm-memory/core/sync/index'
-import { openDatabase } from '@llm-memory/core/infrastructure/sqlite/index'
-import type { SqliteDatabase } from '@llm-memory/core/port/sqlite'
+import { ensureSchemaV2, CORE_SCHEMA_VERSION } from '../../core/infrastructure/schema.js'
+import { ensureRevisionsTable } from '../../core/sync/index.js'
+import { openDatabase } from '../../core/infrastructure/sqlite/index.js'
+import type { SqliteDatabase } from '../../core/port/sqlite.js'
 
 export interface MigrateOptions {
   dbPath: string

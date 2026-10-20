@@ -7,9 +7,9 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { createBackup, restoreBackup, verifyBackup } from '@llm-memory/core/infrastructure/backup'
-import { openDatabase } from '@llm-memory/core/infrastructure/sqlite/index'
-import { MemoryStore } from '@llm-memory/core/infrastructure/store'
+import { createBackup, restoreBackup, verifyBackup } from '../../core/infrastructure/backup.js'
+import { openDatabase } from '../../core/infrastructure/sqlite/index.js'
+import { MemoryStore } from '../../core/infrastructure/store.js'
 
 import { DEFAULT_KILO_CONFIG, resolveKiloConfig } from './config.js'
 import { migrateKiloStore } from './migrate.js'

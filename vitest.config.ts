@@ -1,10 +1,10 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
-const coreSrc = fileURLToPath(new URL('./packages/core/src/', import.meta.url))
-const uiSrc = fileURLToPath(new URL('./packages/ui/src/', import.meta.url))
-const testkitSrc = fileURLToPath(new URL('./packages/testkit/src/', import.meta.url))
-const adapterSrc = fileURLToPath(new URL('./packages/adapter/src/', import.meta.url))
+const coreSrc = fileURLToPath(new URL('./src/core/', import.meta.url))
+const uiSrc = fileURLToPath(new URL('./src/ui/', import.meta.url))
+const testkitSrc = fileURLToPath(new URL('./src/testkit/', import.meta.url))
+const adapterSrc = fileURLToPath(new URL('./src/adapters/', import.meta.url))
 
 export default defineConfig({
   resolve: {

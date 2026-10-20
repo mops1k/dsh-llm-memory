@@ -7,13 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      '@llm-memory/core':
-        specifier: workspace:^
-        version: link:packages/core
-      '@llm-memory/ui':
-        specifier: workspace:^
-        version: link:packages/ui
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
@@ -73,14 +66,6 @@ importers:
       sqlite-vec:
         specifier: ^0.1.9
         version: 0.1.9
-
-  packages/adapter: {}
-
-  packages/core: {}
-
-  packages/testkit: {}
-
-  packages/ui: {}
 
 packages:
 

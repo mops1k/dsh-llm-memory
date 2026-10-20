@@ -10,7 +10,7 @@
 import { existsSync } from 'node:fs'
 import { basename } from 'node:path'
 
-import { NO_CWD_KEY, sanitizeProjectKey } from '@llm-memory/core/layout/paths.js'
+import { NO_CWD_KEY, sanitizeProjectKey } from '../../core/layout/paths.js'
 
 /** Minimal structural view of a `@deepseek-ai/dsh-workspace` record. */
 export interface WorkspaceLike {

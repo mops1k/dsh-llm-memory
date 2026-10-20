@@ -18,8 +18,8 @@ if (!store) {
   process.exit(2)
 }
 
-const { MemoryEngine } = await import('../packages/core/lib/application/engine.js')
-const { mergeConfig } = await import('../packages/core/lib/domain/config.js')
+const { MemoryEngine } = await import('../lib/core/application/engine.js')
+const { mergeConfig } = await import('../lib/core/domain/config.js')
 const { createWebHandler } = await import('../lib/dsh/web.js')
 
 const config = mergeConfig({ webPath: '', storageRoot: store })

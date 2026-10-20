@@ -14,7 +14,7 @@ import {
   MemoryDigest,
   MEMORY_GUIDE,
   registerMemoryContext,
-} from '../src/dsh/context'
+} from '../src/adapters/dsh/context'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 interface ContextHarness {

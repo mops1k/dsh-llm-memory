@@ -4,10 +4,10 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { createMemoryRuntime } from '../src/dsh/engine'
-import { createDshBridge } from '../src/dsh/ui-bridge'
+import { createMemoryRuntime } from '../src/adapters/dsh/engine'
+import { createDshBridge } from '../src/adapters/dsh/ui-bridge'
 import { createKiloLayout, createDshLayout } from '@llm-memory/core/layout/index'
-import { storesAreSeparate } from '../packages/testkit/src/index'
+import { storesAreSeparate } from '../src/testkit/index'
 
 const dirs: string[] = []
 afterEach(() => {

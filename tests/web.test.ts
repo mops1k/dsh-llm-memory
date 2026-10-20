@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { mergeConfig } from '@llm-memory/core/domain/config'
 import { MemoryEngine } from '@llm-memory/core/application/engine'
-import { createWebHandler, normalizeWebPath, type WebHandler } from '../src/dsh/web'
+import { createWebHandler, normalizeWebPath, type WebHandler } from '../src/adapters/dsh/web'
 import { cleanupRoot, makeTempRoot } from './helpers'
 import { FakeEmbeddingProvider } from './helpers/fake-embeddings'
 

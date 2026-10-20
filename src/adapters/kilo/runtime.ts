@@ -2,7 +2,7 @@
  * Kilo runtime wiring: tools + hooks over KiloService. SDK-free by design —
  * the plugin entry injects the real `tool()` helper when it loads inside Kilo.
  */
-import type { MemoryKind, MemoryTier } from '@llm-memory/core/domain/types'
+import type { MemoryKind, MemoryTier } from '../../core/domain/types.js'
 import { kiloMemoryTools, type KiloMemoryToolsSdk } from './tools.js'
 import type { KiloService } from './service.js'
 import type { KiloMemoryConfig } from './config.js'

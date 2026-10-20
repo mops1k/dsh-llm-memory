@@ -7,7 +7,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-const CORE_SRC = join(import.meta.dirname, '..', 'packages', 'core', 'src')
+const CORE_SRC = join(import.meta.dirname, '..', 'src', 'core')
 const GUARDED_LAYERS = ['domain', 'application', 'layout', 'sync']
 const FORBIDDEN =
   /from\s+['"](?:node:sqlite|bun:[^'"]+|@deepseek-ai\/[^'"]+|@kilocode\/[^'"]+|@opencode-ai\/[^'"]+)['"]/
@@ -28,7 +28,7 @@ describe('architecture', () => {
     for (const layer of GUARDED_LAYERS) {
       for (const file of walk(join(CORE_SRC, layer))) {
         const text = readFileSync(file, 'utf8')
-        if (FORBIDDEN.test(text)) violations.push(file.replace(CORE_SRC, 'packages/core/src'))
+        if (FORBIDDEN.test(text)) violations.push(file.replace(CORE_SRC, 'src/core'))
       }
     }
     expect(violations).toEqual([])

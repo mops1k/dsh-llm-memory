@@ -5,8 +5,8 @@
  */
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { migrateSchemaToV2 } from '../packages/core/lib/infrastructure/migrate.js'
-import { openDatabase } from '../packages/core/lib/infrastructure/sqlite/index.js'
+import { migrateSchemaToV2 } from '../lib/core/infrastructure/migrate.js'
+import { openDatabase } from '../lib/core/infrastructure/sqlite/index.js'
 
 /** Consistent snapshot of a live (possibly WAL-busy) database. */
 function snapshot(dbPath, target) {

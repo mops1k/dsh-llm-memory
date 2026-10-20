@@ -13,7 +13,7 @@ import {
   listBackups,
   restoreBackup,
   verifyBackup,
-} from '../packages/core/lib/infrastructure/backup.js'
+} from '../lib/core/infrastructure/backup.js'
 
 const argv = process.argv.slice(2)
 const command = argv[0]

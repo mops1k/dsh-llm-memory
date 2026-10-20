@@ -2,7 +2,7 @@
  * `llm_memory_backup` (ADR-003/005): create/list/verify over the shared backup
  * service. Restore and delete stay user-only (CLI or UI confirmation).
  */
-import { createBackup, listBackups, verifyBackup, type BackupTarget } from '@llm-memory/core/infrastructure/backup'
+import { createBackup, listBackups, verifyBackup, type BackupTarget } from '../../core/infrastructure/backup.js'
 
 export interface BackupToolPaths extends BackupTarget {
   backupsDir: string

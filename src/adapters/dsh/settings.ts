@@ -16,8 +16,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SettingsForms } from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 
-import { DEFAULT_CONFIG, DEFAULT_EMBEDDINGS, DEFAULT_SYSTEM_PROMPT, type MemoryConfig } from '@llm-memory/core/domain/config.js'
-import { localizedSettingsGroups, type SettingsField } from '@llm-memory/core/domain/settings-schema.js'
+import { DEFAULT_CONFIG, DEFAULT_EMBEDDINGS, DEFAULT_SYSTEM_PROMPT, type MemoryConfig } from '../../core/domain/config.js'
+import { localizedSettingsGroups, type SettingsField } from '../../core/domain/settings-schema.js'
 
 /** Settings namespace owned by this plugin (lowercase, hyphenated). */
 export const SETTINGS_NAMESPACE = 'dsh-llm-memory'

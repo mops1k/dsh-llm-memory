@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { resolveStorageRoot as resolveDshStorageRoot } from '../src/dsh/paths'
+import { resolveStorageRoot as resolveDshStorageRoot } from '../src/adapters/dsh/paths'
 import {
   NO_CWD_KEY,
   USER_DIR,

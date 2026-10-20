@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { createLayout, type LayoutPort } from '@llm-memory/core/layout/index'
-import { assertLayoutContract, layoutContract, storesAreSeparate } from '../packages/testkit/src/index'
+import { assertLayoutContract, layoutContract, storesAreSeparate } from '../src/testkit/index'
 
 const homes: string[] = []
 afterEach(() => {

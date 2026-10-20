@@ -10,7 +10,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 
-import { MEMORY_FULL_ONLY_TOOL_NAMES } from './dsh/tools.js'
+import { MEMORY_FULL_ONLY_TOOL_NAMES } from './adapters/dsh/tools.js'
 
 /** Stable plugin name used in diagnostics and preset inventory. */
 export const name = 'dsh-llm-memory-tool-restrict'

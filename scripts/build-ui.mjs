@@ -5,8 +5,8 @@
 import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
 
-const entry = fileURLToPath(new URL('../packages/ui/src/web/index.ts', import.meta.url))
-const outfile = fileURLToPath(new URL('../packages/ui/lib/web.js', import.meta.url))
+const entry = fileURLToPath(new URL('../src/ui/web/index.ts', import.meta.url))
+const outfile = fileURLToPath(new URL('../lib/web-ui.js', import.meta.url))
 
 await build({
   entryPoints: [entry],

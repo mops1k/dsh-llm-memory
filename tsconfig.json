@@ -1,10 +1,14 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2023"],
+    "lib": [
+      "ES2023"
+    ],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "strict": true,
     "declaration": true,
     "declarationMap": true,
@@ -14,16 +18,12 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "noUncheckedIndexedAccess": true,
-    "paths": {
-      "@llm-memory/adapter/*": ["./packages/adapter/src/*"],
-      "@llm-memory/ui": ["./packages/ui/src/index.ts"],
-      "@llm-memory/ui/*": ["./packages/ui/src/*"],
-      "@llm-memory/ui/headless/host": ["./packages/ui/src/headless/host.ts"],
-      "@llm-memory/ui/headless/*": ["./packages/ui/src/headless/*.ts"],
-      "@llm-memory/testkit": ["./packages/testkit/src/index.ts"]
-    }
+    "noUncheckedIndexedAccess": true
   },
-  "references": [{ "path": "./packages/core" }, { "path": "./packages/ui" }, { "path": "./packages/adapter" }],
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/ui/web/**"
+  ]
 }

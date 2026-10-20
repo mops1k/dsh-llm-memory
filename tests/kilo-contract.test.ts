@@ -9,7 +9,7 @@ import { KiloService } from '@llm-memory/adapter/kilo/service'
 import { startKiloWebServer } from '@llm-memory/adapter/kilo/web-server'
 import { createIsolation, IsolationViolation } from '@llm-memory/core/isolation/index'
 import { createKiloLayout, assertLocalPath, StorePathError } from '@llm-memory/core/layout/index'
-import { assertLayoutContract, storesAreSeparate } from '../packages/testkit/src/index'
+import { assertLayoutContract, storesAreSeparate } from '../src/testkit/index'
 
 const dirs: string[] = []
 afterEach(() => {

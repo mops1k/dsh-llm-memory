@@ -5,7 +5,7 @@
  *
  * Dry-run by default: only reports what would change.
  */
-import { migrateKiloStore } from '../packages/adapter/lib/kilo/migrate.js'
+import { migrateKiloStore } from '../lib/adapters/kilo/migrate.js'
 
 function arg(name, fallback) {
   const index = process.argv.indexOf(`--${name}`)

@@ -18,7 +18,7 @@ import {
   toMemoryConfig,
   unwrapSettings,
   type VolatileValue,
-} from '../src/dsh/settings'
+} from '../src/adapters/dsh/settings'
 
 /** Structural view of a schemastery node: enough for the visibility mirror. */
 interface SchemaNode {

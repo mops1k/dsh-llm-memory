@@ -7,8 +7,8 @@ import { mergeConfig } from '@llm-memory/core/domain/config'
 import type { HealReport, LintReport, StatusReport } from '@llm-memory/core/application/engine'
 import type { MemoryEngine } from '@llm-memory/core/application/engine'
 import type { MemoryEntry } from '@llm-memory/core/domain/types'
-import { createMemoryRuntime } from '../src/dsh/engine'
-import { MEMORY_TOOL_NAMES, registerMemoryTools, sessionProjectKey } from '../src/dsh/tools'
+import { createMemoryRuntime } from '../src/adapters/dsh/engine'
+import { MEMORY_TOOL_NAMES, registerMemoryTools, sessionProjectKey } from '../src/adapters/dsh/tools'
 import { cleanupRoot, makeTempRoot } from './helpers'
 
 const ENTRY: MemoryEntry = {

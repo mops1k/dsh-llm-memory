@@ -13,7 +13,7 @@ import {
   listBackups,
   restoreBackup,
   verifyBackup,
-} from '@llm-memory/core/infrastructure/backup'
+} from '../../core/infrastructure/backup.js'
 
 import { embeddedLegacyHtml, embeddedWebBundle } from './web-bundle.js'
 import { handleLegacyApi, type LegacyContext } from './legacy-api.js'
@@ -100,7 +100,7 @@ function sharedPage(locale: 'en' | 'ru'): string {
 
 function bundlePath(): string | null {
   try {
-    return fileURLToPath(new URL('../../../ui/lib/web.js', import.meta.url))
+    return fileURLToPath(new URL('../../../lib/web-ui.js', import.meta.url))
   } catch {
     return null
   }

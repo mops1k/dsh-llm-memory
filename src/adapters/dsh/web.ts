@@ -13,26 +13,26 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createDshBridge } from './ui-bridge.js'
 import { resolveStorageRoot } from './paths.js'
-import { listBackups } from '@llm-memory/core/infrastructure/backup'
+import { listBackups } from '../../core/infrastructure/backup.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 
-import type { MemoryConfig } from '@llm-memory/core/domain/config.js'
-import type { MemoryEngine, RecallFormat, SaveInput, UpdatePatch } from '@llm-memory/core/application/engine.js'
-import { RECALL_FORMAT_VALUES } from '@llm-memory/core/application/engine.js'
-import type { MemoryFilter, MemoryKind, MemoryTier } from '@llm-memory/core/domain/types.js'
+import type { MemoryConfig } from '../../core/domain/config.js'
+import type { MemoryEngine, RecallFormat, SaveInput, UpdatePatch } from '../../core/application/engine.js'
+import { RECALL_FORMAT_VALUES } from '../../core/application/engine.js'
+import type { MemoryFilter, MemoryKind, MemoryTier } from '../../core/domain/types.js'
 import {
   clampImportance,
   isMemoryKind,
   isMemoryScope,
   isMemoryStatus,
   isMemoryTier,
-} from '@llm-memory/core/domain/types.js'
+} from '../../core/domain/types.js'
 import { findWorkspacePathByKey, type WorkspaceRegistryLike } from './workspaces.js'
 import { settingsUiSchema } from './settings.js'
-import { panelSnapshot } from '@llm-memory/core/domain/ui-contract.js'
+import { panelSnapshot } from '../../core/domain/ui-contract.js'
 
 /** Maximum accepted request body size in bytes. */
 export const MAX_BODY_BYTES = 1024 * 1024
@@ -206,7 +206,7 @@ const HEADLESS_UI_HTML = `<!doctype html>
   </script></body></html>`
 
 function loadWebBundle(): string | null {
-  for (const url of ['../../lib/web-ui.js', '../../packages/ui/lib/web.js']) {
+  for (const url of ['../../../lib/web-ui.js']) {
     try {
       return readFileSync(new URL(url, import.meta.url), 'utf8')
     } catch {

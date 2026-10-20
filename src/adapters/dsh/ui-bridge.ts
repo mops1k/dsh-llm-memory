@@ -4,9 +4,9 @@
  */
 import { join } from 'node:path'
 
-import { createBackup, deleteBackup, listBackups, resolveBackupDir, restoreBackup, verifyBackup } from '@llm-memory/core/infrastructure/backup'
-import type { MemoryEngine } from '@llm-memory/core/application/engine'
-import { DshUiHost, type UiOperation } from '@llm-memory/ui/headless/host'
+import { createBackup, deleteBackup, listBackups, resolveBackupDir, restoreBackup, verifyBackup } from '../../core/infrastructure/backup.js'
+import type { MemoryEngine } from '../../core/application/engine.js'
+import { DshUiHost, type UiOperation } from '../../ui/headless/host.js'
 
 export interface DshBridgeOptions {
   engine: MemoryEngine

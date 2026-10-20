@@ -28,9 +28,9 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
-import type { MemoryConfig } from '@llm-memory/core/domain/config.js'
-import type { MemoryEngine } from '@llm-memory/core/application/engine.js'
-import { DIGEST_DIR, projectKeyFromCwd } from '@llm-memory/core/layout/paths.js'
+import type { MemoryConfig } from '../../core/domain/config.js'
+import type { MemoryEngine } from '../../core/application/engine.js'
+import { DIGEST_DIR, projectKeyFromCwd } from '../../core/layout/paths.js'
 
 /** Unique name of the system-prompt section contributed by this plugin. */
 const PROMPT_SECTION_NAME = 'llm-memory'

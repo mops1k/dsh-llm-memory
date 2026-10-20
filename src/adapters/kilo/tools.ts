@@ -3,7 +3,7 @@
  * (ADR-003). Descriptors are SDK-free; the plugin entry wraps them with the
  * Kilo `tool()` helper at runtime.
  */
-import type { MemoryKind, MemoryTier } from '@llm-memory/core/domain/types'
+import type { MemoryKind, MemoryTier } from '../../core/domain/types.js'
 import type { KiloService } from './service.js'
 
 export type ToolArgType = 'string' | 'number' | 'boolean' | 'array'

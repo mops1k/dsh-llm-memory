@@ -16,11 +16,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 
-import type { MemoryConfig } from '@llm-memory/core/domain/config.js'
-import type { MemoryEngine } from '@llm-memory/core/application/engine.js'
-import { projectKeyFromCwd } from '@llm-memory/core/layout/paths.js'
-import type { MemoryEntry } from '@llm-memory/core/domain/types.js'
-import { MEMORY_KINDS, MEMORY_SCOPES, MEMORY_TIERS, clampImportance } from '@llm-memory/core/domain/types.js'
+import type { MemoryConfig } from '../../core/domain/config.js'
+import type { MemoryEngine } from '../../core/application/engine.js'
+import { projectKeyFromCwd } from '../../core/layout/paths.js'
+import type { MemoryEntry } from '../../core/domain/types.js'
+import { MEMORY_KINDS, MEMORY_SCOPES, MEMORY_TIERS, clampImportance } from '../../core/domain/types.js'
 
 /** Shared autonomy clause appended to every tool description. */
 const AUTONOMY_NOTE = 'Runs autonomously: never asks the user for confirmation.'

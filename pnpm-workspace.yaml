@@ -1,6 +1,6 @@
+# Single-package workspace: it exists only for the build allow-list below.
 packages:
   - '.'
-  - 'packages/*'
 
 # Build scripts are denied explicitly: `onnxruntime-node` ships its prebuilt
 # `libonnxruntime.so` inside the package (bin/napi-v6/<platform>/<arch>/), so its

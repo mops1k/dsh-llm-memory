@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolRuntime } from '@deepseek-ai/dsh-tools'
 
-import { MEMORY_FULL_ONLY_TOOL_NAMES } from '../src/dsh/tools'
+import { MEMORY_FULL_ONLY_TOOL_NAMES } from '../src/adapters/dsh/tools'
 import { apply, Config, inject, name } from '../src/tool-restrict'
 
 describe('dsh-llm-memory tool restriction', () => {

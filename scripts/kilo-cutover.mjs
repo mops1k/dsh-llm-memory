@@ -6,7 +6,7 @@
  */
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { rehearseCutover } from '../packages/adapter/lib/kilo/cutover.js'
+import { rehearseCutover } from '../lib/adapters/kilo/cutover.js'
 
 const argv = process.argv.slice(2)
 const flag = (name, fallback) => {

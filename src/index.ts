@@ -10,17 +10,17 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 
-import { mergeConfig } from '@llm-memory/core/domain/config.js'
-import { registerMemoryContext } from './dsh/context.js'
-import { createMemoryRuntime } from './dsh/engine.js'
+import { mergeConfig } from './core/domain/config.js'
+import { registerMemoryContext } from './adapters/dsh/context.js'
+import { createMemoryRuntime } from './adapters/dsh/engine.js'
 import {
   MemoryPluginConfigSchema,
   registerMemorySettings,
   toMemoryConfig,
   unwrapSettings,
-} from './dsh/settings.js'
-import { registerMemoryTools } from './dsh/tools.js'
-import { registerMemoryWeb, resolveWorkspaceProjectRoot } from './dsh/web.js'
+} from './adapters/dsh/settings.js'
+import { registerMemoryTools } from './adapters/dsh/tools.js'
+import { registerMemoryWeb, resolveWorkspaceProjectRoot } from './adapters/dsh/web.js'
 
 /** Stable plugin name used in logs and as the settings/config namespace. */
 export const name = 'dsh-llm-memory'

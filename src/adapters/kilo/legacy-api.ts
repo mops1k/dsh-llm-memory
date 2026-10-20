@@ -5,10 +5,10 @@
  */
 import { writeFileSync } from 'node:fs'
 
-import { selfHeal } from '@llm-memory/core/application/maintenance'
-import { clampImportance, type MemoryEntry, type MemoryFilter } from '@llm-memory/core/domain/types'
-import { writeItemPage } from '@llm-memory/core/application/wiki'
-import { panelSnapshot } from '@llm-memory/core/domain/ui-contract'
+import { selfHeal } from '../../core/application/maintenance.js'
+import { clampImportance, type MemoryEntry, type MemoryFilter } from '../../core/domain/types.js'
+import { writeItemPage } from '../../core/application/wiki.js'
+import { panelSnapshot } from '../../core/domain/ui-contract.js'
 
 import type { KiloService } from './service.js'
 import type { KiloMemoryConfig } from './config.js'
@@ -159,11 +159,13 @@ export async function handleLegacyApi(
     return true
   }
   if (path === '/ui/snapshot') {
-    json(200, panelSnapshot(params.get('locale') === 'en' ? 'en' : config.uiLocale))
+    const requested = params.get('locale')
+    json(200, panelSnapshot(requested === 'ru' || requested === 'en' ? requested : config.uiLocale))
     return true
   }
   if (path === '/settings/snapshot') {
-    const locale = params.get('locale') === 'en' ? 'en' : config.uiLocale
+    const requested = params.get('locale')
+    const locale = requested === 'ru' || requested === 'en' ? requested : config.uiLocale
     json(200, { ok: true, ...service.settingsSnapshot(locale), locale })
     return true
   }

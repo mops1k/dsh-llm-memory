@@ -65,9 +65,11 @@ describe('kilo legacy panel API', () => {
       expect(ids).toContain(required)
     }
     const titles = snapshot.views.map((view: { title: string }) => view.title)
-    expect(titles).toContain('Карта RAG')
-    expect(titles).toContain('Бэкапы')
+    expect(titles).toContain('RAG map')
+    expect(titles).toContain('Backups')
     expect(snapshot.actions.length).toBeGreaterThan(0)
+    const ru = await (await fetch(`${base}api/legacy/ui/snapshot?locale=ru`)).json()
+    expect(ru.views.map((view: { title: string }) => view.title)).toContain('Карта RAG')
   })
 
   it('resolves a relative backupDir inside the store, not the process cwd', async () => {

@@ -6,10 +6,10 @@ import { build } from 'esbuild'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-const entry = fileURLToPath(new URL('../packages/adapter/src/kilo/plugin.ts', import.meta.url))
-const outfile = fileURLToPath(new URL('../packages/adapter/lib/kilo.js', import.meta.url))
-const webBundle = readFileSync(fileURLToPath(new URL('../packages/ui/lib/web.js', import.meta.url)), 'utf8')
-const legacyHtml = readFileSync(fileURLToPath(new URL('../packages/adapter/src/kilo/web-ui.legacy.html', import.meta.url)), 'utf8')
+const entry = fileURLToPath(new URL('../src/adapters/kilo/plugin.ts', import.meta.url))
+const outfile = fileURLToPath(new URL('../lib/kilo.js', import.meta.url))
+const webBundle = readFileSync(fileURLToPath(new URL('../lib/web-ui.js', import.meta.url)), 'utf8')
+const legacyHtml = readFileSync(fileURLToPath(new URL('../src/adapters/kilo/web-ui.legacy.html', import.meta.url)), 'utf8')
 
 await build({
   entryPoints: [entry],

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG } from '@llm-memory/core/domain/config.js'
-import { settingsUiSchema } from '../src/dsh/settings'
+import { settingsUiSchema } from '../src/adapters/dsh/settings'
 import { settingsSnapshot } from '@llm-memory/core/domain/ui-contract.js'
 import {
   SETTINGS_ACTIONS,

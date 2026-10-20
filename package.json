@@ -1,7 +1,7 @@
 {
   "name": "dsh-llm-memory",
   "version": "1.4.0",
-  "description": "Layered long-term memory plugin for DeepSeek Harness: memory tools, system-prompt guidance, FTS5 index, shell WebUI, and importers for kilo-memory, dsh-mnemon and dsh-memory.",
+  "description": "Layered long-term memory plugin for DeepSeek Harness: memory tools, system-prompt guidance, FTS5 index and shell WebUI.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -34,7 +34,6 @@
   "files": [
     "lib",
     "rules",
-    "ui",
     "cordis.patch.yml",
     "LICENSE",
     "README.md",
@@ -61,15 +60,11 @@
     }
   },
   "scripts": {
-    "build": "tsc -b && node scripts/build-ui.mjs && node scripts/build-kilo.mjs && node scripts/copy-client.mjs",
-    "typecheck": "tsc -b",
+    "build": "tsc -p . && node scripts/build-ui.mjs && node scripts/build-kilo.mjs && node scripts/copy-client.mjs",
+    "typecheck": "tsc -p .",
     "lint": "oxlint src tests client scripts packages",
     "test": "vitest run",
     "check:dsh": "node scripts/check-dsh-compat.mjs"
-  },
-  "dependencies": {
-    "@llm-memory/core": "workspace:^",
-    "@llm-memory/ui": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4",
