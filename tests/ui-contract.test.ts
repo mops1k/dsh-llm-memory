@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG } from '@llm-memory/core/domain/config.js'
 import { SETTINGS_ACTIONS, SETTINGS_GROUPS } from '@llm-memory/core/domain/settings-schema.js'
+const settingActions = SETTINGS_ACTIONS
+import { UI_VIEW_IDS } from '@llm-memory/core/domain/ui-schema.js'
 import {
   UI_ACTION_NAMES,
   UI_CONTRACT_VERSION,
@@ -8,6 +10,7 @@ import {
   actionOk,
   isUIAction,
   settingsSnapshot,
+  uiSnapshot,
 } from '@llm-memory/core/domain/ui-contract.js'
 
 describe('UI SDK contract', () => {
@@ -24,6 +27,15 @@ describe('UI SDK contract', () => {
     expect(UI_ACTION_NAMES).toEqual(SETTINGS_ACTIONS.map(action => action.id))
     for (const action of SETTINGS_ACTIONS) expect(isUIAction(action.id)).toBe(true)
     expect(isUIAction('backup.drop-everything')).toBe(false)
+  })
+
+  it('bundles screens, settings and actions into one panel snapshot', () => {
+    const snapshot = uiSnapshot(DEFAULT_CONFIG)
+    expect(snapshot.version).toBeGreaterThan(0)
+    expect(snapshot.views.map(view => view.id)).toEqual([...UI_VIEW_IDS])
+    expect(snapshot.settings.groups.length).toBeGreaterThan(0)
+    expect(snapshot.actions.length).toBe(settingActions.length)
+    expect(snapshot.operations.length).toBeGreaterThan(0)
   })
 
   it('serializes responses without losing the error/ok contract', () => {

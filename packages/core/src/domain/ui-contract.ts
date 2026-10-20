@@ -6,6 +6,12 @@
  */
 import type { MemoryConfig } from './config.js'
 import {
+  UI_OPERATIONS,
+  UI_SCHEMA_VERSION,
+  UI_VIEWS,
+  type UIView,
+} from './ui-schema.js'
+import {
   SETTINGS_ACTIONS,
   SETTINGS_GROUPS,
   localizedSettingsGroups,
@@ -69,4 +75,26 @@ export function actionOk(data?: unknown): UIActionResponse {
 /** Failed action response. */
 export function actionError(error: unknown): UIActionResponse {
   return { ok: false, error: error instanceof Error ? error.message : String(error) }
+}
+
+
+/** The whole panel contract: screens, settings fields and callable actions. */
+export interface UISnapshot {
+  /** Version of both the view schema and the settings payload. */
+  version: number
+  views: readonly UIView[]
+  settings: UISettingsSnapshot
+  actions: typeof SETTINGS_ACTIONS
+  operations: readonly string[]
+}
+
+/** One payload every panel renders; design and embedding stay host-specific. */
+export function uiSnapshot(config: MemoryConfig, locale: 'en' | 'ru' = 'en'): UISnapshot {
+  return {
+    version: UI_SCHEMA_VERSION,
+    views: UI_VIEWS,
+    settings: settingsSnapshot(config, locale),
+    actions: SETTINGS_ACTIONS,
+    operations: UI_OPERATIONS,
+  }
 }
