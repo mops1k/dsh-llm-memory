@@ -15,6 +15,7 @@ import {
 import {
   SETTINGS_ACTIONS,
   SETTINGS_GROUPS,
+  localizedActions,
   localizedSettingsGroups,
   readSettingValue,
   type SettingsAction,
@@ -63,7 +64,7 @@ export function settingsSnapshot(config: MemoryConfig, locale: 'en' | 'ru' = 'en
   return {
     version: UI_CONTRACT_VERSION,
     groups: locale === 'en' ? SETTINGS_GROUPS : localizedSettingsGroups('ru'),
-    actions: SETTINGS_ACTIONS,
+    actions: localizedActions(locale),
     values,
   }
 }
@@ -102,7 +103,7 @@ export function panelSnapshot(locale: 'en' | 'ru' = 'en'): UIPanelSnapshot {
   return {
     version: UI_SCHEMA_VERSION,
     views: locale === 'en' ? UI_VIEWS : localizedViews('ru'),
-    actions: SETTINGS_ACTIONS,
+    actions: localizedActions(locale),
     operations: UI_OPERATIONS,
   }
 }
@@ -113,7 +114,7 @@ export function uiSnapshot(config: MemoryConfig, locale: 'en' | 'ru' = 'en'): UI
     version: UI_SCHEMA_VERSION,
     views: UI_VIEWS,
     settings: settingsSnapshot(config, locale),
-    actions: SETTINGS_ACTIONS,
+    actions: localizedActions(locale),
     operations: UI_OPERATIONS,
   }
 }

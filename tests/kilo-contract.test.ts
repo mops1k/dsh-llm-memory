@@ -71,8 +71,9 @@ describe('kilo adapter contract', () => {
     service.init()
     const handle = await startKiloWebServer({ service, config, port: 0 })
     try {
-      const backups = await fetch(`${handle.url}api/backup`).then(response => response.json())
-      expect(backups).toEqual([])
+      const backups = await fetch(`${handle.url}api/legacy/backups`).then(response => response.json())
+      expect(backups.ok).toBe(true)
+      expect(backups.backups).toEqual([])
     } finally {
       await handle.close()
       service.close()

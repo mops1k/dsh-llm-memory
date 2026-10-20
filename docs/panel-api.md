@@ -4,8 +4,8 @@
 отличаются только базовые пути и форма ответа legacy-адаптера.
 
 - DSH: база `/llm-memory` (настраивается `webPath`), API — `/llm-memory/api/*`.
-- Kilo: страницы на `http://<host>:<port>/` — `/` общий schema-driven UI, `/legacy` прежний дашборд,
-  `/web.js` бандл; API — `/api/legacy/*`.
+- Kilo: страница на `http://<host>:<port>/` отдаёт общий дизайн панели (`src/ui/design/panel.html`),
+  тот же файл будет у OpenCode/MCP; API — `/api/legacy/*`.
 - Все ответы — JSON (`content-type: application/json`), ошибки — `{ "error": "..." }` с 4xx.
 - DSH-web принимает только loopback (`127.0.0.1/::1`), иначе 403.
 
@@ -20,40 +20,17 @@
 
 Подробная форма полей/экранов — в [ui-sdk.md](ui-sdk.md).
 
-Общая панель Kilo (`/`) — тот же React-рендерер, что у OpenCode/MCP: навигация и виджеты берутся из
-`/api/legacy/ui/snapshot`, настройки — из `/api/legacy/settings/snapshot` (группы/поля/значения ядра),
-действия — из реестра. Операция → маршрут:
+Дизайн панели живёт отдельно от схемы: один файл `src/ui/design/panel.html` (CSS + разметка + JS) для
+Kilo/OpenCode/MCP, хост передаёт ему `window.__LM_PANEL__` (`apiBase`, `kind`, `locale`). Из схемы дизайн берёт:
 
-| Операция | Маршрут |
-|---|---|
-| `ui.snapshot` | `GET /api/legacy/ui/snapshot` |
-| `settings.snapshot` | `GET /api/legacy/settings/snapshot` |
-| `status`, `items.list`, `items.get`, `graph`, `lint.report`, `health` | `GET /api/legacy/*` |
-| `heal.report`, `heal.apply` | `POST /api/legacy/heal` (`{mode}`) |
-| `items.save` / `items.update` / `items.forget` / `items.delete` | `POST|PUT|POST|DELETE /api/legacy/items[/{{id}}]` |
-| `settings.save` | `PUT /api/legacy/settings` |
-| `ui.locale.set` | `PUT /api/legacy/config` (`{uiLocale}`) |
-| `action.backup.*`, `action.model.*` | `POST /api/legacy/{backups,model}/*` |
+- вкладки, порядок и заголовки — `ui.snapshot.views`;
+- настройки — `settings.snapshot` (группы/поля/значения, `unsupported`);
+- действия — `ui.snapshot.actions` (метки с локалью) и `actions`-виджеты экранов (видимость/порядок);
+- пагинацию и колонки — `pagination` и `table.columns`;
+- KPI обзора — `stats.metrics`, данные — `source.operation`.
 
-Смена языка (`ru`/`en`) сохраняется в `uiLocale` конфига Kilo и применяется к странице при следующей загрузке;
-`?locale=ru` переопределяет её для одного запроса snapshot. RAG-карта пока показывает «недоступно» — ждёт
-`VectorLeg` из плана `p_c7de70db394f`.
-
-`PUT /api/legacy/settings` принимает **плоский патч dotted-путей**:
-
-```json
-{ "recallLimit": 12, "embeddings.topK": 10 }
-```
-
-Ответ:
-
-```json
-{ "ok": true, "applied": ["recallLimit"], "unsupported": ["embeddings.topK"], "config": { ... } }
-```
-
-`unsupported` — пути, которые Kilo-рантайм пока не применяет; они не сохраняются и показываются в панели disabled.
-`PUT` сохраняет конфиг в `~/.config/kilo/llm-memory.json` (старый `kilo-memory.json` читается как fallback,
-запись всегда в новый файл).
+Кастомные блоки дизайна (фильтры, график с зумом, карта RAG) остаются его собственной логикой поверх этих данных.
+RAG-карта показывает «недоступно» — ждёт `VectorLeg` из плана `p_c7de70db394f`.
 
 ## 2. Данные
 

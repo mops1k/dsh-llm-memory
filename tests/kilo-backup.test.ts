@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -30,10 +30,13 @@ async function setup() {
 }
 
 async function call(url: string, operation: string, input?: unknown): Promise<Response> {
-  return fetch(`${url}api/backup`, {
+  const payload = (input ?? {}) as { archive?: string; name?: string; confirm?: string }
+  const name = payload.name ?? (payload.archive ? basename(payload.archive) : undefined)
+  const route = { 'backup.create': 'create', 'backup.verify': 'verify', 'backup.restore': 'restore', 'backup.delete': 'delete' }[operation]
+  return fetch(`${url}api/legacy/backups/${route}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ operation, input }),
+    body: JSON.stringify({ ...(name ? { name } : {}), ...(payload.confirm ? { confirm: payload.confirm } : {}) }),
   })
 }
 
@@ -45,27 +48,28 @@ describe('kilo backup API', () => {
       expect(target.backupsDir).toBe(join(service.store.root, 'backups'))
 
       const created = (await call(handle.url!, 'backup.create').then(response => response.json())) as {
-        archive: string
-        manifest: { harness: string }
+        report: { archive: string; manifest: { harness: string } }
       }
-      expect(existsSync(created.archive)).toBe(true)
-      expect(created.manifest.harness).toBe('kilo')
+      expect(existsSync(created.report.archive)).toBe(true)
+      expect(created.report.manifest.harness).toBe('kilo')
 
-      const listed = (await fetch(`${handle.url}api/backup`).then(response => response.json())) as Array<Record<string, unknown>>
-      expect(listed).toHaveLength(1)
-      expect(listed[0]).toMatchObject({ includesVectors: false, encrypted: false })
-      expect(listed[0]!['name']).toMatch(/^memory-.*\.llmmem$/)
+      const listed = (await fetch(`${handle.url}api/legacy/backups`).then(response => response.json())) as {
+        backups: Array<Record<string, unknown>>
+      }
+      expect(listed.backups).toHaveLength(1)
+      expect(String(listed.backups[0]!['archive'])).toMatch(/memory-.*\.llmmem$/)
+      expect(listed.backups[0]!['createdAt']).toBeTruthy()
+      expect(listed.backups[0]!['encrypted']).toBe(false)
 
-      const verified = (await call(handle.url!, 'backup.verify', { archive: created.archive }).then(response => response.json())) as { ok: boolean }
+      const verified = (await call(handle.url!, 'backup.verify', { archive: created.report.archive }).then(response => response.json())) as { ok: boolean }
       expect(verified.ok).toBe(true)
 
-      const restored = (await call(handle.url!, 'backup.restore', { archive: created.archive, confirm: 'RESTORE' }).then(response => response.json())) as {
-        restored: boolean
-        counts: { entries: number }
+      const restored = (await call(handle.url!, 'backup.restore', { archive: created.report.archive, confirm: 'RESTORE' }).then(response => response.json())) as {
+        report: { restored: boolean; counts: { entries: number } }
       }
-      expect(restored.restored).toBe(true)
-      expect(restored.counts.entries).toBe(2)
-      expect(await fetch(`${handle.url}api/backup`).then(response => response.json())).toHaveLength(2)
+      expect(restored.report.restored).toBe(true)
+      expect(restored.report.counts.entries).toBe(2)
+      expect(((await fetch(`${handle.url}api/legacy/backups`).then(response => response.json())) as { backups: unknown[] }).backups).toHaveLength(2)
     } finally {
       await handle.close()
       service.close()
@@ -75,13 +79,13 @@ describe('kilo backup API', () => {
   it('refuses delete without the typed confirmation', async () => {
     const { service, handle } = await setup()
     try {
-      const created = (await call(handle.url!, 'backup.create').then(response => response.json())) as { archive: string }
-      const denied = await call(handle.url!, 'backup.delete', { archive: created.archive, confirm: 'yes' })
+      const created = (await call(handle.url!, 'backup.create').then(response => response.json())) as { report: { archive: string } }
+      const denied = await call(handle.url!, 'backup.delete', { archive: created.report.archive, confirm: 'yes' })
       expect(denied.status).toBe(400)
-      expect(existsSync(created.archive)).toBe(true)
-      const accepted = (await call(handle.url!, 'backup.delete', { archive: created.archive, confirm: 'DELETE' }).then(response => response.json())) as { deleted: boolean }
+      expect(existsSync(created.report.archive)).toBe(true)
+      const accepted = (await call(handle.url!, 'backup.delete', { archive: created.report.archive, confirm: 'DELETE' }).then(response => response.json())) as { deleted: boolean }
       expect(accepted.deleted).toBe(true)
-      expect(existsSync(created.archive)).toBe(false)
+      expect(existsSync(created.report.archive)).toBe(false)
     } finally {
       await handle.close()
       service.close()

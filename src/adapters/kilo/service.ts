@@ -150,7 +150,7 @@ export class KiloService {
    * every harness. Paths the Kilo runtime does not apply yet are reported as
    * unsupported instead of being silently editable.
    */
-  settingsSnapshot(locale: 'en' | 'ru' = this.config.uiLocale): { snapshot: UISettingsSnapshot; unsupported: string[] } {
+  settingsSnapshot(): { snapshot: UISettingsSnapshot; unsupported: string[] } {
     const values: Record<string, unknown> = structuredClone(DEFAULT_CONFIG) as unknown as Record<string, unknown>
     const memory = this.config.memory
     const supported: Record<string, unknown> = {
@@ -164,7 +164,7 @@ export class KiloService {
     for (const key of ['provider', 'model', 'dim', 'topK', 'minScore', 'chunkChars', 'chunkOverlap', 'prewarm'] as const) {
       writeSettingValue(values, `embeddings.${key}`, embeddings[key])
     }
-    const snapshot = buildSettingsSnapshot(values as unknown as MemoryConfig, locale)
+    const snapshot = buildSettingsSnapshot(values as unknown as MemoryConfig, 'ru')
     return { snapshot, unsupported: SETTINGS_UNSUPPORTED_IN_KILO.filter(path => !Object.hasOwn(supported, path) && !path.startsWith('embeddings.')) }
   }
 

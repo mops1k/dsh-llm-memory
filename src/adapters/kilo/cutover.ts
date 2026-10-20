@@ -198,7 +198,7 @@ export async function rehearseCutover(options: CutoverOptions): Promise<CutoverR
   const panel = await startKiloWebServer({ service, config: { ...config, web: { ...config.web, enabled: true, port: 0 } }, port: 0 })
   let panelOk = false
   try {
-    panelOk = panel.url !== null && (await fetch(`${panel.url}api/status`).then(response => response.ok))
+    panelOk = panel.url !== null && (await fetch(`${panel.url}api/legacy/status`).then(response => response.ok))
   } finally {
     await panel.close()
   }

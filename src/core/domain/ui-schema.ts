@@ -233,7 +233,7 @@ export const UI_VIEWS: readonly UIView[] = [
     widgets: [
       { kind: 'report', source: { operation: 'lint.report' } },
       { kind: 'report', source: { operation: 'heal.report' } },
-      { kind: 'actions', actions: ['lint.run', 'heal.apply'] },
+      { kind: 'actions', actions: ['lint.run', 'heal.report', 'heal.apply'] },
     ],
   },
   {
@@ -306,8 +306,30 @@ export function uiReferencedActions(): string[] {
 export const UI_KNOWN_ACTIONS: readonly string[] = SETTINGS_ACTIONS.map(action => action.id)
 
 
-/** Views with the titles of the requested locale (English is the base). */
+/** Localise a widget's own labels (columns, metrics, editor fields). */
+function localizeWidget(widget: UIWidget): UIWidget {
+  switch (widget.kind) {
+    case 'stats':
+      return { ...widget, metrics: widget.metrics.map(item => ({ ...item, label: item.labelRu ?? item.label })) }
+    case 'table':
+    case 'search':
+      return { ...widget, columns: widget.columns.map(item => ({ ...item, label: item.labelRu ?? item.label })) }
+    case 'editor':
+      return {
+        ...widget,
+        fields: widget.fields.map(item => ({ ...item, label: item.labelRu ?? item.label })),
+      }
+    default:
+      return widget
+  }
+}
+
+/** Views with the titles and widget labels of the requested locale (English is the base). */
 export function localizedViews(locale: 'en' | 'ru'): UIView[] {
   if (locale === 'en') return UI_VIEWS.map(view => view)
-  return UI_VIEWS.map(view => ({ ...view, title: view.titleRu ?? view.title }))
+  return UI_VIEWS.map(view => ({
+    ...view,
+    title: view.titleRu ?? view.title,
+    widgets: view.widgets.map(localizeWidget),
+  }))
 }

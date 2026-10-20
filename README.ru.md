@@ -182,7 +182,7 @@ pnpm test
 ```
 src/index.ts, tool-restrict.ts   точка входа DSH-плагина и subpath scoped-пресета
 src/core/          хранилище, движок, ranking, wiki, frontmatter (domain/application/infrastructure/port/layout/isolation/sync)
-src/ui/            headless view models, общие web-экраны, темы
+src/ui/            headless-контракты, design/panel.html (общий дизайн панелей), темы
 src/adapters/dsh/  обвязка DSH: tools, context, settings, web, workspaces
 src/adapters/kilo/ плагин Kilo: service, compat-API, сервер панели, миграция/cutover
 src/adapters/mcp/  MCP-инструменты (backup)

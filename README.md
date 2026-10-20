@@ -182,7 +182,7 @@ Then restart DSH.
 ```
 src/index.ts, tool-restrict.ts   DSH plugin entrypoint and scoped preset subpath
 src/core/          storage, engine, ranking, wiki, frontmatter (domain/application/infrastructure/port/layout/isolation/sync)
-src/ui/            headless view models, shared web screens, themes
+src/ui/            headless contracts, design/panel.html (общий дизайн панелей), themes
 src/adapters/dsh/  DSH wiring: tools, context, settings, web, workspaces
 src/adapters/kilo/ Kilo plugin: service, compatibility API, panel server, migration/cutover
 src/adapters/mcp/  MCP tools (backup)

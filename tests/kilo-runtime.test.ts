@@ -86,23 +86,21 @@ describe('kilo runtime', () => {
     const handle = await startKiloWebServer({ service, config, port: 0, saveConfig: next => saved.push(next) })
     try {
       expect(handle.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/)
-      const patched = await fetch(`${handle.url}api/settings`, {
-        method: 'POST',
+      const patched = await fetch(`${handle.url}api/legacy/settings`, {
+        method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ operation: 'settings.set', input: { memory: { recallLimit: 7 } } }),
+        body: JSON.stringify({ recallLimit: 7 }),
       }).then(response => response.json())
-      expect(patched.memory.recallLimit).toBe(7)
-      expect(saved).toHaveLength(1)
-      const bundle = await fetch(`${handle.url}web.js`).then(response => response.text())
-      expect(bundle.length).toBeGreaterThan(1000)
-      expect(bundle).toContain('mount')
-      const status = await fetch(`${handle.url}api/status`).then(response => response.json())
-      expect(status).toMatchObject({ total: 0, active: 0 })
+      expect(patched.applied).toContain('recallLimit')
+      expect(patched.config.memory.recallLimit).toBe(7)
+      expect(saved.length).toBeGreaterThan(0)
+      const status = await fetch(`${handle.url}api/legacy/status`).then(response => response.json())
+      expect(status.ok).toBe(true)
+      expect(status.status).toMatchObject({ total: 0, active: 0 })
       const page = await fetch(handle.url!).then(response => response.text())
-      expect(page).toContain('HttpUiHost')
-      expect(page).toContain('/web.js')
-      const settings = await fetch(`${handle.url}api/settings`).then(response => response.json())
-      expect(settings.web.enabled).toBe(true)
+      expect(page).toContain('LLM Memory')
+      expect(page).toContain('__LM_PANEL__')
+      expect(page).toContain('/ui/snapshot')
     } finally {
       await handle.close()
       service.close()

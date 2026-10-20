@@ -419,6 +419,32 @@ export const SETTINGS_ACTIONS: readonly SettingsAction[] = [
   { id: 'vectors.health', group: 'index', label: 'Vector health', mode: 'read' },
 ]
 
+/** Russian labels of the action registry, keyed by the same ids. */
+const RU_ACTION_LABELS: Record<string, string> = {
+  'backup.list': 'Список бэкапов',
+  'backup.create': 'Создать бэкап',
+  'backup.verify': 'Проверить бэкап',
+  'backup.restore': 'Восстановить из бэкапа',
+  'backup.delete': 'Удалить бэкап',
+  'model.status': 'Статус модели',
+  'model.download': 'Скачать модель',
+  'model.remove': 'Удалить модель',
+  'lint.run': 'Проверка',
+  'heal.report': 'Отчёт оздоровления',
+  'heal.apply': 'Оздоровление (применить)',
+  'vectors.rebuild': 'Перестроить векторы',
+  'vectors.health': 'Здоровье векторов',
+}
+
+/** Actions with the labels of the requested locale (English is the base). */
+export function localizedActions(locale: 'en' | 'ru'): SettingsAction[] {
+  if (locale === 'en') return SETTINGS_ACTIONS as SettingsAction[]
+  return SETTINGS_ACTIONS.map(action => {
+    const label = RU_ACTION_LABELS[action.id]
+    return label === undefined ? action : { ...action, label }
+  })
+}
+
 /** Read a dotted value out of a config-like object. */
 export function readSettingValue(source: unknown, path: string): unknown {
   return path.split('.').reduce<unknown>((node, part) => {

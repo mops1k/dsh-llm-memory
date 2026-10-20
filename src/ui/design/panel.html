@@ -383,9 +383,9 @@
         <div class="card">
           <div class="toolbar">
             <button class="btn secondary" id="btn-status"><svg class="ic"><use href="#i-database"/></svg> Статус</button>
-            <button class="btn secondary" id="btn-lint"><svg class="ic"><use href="#i-check"/></svg> Проверка</button>
-            <button class="btn secondary" id="btn-heal-report"><svg class="ic"><use href="#i-activity"/></svg> Оздоровление (отчёт)</button>
-            <button class="btn" id="btn-heal-apply"><svg class="ic"><use href="#i-check"/></svg> Оздоровление (применить)</button>
+            <button class="btn secondary" id="btn-lint" data-action="lint.run"><svg class="ic"><use href="#i-check"/></svg> Проверка</button>
+            <button class="btn secondary" id="btn-heal-report" data-action="heal.report"><svg class="ic"><use href="#i-activity"/></svg> Оздоровление (отчёт)</button>
+            <button class="btn" id="btn-heal-apply" data-action="heal.apply"><svg class="ic"><use href="#i-check"/></svg> Оздоровление (применить)</button>
           </div>
           <div class="report" id="health-out"><span class="muted">Нажмите кнопку…</span></div>
         </div>
@@ -422,8 +422,8 @@
         <div class="card">
 <p class="muted" style="margin-top:16px"><b>Бэкапы</b></p>
           <div class="toolbar">
-            <button class="btn" id="btn-backup-create">Создать бэкап</button>
-            <button class="btn secondary" id="btn-backup-refresh">Обновить список</button>
+            <button class="btn" id="btn-backup-create" data-action="backup.create">Создать бэкап</button>
+            <button class="btn secondary" id="btn-backup-refresh" data-action="backup.list">Обновить список</button>
             <span class="muted" id="backup-info"></span>
           </div>
           <p class="muted" id="backup-dir">Куда сохраняются: —</p>
@@ -438,8 +438,8 @@
 <p class="muted" style="margin-top:16px"><b>Модель эмбеддингов</b></p>
           <p class="muted" id="model-info">Загрузка статуса…</p>
           <div class="toolbar">
-            <button class="btn" id="btn-model-download">Скачать модель</button>
-            <button class="btn secondary" id="btn-model-remove"><svg class="ic"><use href="#i-trash"/></svg> Удалить модель</button>
+            <button class="btn" id="btn-model-download" data-action="model.download">Скачать модель</button>
+            <button class="btn secondary" id="btn-model-remove" data-action="model.remove"><svg class="ic"><use href="#i-trash"/></svg> Удалить модель</button>
             <span class="muted" id="model-progress"></span>
           </div>
           
@@ -487,11 +487,32 @@ let curProject = "all";
 let serverProject = "";
 let currentTab = "overview";
 
+/* Host wiring: the same design runs in Kilo, OpenCode and MCP (ADR-004). */
+const PANEL_HOST = window.__LM_PANEL__ || {};
+const API_BASE = PANEL_HOST.apiBase || "/api";
+let PANEL_SNAPSHOT = null;
+
+/** View/widget helpers: the schema decides what every screen shows. */
+function panelView(id) { return (PANEL_SNAPSHOT && PANEL_SNAPSHOT.views || []).find(view => view.id === id); }
+function panelWidget(viewId, kind) {
+  const view = panelView(viewId);
+  return view ? (view.widgets || []).find(widget => widget.kind === kind) : undefined;
+}
+function actionLabel(id) {
+  const action = (PANEL_SNAPSHOT && PANEL_SNAPSHOT.actions || []).find(item => item.id === id);
+  return action ? action.label : id;
+}
+function actionHint(id) {
+  const action = (PANEL_SNAPSHOT && PANEL_SNAPSHOT.actions || []).find(item => item.id === id);
+  return action && action.hint ? action.hint : "";
+}
+const SECTION_VIEW = { overview: "overview", items: "items", create: "editor", graph: "graph", map: "map", recall: "recall", health: "health", settings: "settings", backup: "backup", model: "model" };
+
 async function api(method, path, body, useProject) {
   const opt = { method, headers: {} };
   if (body !== undefined) { opt.headers["content-type"] = "application/json"; opt.body = JSON.stringify(body); }
   if (useProject) { const sep = path.includes("?") ? "&" : "?"; path += sep + "project=" + encodeURIComponent(curProject || "all"); }
-  const res = await fetch("/api" + path, opt);
+  const res = await fetch(API_BASE + path, opt);
   let data = null;
   try { data = await res.json(); } catch (e) { data = { ok: false, error: "Некорректный ответ сервера" }; }
   if (!res.ok && data && data.ok === undefined) data.ok = false;
@@ -521,6 +542,7 @@ const KILO_VIEWS = {
 async function loadNav() {
   try {
     const snapshot = await api("GET", "/ui/snapshot");
+    PANEL_SNAPSHOT = snapshot;
     const views = (snapshot.views || []).filter(view => KILO_VIEWS[view.id]);
     if (!views.length) return;
     const itemsView = views.find(view => view.id === "items");
@@ -541,10 +563,41 @@ async function loadNav() {
       return '<button class="nav-btn" data-tab="' + section + '"><svg class="ic"><use href="#i-' + meta.icon + '"/></svg> ' + esc(view.title) + '</button>';
     }).join("");
     document.querySelectorAll(".nav-btn").forEach(button => (button.onclick = () => switchTab(button.dataset.tab)));
+    applySchemaWiring();
   } catch (error) {
     /* the static markup fallback is not rendered; keep the default tab */
   }
 }
+function pathValue(source, path) {
+  return path.split(".").reduce((node, part) => (node == null ? undefined : node[part]), source);
+}
+
+/** Bind the design's own controls to the schema snapshot (labels, options, actions). */
+function applySchemaWiring() {
+  document.querySelectorAll("[data-action]").forEach(button => {
+    const id = button.dataset.action;
+    const section = button.closest("section");
+    const viewId = section ? SECTION_VIEW[section.id.replace("tab-", "")] : undefined;
+    const widget = viewId ? panelWidget(viewId, "actions") : undefined;
+    if (widget && !widget.actions.includes(id)) { button.remove(); return; }
+    const icon = button.querySelector("svg");
+    button.replaceChildren(...(icon ? [icon] : []), document.createTextNode(" " + actionLabel(id)));
+    button.title = actionHint(id);
+  });
+  const table = panelWidget("items", "table");
+  ITEM_COLUMNS = table && table.columns ? table.columns : null;
+  const editor = panelWidget("editor", "editor");
+  if (editor) {
+    const targets = { kind: "c-kind", tier: "c-tier", importance: "c-importance", title: "c-title", text: "c-text", tags: "c-tags" };
+    for (const field of editor.fields) {
+      const target = targets[field.path];
+      const element = target ? $(target) : null;
+      if (!element || element.tagName !== "SELECT" || !field.options) continue;
+      element.innerHTML = field.options.map(option => '<option value="' + esc(option.value) + '">' + esc(option.label || option.value) + "</option>").join("");
+    }
+  }
+}
+
 function switchTab(name) {
   currentTab = name;
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
@@ -699,12 +752,20 @@ async function loadOverview() {
   const items = itemsRes.ok ? itemsRes.items : [];
   const immutable = items.filter(i => i.tier === "immutable").length;
   const kinds = Object.keys(st.byKind || {}).length;
-  const kpi = [
-    ["database", "Всего записей", st.total, true],
-    ["check", "Активных", st.active, false],
-    ["activity", "Средняя уверенность", st.avgConfidence, false],
-    ["layers", "Категорий / immutable", kinds + " / " + immutable, false],
-  ];
+  const statsWidget = panelWidget("overview", "stats");
+  const kpi = statsWidget
+    ? statsWidget.metrics.map((metric, index) => [
+        ["database", "check", "activity", "layers"][index % 4],
+        metric.label,
+        pathValue(st, metric.path),
+        index === 0,
+      ])
+    : [
+        ["database", "Всего записей", st.total, true],
+        ["check", "Активных", st.active, false],
+        ["activity", "Средняя уверенность", st.avgConfidence, false],
+        ["layers", "Категорий / immutable", kinds + " / " + immutable, false],
+      ];
   $("kpi-grid").innerHTML = kpi.map(([icon, l, v, grad]) =>
     '<div class="kpi"><div class="head"><svg class="ic"><use href="#i-' + icon + '"/></svg><span class="l">' + esc(l) + '</span></div><div class="v' + (grad ? " grad" : "") + '">' + esc(v) + "</div></div>"
   ).join("");
@@ -726,14 +787,17 @@ let itemsLimit = Number(localStorage.getItem("km-page-size")) || 24;
 let itemsOffset = 0;
 let itemsTotal = 0;
 
+let ITEM_COLUMNS = null;
+function columnPresent(path) { return !ITEM_COLUMNS || ITEM_COLUMNS.some(column => column.path === path); }
 function cardHtml(i) {
   const tags = (i.tags || []).map(t => '<span class="tag">' + esc(t) + "</span>").join("");
   return '<article class="item-card" data-id="' + esc(i.id) + '">' +
     '<div class="card-head"><span class="card-title">' + esc(i.title) + '</span><span class="pill tier-' + esc(i.tier) + '">' + esc(TIER_LABEL[i.tier] || i.tier) + "</span></div>" +
-    '<div class="badges"><span class="pill scope-' + esc(i.scope) + '">' + esc(SCOPE_LABEL[i.scope] || i.scope) + '</span>' +
-    '<span class="pill kind-' + esc(i.kind) + '">' + esc(KIND_LABEL[i.kind] || i.kind) + "</span>" +
-    '<span class="pill status-' + esc(i.status) + '">' + esc(STATUS_LABEL[i.status] || i.status) + "</span>" +
-    (i.projectRoot ? '<span class="pill" title="' + esc(i.projectRoot) + '">проект</span>' : "") + "</div>" +
+    '<div class="badges">' +
+    (columnPresent("scope") ? '<span class="pill scope-' + esc(i.scope) + '">' + esc(SCOPE_LABEL[i.scope] || i.scope) + "</span>" : "") +
+    (columnPresent("kind") ? '<span class="pill kind-' + esc(i.kind) + '">' + esc(KIND_LABEL[i.kind] || i.kind) + "</span>" : "") +
+    (columnPresent("status") ? '<span class="pill status-' + esc(i.status) + '">' + esc(STATUS_LABEL[i.status] || i.status) + "</span>" : "") +
+    (columnPresent("project") && i.projectRoot ? '<span class="pill" title="' + esc(i.projectRoot) + '">проект</span>' : "") + "</div>" +
     '<p class="excerpt">' + esc(firstLines(i.content, 260)) + "</p>" +
     (tags ? '<div class="tags">' + tags + "</div>" : "") +
     '<div class="card-meta muted"><code>' + esc(i.id) + "</code> · важность " + i.importance + " · уверенность " + Number(i.confidence).toFixed(2) + ' · <svg class="ic sm"><use href="#i-clock"/></svg> ' + esc((i.updatedAt || "").slice(0, 10)) + "</div>" +
@@ -1079,9 +1143,9 @@ async function loadBackups() {
     return '<div class="cfg-group"><div class="toolbar" style="justify-content:space-between">' +
       '<span title="' + esc(b.archive) + '">' + esc(name) + ' · ' + esc(b.createdAt) + ' · ' + size + (b.encrypted ? " · шифр" : "") +
       '<br><span class="muted">' + esc(b.archive) + '</span></span>' +
-      '<span><button class="btn secondary" data-backup-verify="' + esc(name) + '">Проверить</button> ' +
-      '<button class="btn secondary" data-backup-restore="' + esc(name) + '">Восстановить</button> ' +
-      '<button class="btn secondary" data-backup-delete="' + esc(name) + '">Удалить</button></span></div></div>';
+      '<span><button class="btn secondary" data-backup-verify="' + esc(name) + '">' + esc(actionLabel("backup.verify")) + '</button> ' +
+      '<button class="btn secondary" data-backup-restore="' + esc(name) + '">' + esc(actionLabel("backup.restore")) + '</button> ' +
+      '<button class="btn secondary" data-backup-delete="' + esc(name) + '">' + esc(actionLabel("backup.delete")) + '</button></span></div></div>';
   }).join("");
   document.querySelectorAll("[data-backup-verify]").forEach(el => el.onclick = () => backupAction("verify", el.dataset.backupVerify));
   document.querySelectorAll("[data-backup-restore]").forEach(el => el.onclick = () => backupAction("restore", el.dataset.backupRestore));
