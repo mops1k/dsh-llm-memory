@@ -29,7 +29,7 @@ import {
   runImport,
   type ImportedProject,
   type ImportSourceName,
-} from './import/index.js'
+} from '@llm-memory/core/infrastructure/import/index.js'
 import type { MemoryFilter, MemoryKind, MemoryTier } from '@llm-memory/core/domain/types.js'
 import {
   clampImportance,

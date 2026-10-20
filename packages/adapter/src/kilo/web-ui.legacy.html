@@ -417,6 +417,11 @@
             <span class="muted" id="backup-info"></span>
           </div>
           <div id="backup-list"></div>
+          <p class="muted" style="margin-top:16px"><b>Импорт</b></p>
+          <div class="toolbar">
+            <button class="btn" id="btn-import">Импортировать память</button>
+            <span class="muted" id="import-info"></span>
+          </div>
         </div>
       </section>
     </main>
@@ -1040,6 +1045,18 @@ $("btn-backup-create").onclick = async () => {
   loadBackups();
 };
 $("btn-backup-refresh").onclick = loadBackups;
+$("btn-import").onclick = async () => {
+  $("import-info").textContent = "импорт…";
+  const r = await api("POST", "/import", {}, true);
+  if (!r.ok) { $("import-info").textContent = r.error || "Ошибка импорта"; return; }
+  const lines = (r.reports || []).map(rep =>
+    rep.source + ": +" + rep.imported + " новых, " + rep.updated + " обновлено, " + rep.skipped + " пропущено" +
+    (rep.errors && rep.errors.length ? " · ошибки: " + rep.errors.join("; ") : "")
+  );
+  $("import-info").textContent = lines.join(" | ") || "Источники не найдены";
+  toast("Импорт завершён");
+  loadItems(true);
+};
 $("btn-cfg-load").onclick = loadConfig;
 $("btn-cfg-save").onclick = async () => {
   const patch = {};

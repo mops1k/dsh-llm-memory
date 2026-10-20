@@ -79,7 +79,10 @@ describe('kilo store migration', () => {
     temps.push(dir)
     const db = join(dir, 'memory.db')
     copyFileSync(live, db)
-    const source = new DatabaseSync(live, { readOnly: true })
+    // Compare with the copy the migration actually reads: the live file can be
+    // ahead of its WAL snapshot while Kilo is running, and a hot WAL must not
+    // make the parity check flap.
+    const source = new DatabaseSync(db, { readOnly: true })
     const expected = source.prepare("SELECT COUNT(*) AS entries, SUM(status='active') AS active FROM memories").get()
     source.close()
     const report = migrateKiloStore({ dbPath: db, apply: true, backupDir: join(dir, 'backups') })

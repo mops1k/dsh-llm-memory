@@ -14,6 +14,7 @@ import {
   settingsSnapshot as buildSettingsSnapshot,
   type UISettingsSnapshot,
 } from '@llm-memory/core/domain/ui-contract'
+import { runImport, type ImportReport } from '@llm-memory/core/infrastructure/import/index'
 import { createBackup, deleteBackup, listBackups, restoreBackup, verifyBackup, type BackupRecord, type BackupReport, type RestoreReport, type VerifyReport } from '@llm-memory/core/infrastructure/backup'
 import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
 import { entryPathFor } from '@llm-memory/core/layout/paths'
@@ -360,6 +361,14 @@ export class KiloService {
       projectDirs: this.projectRoot ? [join(this.projectRoot, KILO_PROJECT_DIR)] : [],
       backupsDir: this.config.memory.backupDir || join(storeDir, 'backups'),
     }
+  }
+
+  /** Import foreign memory stores (Kilo/mnemon/dsh-memory) into this store. */
+  importMemory(): ImportReport[] {
+    return runImport({
+      store: this.store,
+      config: { importRoots: [], importAutoDetect: true },
+    })
   }
 
   /** Backups of this store (pages + db), the same .llmmem format as DSH. */
