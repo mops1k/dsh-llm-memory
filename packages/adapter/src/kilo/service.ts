@@ -14,11 +14,13 @@ import {
   settingsSnapshot as buildSettingsSnapshot,
   type UISettingsSnapshot,
 } from '@llm-memory/core/domain/ui-contract'
+import { createBackup, deleteBackup, listBackups, restoreBackup, verifyBackup, type BackupRecord, type BackupReport, type RestoreReport, type VerifyReport } from '@llm-memory/core/infrastructure/backup'
 import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
 import { entryPathFor } from '@llm-memory/core/layout/paths'
 import { createKiloLayout, type LayoutPort } from '@llm-memory/core/layout/index'
 import { createIsolation } from '@llm-memory/core/isolation/index'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { basename } from 'node:path'
 import { join } from 'node:path'
 
 import type { KiloMemoryConfig } from './config.js'
@@ -358,6 +360,41 @@ export class KiloService {
       projectDirs: this.projectRoot ? [join(this.projectRoot, KILO_PROJECT_DIR)] : [],
       backupsDir: this.config.memory.backupDir || join(storeDir, 'backups'),
     }
+  }
+
+  /** Backups of this store (pages + db), the same .llmmem format as DSH. */
+  backupCreate(): BackupReport {
+    return createBackup({ harness: 'kilo', ...this.backupTarget() })
+  }
+
+  backupList(): BackupRecord[] {
+    return listBackups(this.backupTarget().backupsDir)
+  }
+
+  backupVerify(name: string): VerifyReport {
+    return verifyBackup(this.backupArchive(name))
+  }
+
+  /** Restore replaces the live store, so the DB is closed for the duration. */
+  backupRestore(name: string, confirm: string | undefined): RestoreReport {
+    const archive = this.backupArchive(name)
+    this.store.close()
+    try {
+      return restoreBackup({ harness: 'kilo', ...this.backupTarget(), archive, confirm })
+    } finally {
+      this.store.open()
+    }
+  }
+
+  backupDelete(name: string, confirm: string | undefined): boolean {
+    return deleteBackup(this.backupArchive(name), confirm, this.backupTarget().backupsDir)
+  }
+
+  /** Accept only a file name inside the backups directory, never a path. */
+  private backupArchive(name: string): string {
+    const safe = basename(String(name ?? ''))
+    if (!safe || safe !== String(name)) throw new Error('Invalid backup name')
+    return join(this.backupTarget().backupsDir, safe)
   }
 
   /** Strip a session id down to a safe filename (Kilo wrote the same names). */

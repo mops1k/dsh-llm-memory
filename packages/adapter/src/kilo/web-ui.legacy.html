@@ -410,6 +410,13 @@
             <button class="btn secondary" id="btn-model-remove"><svg class="ic"><use href="#i-trash"/></svg> Удалить модель</button>
             <span class="muted" id="model-progress"></span>
           </div>
+          <p class="muted" style="margin-top:16px"><b>Бэкапы</b></p>
+          <div class="toolbar">
+            <button class="btn" id="btn-backup-create">Создать бэкап</button>
+            <button class="btn secondary" id="btn-backup-refresh">Обновить список</button>
+            <span class="muted" id="backup-info"></span>
+          </div>
+          <div id="backup-list"></div>
         </div>
       </section>
     </main>
@@ -988,6 +995,51 @@ $("btn-model-remove").onclick = async () => {
   toast(r.ok ? "Модель удалена из кэша" : (r.error || "Ошибка"), !r.ok);
   loadModel();
 };
+async function loadBackups() {
+  const r = await api("GET", "/backups");
+  if (!r.ok) { $("backup-info").textContent = r.error || "Не удалось получить список"; return; }
+  const list = r.backups || [];
+  $("backup-info").textContent = list.length + " архив(ов)";
+  if (!list.length) { $("backup-list").innerHTML = '<p class="muted">Бэкапов пока нет.</p>'; return; }
+  $("backup-list").innerHTML = list.map(b => {
+    const name = String(b.archive).split(/[\\/]/).pop();
+    const size = b.bytes ? (b.bytes / 1048576).toFixed(1) + " МБ" : "0 Б";
+    return '<div class="cfg-group"><div class="toolbar" style="justify-content:space-between">' +
+      '<span>' + esc(name) + ' · ' + esc(b.createdAt) + ' · ' + size + (b.encrypted ? " · шифр" : "") + '</span>' +
+      '<span><button class="btn secondary" data-backup-verify="' + esc(name) + '">Проверить</button> ' +
+      '<button class="btn secondary" data-backup-restore="' + esc(name) + '">Восстановить</button> ' +
+      '<button class="btn secondary" data-backup-delete="' + esc(name) + '">Удалить</button></span></div></div>';
+  }).join("");
+  document.querySelectorAll("[data-backup-verify]").forEach(el => el.onclick = () => backupAction("verify", el.dataset.backupVerify));
+  document.querySelectorAll("[data-backup-restore]").forEach(el => el.onclick = () => backupAction("restore", el.dataset.backupRestore));
+  document.querySelectorAll("[data-backup-delete]").forEach(el => el.onclick = () => backupAction("delete", el.dataset.backupDelete));
+}
+async function backupAction(kind, name) {
+  let confirmWord = "";
+  if (kind === "restore") {
+    confirmWord = prompt('Восстановление заменит текущую память. Введите RESTORE для подтверждения:') || "";
+    if (confirmWord !== "RESTORE") return;
+  }
+  if (kind === "delete") {
+    confirmWord = prompt('Удалить архив безвозвратно? Введите DELETE:') || "";
+    if (confirmWord !== "DELETE") return;
+  }
+  const body = kind === "verify" ? { name } : { name, confirm: confirmWord };
+  const r = await api("POST", "/backups/" + kind, body, true);
+  if (!r.ok) { toast(r.error || "Ошибка", true); return; }
+  if (kind === "verify") toast(r.report && r.report.ok ? "Архив корректен" : ("Найдены ошибки: " + ((r.report && r.report.errors || []).join("; "))), !(r.report && r.report.ok));
+  else if (kind === "restore") { toast("Восстановлено записей: " + (r.report ? r.report.counts.entries : 0) + ", перезагрузка…"); setTimeout(() => location.reload(), 1200); return; }
+  else toast(r.deleted ? "Архив удалён" : "Не удалось удалить", !r.deleted);
+  loadBackups();
+}
+$("btn-backup-create").onclick = async () => {
+  $("backup-info").textContent = "создание…";
+  const r = await api("POST", "/backups/create", {}, true);
+  if (!r.ok) { toast(r.error || "Не удалось создать бэкап", true); $("backup-info").textContent = ""; return; }
+  toast("Бэкап создан: " + Math.round((r.report.bytes || 0) / 1024) + " КБ");
+  loadBackups();
+};
+$("btn-backup-refresh").onclick = loadBackups;
 $("btn-cfg-load").onclick = loadConfig;
 $("btn-cfg-save").onclick = async () => {
   const patch = {};
@@ -1018,6 +1070,7 @@ $("btn-cfg-save").onclick = async () => {
   await loadOverview();
   await loadConfig();
   loadModel();
+  loadBackups();
   await loadItems(true);
 })();
 </script>

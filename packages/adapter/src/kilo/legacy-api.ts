@@ -118,6 +118,45 @@ export async function handleLegacyApi(
   const method = (req.method ?? 'GET').toUpperCase()
   const { service, config } = ctx
 
+  if (path === '/backups' && method === 'GET') {
+    json(200, { ok: true, backups: service.backupList() })
+    return true
+  }
+  if (path === '/backups/create' && method === 'POST') {
+    try {
+      json(200, { ok: true, report: service.backupCreate() })
+    } catch (error) {
+      json(400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+    return true
+  }
+  if (path === '/backups/verify' && method === 'POST') {
+    try {
+      const body = await readJson(req)
+      json(200, { ok: true, report: service.backupVerify(String(body['name'] ?? '')) })
+    } catch (error) {
+      json(400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+    return true
+  }
+  if (path === '/backups/restore' && method === 'POST') {
+    try {
+      const body = await readJson(req)
+      json(200, { ok: true, report: service.backupRestore(String(body['name'] ?? ''), body['confirm'] === undefined ? undefined : String(body['confirm'])) })
+    } catch (error) {
+      json(400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+    return true
+  }
+  if (path === '/backups/delete' && method === 'POST') {
+    try {
+      const body = await readJson(req)
+      json(200, { ok: true, deleted: service.backupDelete(String(body['name'] ?? ''), body['confirm'] === undefined ? undefined : String(body['confirm'])) })
+    } catch (error) {
+      json(400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+    return true
+  }
   if (path === '/settings/snapshot') {
     json(200, { ok: true, ...service.settingsSnapshot() })
     return true
