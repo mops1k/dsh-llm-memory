@@ -499,18 +499,6 @@ window.__ModuleLoader__.load({
     }
 
     /** One Settings field holding a number. */
-    function numberField(form, update, key, label, hint, extra) {
-      const props = Object.assign(
-        {
-          type: "number",
-          style: S.input,
-          value: form[key],
-          onChange: (event) => update(key, event.target.value),
-        },
-        extra || {},
-      );
-      return h(Field, { label, hint }, h("input", props));
-    }
 
     /** One Settings field holding a value picked from a fixed list. */
     function selectField(form, update, key, label, hint, options) {
@@ -530,18 +518,6 @@ window.__ModuleLoader__.load({
     }
 
     /** One checkbox row in Settings. */
-    function checkboxField(form, update, key, label) {
-      return h(
-        "label",
-        { style: S.checkboxRow },
-        h("input", {
-          type: "checkbox",
-          checked: !!form[key],
-          onChange: (event) => update(key, event.target.checked),
-        }),
-        label,
-      );
-    }
 
     function Pill(props) {
       const style = props.tone ? Object.assign({}, S.pill, { color: props.tone, borderColor: props.tone }) : S.pill;
