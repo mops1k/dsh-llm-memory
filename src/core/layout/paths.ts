@@ -53,12 +53,69 @@ export const MAX_SLUG_LENGTH = 48
 export const MAX_PROJECT_KEY_LENGTH = 64
 
 /**
+ * Expand a hand-typed storage path: `~`, `$VAR`, `${VAR}`, `%VAR%`, wrapping
+ * quotes and (on Windows) forward slashes.
+ *
+ * Unknown variables stay as typed so a typo is visible instead of silently
+ * pointing at a wrong directory.
+ */
+export function normalizeStoragePath(input: string | null | undefined): string {
+  let value = typeof input === 'string' ? input.trim() : ''
+  if (value.length === 0) return ''
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    value = value.slice(1, -1).trim()
+  }
+  if (value === '~' || value.startsWith('~/') || value.startsWith('~\\')) {
+    const rest = value.slice(1).replace(/^[\\/]+/u, '')
+    value = rest.length > 0 ? join(homedir(), rest) : homedir()
+  }
+  value = value.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/gu, (match, name: string) => process.env[name] ?? match)
+  value = value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/gu, (match, braced: string, plain: string) =>
+    process.env[braced ?? plain] ?? match,
+  )
+  if (process.platform === 'win32') value = value.replace(/\//gu, '\\')
+  return value
+}
+
+/** Whether a path points at a network share (`\\server\share` or `//server/share`). */
+export function isUncPath(path: string | null | undefined): boolean {
+  const value = typeof path === 'string' ? path.trim() : ''
+  return /^[\\/]{2}[^\\/]+[\\/][^\\/]+/u.test(value)
+}
+
+/**
+ * Windows extended-length form (`\\?\C:\...`) for paths that may exceed
+ * MAX_PATH 260; long-path support is off by default on Windows (spike P1:
+ * `LongPathsEnabled = 0`). Short paths and non-Windows hosts are unchanged.
+ */
+export function windowsExtendedPath(path: string, platform: NodeJS.Platform = process.platform): string {
+  const value = path ?? ''
+  if (platform !== 'win32' || value.length < 240) return value
+  if (value.startsWith('\\\\?\\')) return value
+  if (/^\\\\[^\\]/u.test(value)) return `\\\\?\\UNC\\${value.slice(2)}`
+  if (/^[A-Za-z]:[\\/]/u.test(value)) return `\\\\?\\${value}`
+  return value
+}
+
+/**
  * Neutral fallback storage root used when a caller passes none. Adapters
  * resolve their own root (DSH: `src/dsh/paths.ts`, Kilo: its layout).
+ *
+ * A configured root is normalised first; a network share is rejected because
+ * SQLite WAL does not work over 9p/SMB (spikes A1/A10), and a Windows absolute
+ * path on another host is refused instead of being resolved against `cwd`.
  */
 export function resolveStorageRoot(override?: string | null): string {
-  const custom = typeof override === 'string' ? override.trim() : ''
-  if (custom.length > 0) return resolve(custom)
+  const custom = normalizeStoragePath(override)
+  if (custom.length > 0) {
+    if (isUncPath(custom)) {
+      throw new Error(`The memory store must live on a local disk: "${custom}" is a network share (UNC).`)
+    }
+    if (process.platform !== 'win32' && /^[A-Za-z]:[\\/]/u.test(custom)) {
+      throw new Error(`"${custom}" is a Windows path; this host cannot use it for the memory store.`)
+    }
+    return resolve(custom)
+  }
   return resolve(join(homedir(), '.dsh', 'llm-memory'))
 }
 

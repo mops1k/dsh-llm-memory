@@ -9,6 +9,7 @@ import { createWriteStream, existsSync, mkdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { modelCacheDir, type ModelDownloadProgress } from './model-cache.js'
+import { windowsExtendedPath } from '../layout/paths.js'
 
 export type FetchLike = (input: string, init?: { signal?: AbortSignal; method?: string }) => Promise<{
   ok: boolean
@@ -47,7 +48,9 @@ const SKIP_FILES = new Set(['.gitattributes', 'README.md'])
 export async function downloadModelFiles(options: DownloadModelOptions): Promise<DownloadModelResult> {
   const endpoint = (options.endpoint ?? 'https://huggingface.co').replace(/\/+$/u, '')
   const doFetch = options.fetchImpl ?? (globalThis.fetch as unknown as FetchLike)
-  const dir = modelCacheDir(options.cacheDir, options.model)
+  const reportedDir = modelCacheDir(options.cacheDir, options.model)
+  // Deep project roots can push the cache over MAX_PATH on Windows.
+  const dir = windowsExtendedPath(reportedDir)
   mkdirSync(dir, { recursive: true })
 
   const meta = await doFetch(`${endpoint}/api/models/${options.model}`)

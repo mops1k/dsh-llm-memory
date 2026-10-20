@@ -28,6 +28,7 @@ import { createEmbeddingProvider, type EmbeddingProviderOptions } from '../infra
 import { debug as defaultDebug } from '../infrastructure/log.js'
 import { downloadModelFiles, type FetchLike } from '../infrastructure/model-download.js'
 import {
+  inspectModelCache,
   removeModelCache,
   scanModelCache,
   sweepModelTempFiles,
@@ -359,6 +360,7 @@ export class VectorLeg {
     // differ from the configured one in tests).
     const model = this.resolveProvider()?.model ?? settings.model
     const cache = scanModelCache(this.cacheDir, model)
+    const integrity = inspectModelCache(this.cacheDir, model)
     return {
       provider: settings.provider,
       model,
@@ -373,6 +375,7 @@ export class VectorLeg {
       // cached model would otherwise leave a stale 100 % behind.
       progress: this.modelState.downloading ? this.modelState.progress : null,
       error: this.modelState.error,
+      missing: integrity.missing,
     }
   }
 
@@ -424,7 +427,8 @@ export class VectorLeg {
       .prewarm()
       .then(() => {
         const after = scanModelCache(this.cacheDir, model)
-        if (after.cached || !provider.id.startsWith('local')) {
+        const integrity = inspectModelCache(this.cacheDir, model)
+        if (integrity.ok || !provider.id.startsWith('local')) {
           this.modelState = { downloading: false, progress: null, error: null }
           this.modelMissing = false
           // The model arrived now: let the vector leg come up without a restart.
@@ -432,10 +436,13 @@ export class VectorLeg {
           this.start()
           this.log(`embeddings: ${model} is cached and loaded`)
         } else {
+          const nothingWritten = !after.cached && after.files === 0
           this.modelState = {
             downloading: false,
             progress: null,
-            error: `No model files were written to ${after.dir}; check the network and the plugin log.`,
+            error: nothingWritten
+              ? `No model files were written to ${after.dir}; check the network and the plugin log.`
+              : `Incomplete model cache for ${model}: ${integrity.missing.join(', ')} missing in ${after.dir}`,
           }
           this.log(`embeddings: ${this.modelState.error}`)
         }
@@ -722,7 +729,7 @@ export class VectorLeg {
    */
   private modelAvailable(provider: EmbeddingProvider): boolean {
     if (!provider.id.startsWith('local')) return true
-    return scanModelCache(this.cacheDir, provider.model).cached
+    return inspectModelCache(this.cacheDir, provider.model).ok
   }
 
   /** Fetch the model files over HTTP without loading the model. */
@@ -740,13 +747,16 @@ export class VectorLeg {
         ...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}),
       })
       const after = scanModelCache(this.cacheDir, model)
+      const integrity = inspectModelCache(this.cacheDir, model)
       this.log(`embeddings: downloaded ${result.files} files (${result.bytes} bytes) of ${model} without loading it`)
       this.modelState = {
         downloading: false,
         progress: null,
-        error: after.cached ? null : `No ONNX weights were written to ${after.dir}`,
+        error: integrity.ok
+          ? null
+          : `Incomplete model cache for ${model}: ${integrity.missing.join(', ')} missing in ${after.dir}`,
       }
-      if (after.cached) {
+      if (integrity.ok) {
         this.modelMissing = false
         this.unavailable = false
         this.start()
@@ -755,7 +765,7 @@ export class VectorLeg {
       this.modelState = {
         downloading: false,
         progress: null,
-        error: error instanceof Error ? error.message : String(error),
+        error: `${error instanceof Error ? error.message : String(error)} (check the network and retry)`,
       }
       this.log(`embeddings: file download failed (${this.modelState.error})`)
     }

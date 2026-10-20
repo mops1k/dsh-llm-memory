@@ -9,8 +9,10 @@
  *
  * @module dsh-llm-memory/core/model-cache
  */
-import { readdirSync, rmSync, statSync, type Dirent } from 'node:fs'
+import { existsSync, readdirSync, rmSync, statSync, type Dirent } from 'node:fs'
 import { join } from 'node:path'
+
+import { windowsExtendedPath } from '../layout/paths.js'
 
 /** Aggregated progress of one model download, as reported by transformers.js. */
 export interface ModelDownloadProgress {
@@ -54,6 +56,7 @@ export function modelCacheDir(cacheDir: string, model: string): string {
  */
 export function scanModelCache(cacheDir: string, model: string): ModelCacheStatus {
   const dir = modelCacheDir(cacheDir, model)
+  const root = windowsExtendedPath(dir)
   let files = 0
   let bytes = 0
   let weights = 0
@@ -82,8 +85,65 @@ export function scanModelCache(cacheDir: string, model: string): ModelCacheStatu
       }
     }
   }
-  walk(dir)
+  walk(root)
   return { dir, cached: weights > 0, files, bytes }
+}
+
+/** Completeness of a cached model: what a loader needs and what is missing. */
+export interface ModelIntegrity {
+  /** Whether every required file is present with usable sizes. */
+  ok: boolean
+  /** Required artefacts that are absent or empty, in human terms. */
+  missing: string[]
+  /** Size of the ONNX weights actually on disk. */
+  weightsBytes: number
+  /** Leftover `*.tmp.*` files of interrupted downloads. */
+  tempFiles: number
+}
+
+/**
+ * Check that a cached model can actually be loaded.
+ *
+ * The weights alone are not enough: transformers.js needs `config.json` and a
+ * tokenizer, and a killed download leaves a `.tmp.` file that looks like part of
+ * the cache. Reporting the exact gap beats the generic "no model files were
+ * written" after a download that happened to stop halfway.
+ */
+export function inspectModelCache(cacheDir: string, model: string): ModelIntegrity {
+  const dir = modelCacheDir(cacheDir, model)
+  const root = windowsExtendedPath(dir)
+  const missing: string[] = []
+  let weightsBytes = 0
+  let tempFiles = 0
+  const walk = (path: string): void => {
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(path, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      const child = join(path, entry.name)
+      if (entry.isDirectory()) {
+        walk(child)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (entry.name.includes('.tmp.')) tempFiles += 1
+      if (!entry.name.endsWith('.onnx') || entry.name.includes('.tmp.')) continue
+      try {
+        weightsBytes += statSync(child).size
+      } catch {
+        // Replaced while measuring.
+      }
+    }
+  }
+  walk(root)
+  if (weightsBytes === 0) missing.push('onnx weights (.onnx)')
+  if (!existsSync(join(dir, 'config.json'))) missing.push('config.json')
+  const tokenizerFiles = ['tokenizer.json', 'tokenizer_config.json', 'sentencepiece.bpe.model']
+  if (!tokenizerFiles.some(name => existsSync(join(dir, name)))) missing.push('tokenizer files')
+  return { ok: missing.length === 0, missing, weightsBytes, tempFiles }
 }
 
 /**
@@ -125,7 +185,7 @@ export function sweepModelTempFiles(cacheDir: string, model: string): { files: n
       }
     }
   }
-  walk(modelCacheDir(cacheDir, model))
+  walk(windowsExtendedPath(modelCacheDir(cacheDir, model)))
   return { files, bytes }
 }
 

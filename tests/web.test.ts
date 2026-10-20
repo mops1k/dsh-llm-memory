@@ -86,8 +86,11 @@ function json(res: MockResponse): Record<string, unknown> {
 
 /** Write the weights file of the configured model, so the cache looks complete. */
 function writeStubWeights(storageRoot: string): void {
-  const dir = join(storageRoot, '_models', 'Xenova', 'multilingual-e5-small', 'onnx')
+  const base = join(storageRoot, '_models', 'Xenova', 'multilingual-e5-small')
+  const dir = join(base, 'onnx')
   mkdirSync(dir, { recursive: true })
+  writeFileSync(join(base, 'config.json'), '{"model":"x"}')
+  writeFileSync(join(base, 'tokenizer.json'), '{"vocab":{}}')
   writeFileSync(join(dir, 'model_quantized.onnx'), 'y'.repeat(8))
 }
 

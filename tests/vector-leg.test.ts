@@ -218,6 +218,77 @@ describe('VectorLeg', () => {
     store.close()
   })
 
+  it('reports an incomplete cache instead of pretending the model is ready', async () => {
+    const { store, leg } = makeLeg(undefined, {
+      settings: settings({ model: 'org/model' }),
+      createProvider: () => null,
+      fallbackDownload: true,
+      // The listing has no config.json, so the weights alone are not usable.
+      fetchImpl: fakeFetch({ 'onnx/model.onnx': 'weights' }),
+    })
+    leg.downloadModel()
+    await waitFor(() => !leg.modelStatus().downloading)
+    const status = leg.modelStatus()
+    expect(status.error).toMatch(/incomplete/i)
+    expect(status.missing).toEqual(expect.arrayContaining(['config.json']))
+    expect(leg.enabled).toBe(false)
+    store.close()
+  })
+
+  it('never downloads implicitly when the model is missing', () => {
+    const calls: string[] = []
+    const fetchImpl: FetchLike = async (input) => {
+      calls.push(input)
+      throw new Error('must not be called')
+    }
+    const provider: EmbeddingProvider = {
+      id: 'local-missing',
+      model: 'org/model',
+      dim: 3,
+      ready: false,
+      async prewarm() {},
+      async embed() {
+        return { vectors: [], model: 'org/model', dim: 3 }
+      },
+    }
+    const { store, leg } = makeLeg(provider, { settings: settings({ model: 'org/model' }), fetchImpl })
+    leg.start()
+    expect(leg.enabled).toBe(false)
+    expect(calls).toEqual([])
+    store.close()
+  })
+
+  it('reports a network failure and recovers on the next explicit download', async () => {
+    let offline = true
+    const healthy = fakeFetch({
+      'config.json': '{"model":"x"}',
+      'tokenizer.json': '{"vocab":{}}',
+      'onnx/model.onnx': 'weights',
+    })
+    const flaky: FetchLike = async (input, init) => {
+      if (offline) throw new TypeError('fetch failed')
+      return healthy(input, init)
+    }
+    const { store, leg } = makeLeg(undefined, {
+      settings: settings({ model: 'org/model' }),
+      createProvider: () => null,
+      fallbackDownload: true,
+      fetchImpl: flaky,
+    })
+
+    leg.downloadModel()
+    await waitFor(() => !leg.modelStatus().downloading)
+    expect(leg.modelStatus().error).toMatch(/network|fetch failed/i)
+
+    offline = false
+    leg.downloadModel()
+    await waitFor(() => !leg.modelStatus().downloading)
+    const status = leg.modelStatus()
+    expect(status.cached).toBe(true)
+    expect(status.error).toBeNull()
+    store.close()
+  })
+
   it('refuses to download when the vector leg is off', () => {
     const { store, leg } = makeLeg(undefined, { settings: settings({ provider: 'off' }) })
     expect(leg.configured()).toBe(false)
@@ -230,7 +301,11 @@ describe('VectorLeg', () => {
       settings: settings({ model: 'org/model' }),
       createProvider: () => null,
       fallbackDownload: true,
-      fetchImpl: fakeFetch({ 'config.json': '{"model":"x"}', 'onnx/model.onnx': 'weights' }),
+      fetchImpl: fakeFetch({
+        'config.json': '{"model":"x"}',
+        'tokenizer.json': '{"vocab":{}}',
+        'onnx/model.onnx': 'weights',
+      }),
     })
     expect(leg.enabled).toBe(false)
     const started = leg.downloadModel()

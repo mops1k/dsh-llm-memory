@@ -34,6 +34,8 @@ export interface ModelStatus extends ModelCacheStatus {
   progress: ModelDownloadProgress | null
   /** Message of the last failed download, or null. */
   error: string | null
+  /** Required model files the cache is missing; empty when the model is complete. */
+  missing?: string[]
 }
 
 export interface ModelManagerOptions {

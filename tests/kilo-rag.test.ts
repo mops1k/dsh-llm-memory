@@ -133,6 +133,16 @@ describe('Kilo RAG', () => {
     expect(status.model).toBe('fake-vocab-3')
   })
 
+  it('keeps RAG off without a local provider but reports the model state', () => {
+    const created = makeService({ vector: false })
+    const status = created.modelStatus()
+    expect(status.configured).toBe(false)
+    expect(status.enabled).toBe(false)
+    expect(status.dir).toContain('_models')
+    expect(() => created.downloadModel()).toThrow(/disabled/)
+    expect(created.vectorStatus()).toBeNull()
+  })
+
   it('serves vectors.health, vectors.map and vectors.rebuild over the panel API', async () => {
     const created = makeService({ provider: new FakeEmbeddingProvider() })
     created.save({ text: 'Индекс и reconcile.' })

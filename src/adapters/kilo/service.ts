@@ -35,7 +35,7 @@ import {
 } from '../../core/domain/ui-contract.js'
 import { createBackup, deleteBackup, listBackups, resolveBackupDir, restoreBackup, verifyBackup, type BackupRecord, type BackupReport, type RestoreReport, type VerifyReport } from '../../core/infrastructure/backup.js'
 import { MemoryStore, newMemoryEntry } from '../../core/infrastructure/store.js'
-import { entryPathFor } from '../../core/layout/paths.js'
+import { entryPathFor, resolveStorageRoot } from '../../core/layout/paths.js'
 import { createKiloLayout, type LayoutPort } from '../../core/layout/index.js'
 import { createIsolation } from '../../core/isolation/index.js'
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -139,7 +139,10 @@ export class KiloService {
     this.config = options.config
     this.projectRoot = options.projectRoot
     this.layout = options.layout ?? createKiloLayout()
-    const root = options.config.memory.storageRoot || this.layout.userRoot()
+    // An empty storageRoot means "this harness' own layout"; a configured one is
+    // normalised (tilde/env vars) and refused when it points at a network share.
+    const configuredRoot = (options.config.memory.storageRoot ?? '').trim()
+    const root = configuredRoot.length > 0 ? resolveStorageRoot(configuredRoot) : this.layout.userRoot()
     // Kilo keeps its database in <store>/db/memory.db (not the core _db dialect).
     this.store = new MemoryStore({ storageRoot: root, dbPath: join(root, 'db', 'memory.db') })
     this.embeddingProvider = options.embeddingProvider

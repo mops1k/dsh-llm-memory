@@ -1112,9 +1112,19 @@ async function loadModel() {
   let text = st.model + " · " + (st.cached ? "в кэше (" + size + ", файлов " + st.files + ")" : "не скачана") +
     " · провайдер " + st.provider + (st.configured ? "" : " (векторный поиск выключен: выберите local)");
   if (st.dir) text += " · " + st.dir;
+  if (st.missing && st.missing.length) text += " · не хватает: " + st.missing.join(", ");
   if (st.error) text += " · ошибка: " + st.error;
   $("model-info").textContent = text;
-  $("model-progress").textContent = st.downloading ? "скачивание…" + (st.progress && st.progress.percent ? " " + Math.round(st.progress.percent) + "%" : "") : "";
+  let progressText = "";
+  if (st.downloading) {
+    progressText = "скачивание…";
+    if (st.progress) {
+      if (st.progress.percent) progressText += " " + Math.round(st.progress.percent) + "%";
+      if (st.progress.totalBytes) progressText += " (" + (st.progress.loadedBytes / 1048576).toFixed(1) + " / " + (st.progress.totalBytes / 1048576).toFixed(1) + " МБ)";
+      if (st.progress.file) progressText += " · " + st.progress.file;
+    }
+  }
+  $("model-progress").textContent = progressText;
   if (st.downloading) setTimeout(loadModel, 1500);
 }
 $("btn-model-download").onclick = async () => {
