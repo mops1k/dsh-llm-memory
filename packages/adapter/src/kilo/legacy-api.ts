@@ -20,6 +20,12 @@ export interface LegacyContext {
   saveConfig?: (next: KiloMemoryConfig) => void
 }
 
+/** Selected project of the panel; `all` and empty mean no filter. */
+function projectParam(params: URLSearchParams): string | undefined {
+  const value = (params.get('project') ?? '').trim()
+  return value === '' || value === 'all' ? undefined : value
+}
+
 function listFilter(params: URLSearchParams): MemoryFilter {
   const filter: MemoryFilter = { limit: 1000 }
   for (const key of ['scope', 'kind', 'tier', 'status'] as const) {
@@ -30,6 +36,8 @@ function listFilter(params: URLSearchParams): MemoryFilter {
   if (Number.isFinite(limit) && limit > 0) filter.limit = Math.min(limit, 5000)
   const offset = Number(params.get('offset'))
   if (Number.isFinite(offset) && offset > 0) filter.offset = Math.floor(offset)
+  const project = params.get('project')
+  if (project && project !== 'all') filter.project = project
   const sort = params.get('sort')
   if (sort === 'created' || sort === 'importance' || sort === 'updated') filter.sort = sort
   return filter
@@ -142,11 +150,11 @@ export async function handleLegacyApi(
     return true
   }
   if (path === '/status') {
-    json(200, { ok: true, status: service.status() })
+    json(200, { ok: true, status: service.status(projectParam(params)) })
     return true
   }
   if (path === '/projects') {
-    json(200, { ok: true, projects: Object.entries(service.store.projectRoots()).map(([key, root]) => ({ key, root })) })
+    json(200, { ok: true, projects: service.projects() })
     return true
   }
   if (path === '/config') {
@@ -202,12 +210,12 @@ export async function handleLegacyApi(
     }
   }
   if (path === '/graph') {
-    json(200, { ok: true, ...service.graph() })
+    json(200, { ok: true, ...service.graph(projectParam(params)) })
     return true
   }
   if (path === '/lint') {
     // The legacy page renders a markdown string, not a report object.
-    const items = service.store.list({ limit: 1_000_000 }).items
+    const items = service.store.list({ limit: 1_000_000, ...(projectParam(params) ? { project: projectParam(params) as string } : {}) }).items
     const active = items.filter(item => item.status === 'active')
     const ids = new Set(items.map(item => item.id))
     const broken: string[] = []
@@ -231,7 +239,7 @@ export async function handleLegacyApi(
   if (path === '/heal') {
     const body = await readJson(req)
     const mode = body['mode'] === 'apply-safe' ? 'apply-safe' : 'report'
-    const result = selfHeal(service.store.list({ limit: 1_000_000 }).items, mode)
+    const result = selfHeal(service.store.list({ limit: 1_000_000, ...(projectParam(params) ? { project: projectParam(params) as string } : {}) }).items, mode)
     if (mode === 'apply-safe') {
       for (const entry of result.items) {
         service.store.upsert(entry)

@@ -297,8 +297,8 @@ export class KiloService {
     return true
   }
 
-  status(): KiloStatus {
-    const items = this.store.list({ limit: 1_000_000 }).items
+  status(project?: string): KiloStatus {
+    const items = this.store.list({ limit: 1_000_000, ...(project ? { project } : {}) }).items
     const byScope: Record<string, number> = {}
     const byKind: Record<string, number> = {}
     const byConsolidation: Record<string, number> = {}
@@ -320,15 +320,24 @@ export class KiloService {
     }
   }
 
-  lint(): { issues: { entryId: string; kind: string; detail: string }[] } {
-    const report = selfHeal(this.store.list({ limit: 1_000_000 }).items, 'report')
+  /** Distinct project keys present in the store (raw paths as written by the harness). */
+  projects(): string[] {
+    const items = this.store.list({ limit: 1_000_000 }).items
+    const keys = new Set<string>()
+    for (const item of items) if (item.project) keys.add(item.project)
+    for (const key of Object.keys(this.store.projectRoots())) keys.add(key)
+    return [...keys].sort((left, right) => left.localeCompare(right))
+  }
+
+  lint(project?: string): { issues: { entryId: string; kind: string; detail: string }[] } {
+    const report = selfHeal(this.store.list({ limit: 1_000_000, ...(project ? { project } : {}) }).items, 'report')
     return {
       issues: report.issues.map(issue => ({ entryId: issue.entryId, kind: issue.kind, detail: issue.detail })),
     }
   }
 
-  graph(): MemoryGraph {
-    return buildGraph(this.store.list({ limit: 1_000_000 }).items)
+  graph(project?: string): MemoryGraph {
+    return buildGraph(this.store.list({ limit: 1_000_000, ...(project ? { project } : {}) }).items)
   }
 
   consolidate(): number {
