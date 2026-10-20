@@ -66,7 +66,7 @@ export function kiloMemoryTools(service: KiloService): Record<string, KiloTool> 
         limit: { type: 'number', description: 'Maximum entries.', optional: true },
       },
       async execute(args) {
-        const result = service.recall(asString(args, 'query'), {
+        const result = await service.recall(asString(args, 'query'), {
           ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
           ...(typeof args['scope'] === 'string' ? { scope: args['scope'] as 'global' | 'project' | 'all' } : {}),
           ...(typeof args['kind'] === 'string' ? { kind: args['kind'] as MemoryKind } : {}),

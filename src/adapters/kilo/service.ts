@@ -3,11 +3,30 @@
  * maintenance and graph. The adapter stays thin — all logic lives in core.
  */
 import { consolidate, crystallize as crystallizeEntries, reinforce, selfHeal, DEFAULT_MAINTENANCE } from '../../core/application/maintenance.js'
-import { DEFAULT_RANKING, KILO_RANKING_WEIGHTS, rankItems } from '../../core/application/ranking.js'
+import {
+  DEFAULT_RANKING,
+  IDENTIFIER_RANKING,
+  KILO_RANKING_WEIGHTS,
+  looksLikeIdentifierQuery,
+  rankItems,
+  rankItemsHybridDetailed,
+} from '../../core/application/ranking.js'
 import { buildGraph, deleteItemPage, initMemoryRoot, writeItemPage } from '../../core/application/wiki.js'
 import { entryFromKiloRow, entryToKiloRow } from '../../core/domain/mapping.js'
-import { clampImportance, type MemoryEntry, type MemoryGraph, type MemoryKind, type MemoryScope, type MemoryTier } from '../../core/domain/types.js'
-import { ModelManager, type ModelStatus } from '../../core/application/model-manager.js'
+import {
+  clampImportance,
+  type EmbeddingProvider,
+  type MemoryEntry,
+  type MemoryGraph,
+  type MemoryKind,
+  type MemoryScope,
+  type MemoryTier,
+  type VectorMap,
+  type VectorMapQuery,
+} from '../../core/domain/types.js'
+import type { EmbeddingQueueStatus } from '../../core/infrastructure/embed-queue.js'
+import { VectorLeg, type HealVectorsReport, type VectorHealth } from '../../core/application/vector-leg.js'
+import type { ModelStatus } from '../../core/application/model-manager.js'
 import { DEFAULT_CONFIG, type EmbeddingConfig, type MemoryConfig } from '../../core/domain/config.js'
 import { writeSettingValue } from '../../core/domain/settings-schema.js'
 import {
@@ -15,7 +34,6 @@ import {
   type UISettingsSnapshot,
 } from '../../core/domain/ui-contract.js'
 import { createBackup, deleteBackup, listBackups, resolveBackupDir, restoreBackup, verifyBackup, type BackupRecord, type BackupReport, type RestoreReport, type VerifyReport } from '../../core/infrastructure/backup.js'
-import { createEmbeddingProvider } from '../../core/infrastructure/embeddings.js'
 import { MemoryStore, newMemoryEntry } from '../../core/infrastructure/store.js'
 import { entryPathFor } from '../../core/layout/paths.js'
 import { createKiloLayout, type LayoutPort } from '../../core/layout/index.js'
@@ -60,6 +78,10 @@ export interface KiloServiceOptions {
   /** Repository root of the current Kilo window. */
   projectRoot?: string
   layout?: LayoutPort
+  /** Provider supplied by the host (tests); skips the embedding runtime. */
+  embeddingProvider?: EmbeddingProvider
+  /** Drive the embedding queue by hand instead of letting it run in the background. */
+  manualEmbeddings?: boolean
 }
 
 export interface SaveInput {
@@ -89,6 +111,8 @@ export interface RecallOptions {
 export interface RecallResult {
   items: MemoryEntry[]
   text: string
+  /** Retrieval legs that produced each entry (`bm25`, `vector`, `metadata`). */
+  sources?: Map<string, string[]>
 }
 
 export interface KiloStatus {
@@ -104,9 +128,12 @@ export class KiloService {
   readonly layout: LayoutPort
   readonly store: MemoryStore
   /** Embedding-model lifecycle shared with the other harnesses (core). */
-  readonly model: ModelManager
+  /** Shared vector stack: embeddings, semantic ranks, map, health. */
+  private vectorLeg: VectorLeg
   private readonly config: KiloMemoryConfig
   private readonly projectRoot: string | undefined
+  private readonly embeddingProvider: EmbeddingProvider | undefined
+  private readonly manualEmbeddings: boolean
 
   constructor(options: KiloServiceOptions) {
     this.config = options.config
@@ -115,16 +142,9 @@ export class KiloService {
     const root = options.config.memory.storageRoot || this.layout.userRoot()
     // Kilo keeps its database in <store>/db/memory.db (not the core _db dialect).
     this.store = new MemoryStore({ storageRoot: root, dbPath: join(root, 'db', 'memory.db') })
-    this.model = new ModelManager({
-      settings: this.embeddingsConfig(),
-      cacheDir: join(root, '_models'),
-      // The Kilo plugin ships as a single file, so there is no compiled
-      // `embed-worker.js` next to it: run the model in-process instead.
-      createProvider: (settings, options) => createEmbeddingProvider(settings, { ...options, inline: true }),
-      isConfigured: () => this.config.embeddings.provider !== 'off',
-      // The Kilo adapter has no vector leg yet (stage 9), so nothing is live.
-      isEnabled: () => false,
-    })
+    this.embeddingProvider = options.embeddingProvider
+    this.manualEmbeddings = options.manualEmbeddings === true
+    this.vectorLeg = this.createVectorLeg()
   }
 
   /** Kilo settings folded into the core embedding shape. */
@@ -207,22 +227,82 @@ export class KiloService {
       }
       if (!unsupported.includes(path)) applied.push(path)
     }
+    // The vector stack captured the old settings, provider and cache dir: rebuild
+    // it so a patched provider/model/backend takes effect without a restart.
+    if (applied.some(path => path.startsWith('embeddings.'))) {
+      this.vectorLeg.close()
+      this.vectorLeg = this.createVectorLeg()
+      this.vectorLeg.start()
+    }
     return { applied, unsupported }
   }
 
   /** State of the embedding model shown by the panel. */
   modelStatus(): ModelStatus {
-    return this.model.status()
+    return this.vectorLeg.modelStatus()
   }
 
   /** Start (or report) the model download. */
   downloadModel(): ModelStatus {
-    return this.model.download()
+    return this.vectorLeg.downloadModel()
   }
 
   /** Delete the cached model files. */
   removeModel(): ModelStatus {
-    return this.model.remove()
+    return this.vectorLeg.removeModel()
+  }
+
+  /** Progress of the semantic index, or null while the vector leg is off. */
+  vectorStatus(): EmbeddingQueueStatus | null {
+    return this.vectorLeg.status()
+  }
+
+  /** Drive the embedding queue to completion (tests, backfill, maintenance). */
+  async embedPending(ids?: readonly string[]): Promise<void> {
+    await this.vectorLeg.embedPending(ids)
+  }
+
+  /** Semantic map of the store (null while the leg is off or nothing is embedded). */
+  vectorsMap(options: { refresh?: boolean } = {}): VectorMap | null {
+    return this.vectorLeg.map(options)
+  }
+
+  /** Place a query on the semantic map (the panel's search marker). */
+  async projectQuery(text: string, limit = 5): Promise<VectorMapQuery | null> {
+    return this.vectorLeg.projectQuery(text, limit)
+  }
+
+  /** Vector table against the pages: orphans, missing, stale, broken. */
+  vectorHealth(): VectorHealth | null {
+    return this.vectorLeg.health()
+  }
+
+  /** Cheap vector repairs; re-embedding goes to the background queue. */
+  repairVectors(): HealVectorsReport {
+    return this.vectorLeg.repair()
+  }
+
+  /** Drop the vector cache and queue a full re-embed (panel action). */
+  rebuildVectors(): void {
+    this.vectorLeg.rebuild()
+  }
+
+  /**
+   * The vector stack for this service: the plugin is a single file without a
+   * worker entry point, so the model runs in-process; downloads fall back to
+   * plain files when the runtime is absent, and the weights stay in the store
+   * for a later runtime.
+   */
+  private createVectorLeg(): VectorLeg {
+    return new VectorLeg({
+      store: this.store,
+      settings: this.embeddingsConfig(),
+      cacheDir: join(this.store.root, '_models'),
+      inline: true,
+      fallbackDownload: true,
+      ...(this.embeddingProvider ? { injectedProvider: this.embeddingProvider } : {}),
+      manual: this.manualEmbeddings,
+    })
   }
 
   /** Validate paths, create the wiki root and open the store. */
@@ -234,6 +314,9 @@ export class KiloService {
     isolation.assertNoForeignPaths()
     initMemoryRoot(this.store.root)
     this.store.open()
+    // Build (or report) the semantic stack right away: recall degrades to the
+    // lexical leg on its own when the runtime or the model is missing.
+    this.vectorLeg.start()
   }
 
   save(input: SaveInput): MemoryEntry {
@@ -260,7 +343,7 @@ export class KiloService {
     return stored
   }
 
-  recall(query: string, options: RecallOptions = {}): RecallResult {
+  async recall(query: string, options: RecallOptions = {}): Promise<RecallResult> {
     const limit = options.limit ?? this.config.memory.recallLimit
     const scope = options.scope ?? (this.config.memory.recallScope === 'all' ? 'all' : this.config.memory.recallScope)
     const filter = {
@@ -269,11 +352,56 @@ export class KiloService {
       ...(options.kind && options.kind !== 'all' ? { kind: options.kind } : {}),
       limit: Math.max(limit * 4, 40),
     }
-    const found = query.trim().length > 0 ? this.store.search(query, filter) : this.store.list(filter).items
-    const ranked = rankItems(found, query, { ...DEFAULT_RANKING, weights: KILO_RANKING_WEIGHTS }).slice(0, limit)
-    const items = options.touch === false ? ranked : ranked.map(item => this.reinforced(item))
+    const text = query.trim()
+    const ranking = { ...DEFAULT_RANKING, weights: KILO_RANKING_WEIGHTS }
+    const preferScope: MemoryScope | 'all' = scope === 'all' ? 'all' : scope === 'global' ? 'user' : 'project'
+    if (text.length === 0) {
+      const found = this.store.list(filter).items
+      const ranked = rankItems(found, query, ranking, preferScope).slice(0, limit)
+      const items = options.touch === false ? ranked : ranked.map(item => this.reinforced(item))
+      const format = options.format ?? this.config.memory.recallFormat
+      return { items, text: renderRecall(items, format, this.config.memory.recallTextChars) }
+    }
+
+    const items = new Map<string, MemoryEntry>()
+    const bm25 = new Map<string, number>()
+    const lexical = this.store.searchRanked(text, filter)
+    for (const item of lexical.items) items.set(item.id, item)
+    for (const [id, score] of lexical.ranks) bm25.set(id, score)
+
+    const semantic = await this.vectorLeg.semanticRanks(text, filter)
+    // A semantic hit outside the lexical result set still has to be fetched.
+    for (const id of semantic.scores.keys()) {
+      if (items.has(id)) continue
+      const entry = this.store.get(id)
+      if (entry) items.set(id, entry)
+    }
+
+    // Exact literals are ranked by the lexical leg when it matched, otherwise a
+    // mistyped literal could be demoted by the vector leg (see IDENTIFIER_RANKING).
+    const rankingForQuery =
+      bm25.size > 0 && looksLikeIdentifierQuery(text) ? { ...IDENTIFIER_RANKING, weights: KILO_RANKING_WEIGHTS } : ranking
+    const hybrid = rankItemsHybridDetailed(
+      [...items.values()],
+      text,
+      rankingForQuery,
+      preferScope,
+      bm25,
+      semantic.scores,
+    )
+    const ranked = hybrid.items.slice(0, limit)
+    const sources = new Map<string, string[]>()
+    for (const entry of ranked) {
+      const found = hybrid.provenance.get(entry.id)
+      const legs: string[] = []
+      if (found?.bm25 !== undefined) legs.push('bm25')
+      if (found?.vector !== undefined) legs.push('vector')
+      legs.push('metadata')
+      sources.set(entry.id, legs)
+    }
+    const touched = options.touch === false ? ranked : ranked.map(item => this.reinforced(item))
     const format = options.format ?? this.config.memory.recallFormat
-    return { items, text: renderRecall(items, format, this.config.memory.recallTextChars) }
+    return { items: touched, text: renderRecall(touched, format, this.config.memory.recallTextChars), sources }
   }
 
   private reinforced(entry: MemoryEntry): MemoryEntry {
@@ -416,6 +544,7 @@ export class KiloService {
   }
 
   close(): void {
+    this.vectorLeg.close()
     this.store.close()
   }
 

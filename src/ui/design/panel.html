@@ -1206,16 +1206,68 @@ $("btn-cfg-save").onclick = async () => {
   loadConfig();
 };
 
-async function loadMap() {
-  $("map-out").innerHTML = '<p class="muted">Карта RAG недоступна: в Kilo векторный бэкенд включается на этапе 9. Модель можно скачать на вкладке «Модель», настройки RAG — во вкладке «Настройки».</p>';
+async function loadMap(refresh) {
+  const out = $("map-out");
+  const rebuild = $("btn-map-rebuild");
+  out.innerHTML = '<span class="muted">Загрузка карты…</span>';
+  const health = await api("GET", "/vectors/health");
+  const r = await api("GET", "/vectors/map" + (refresh ? "?refresh=1" : ""));
+  const usable = !!(r && r.ok && r.map);
+  rebuild.disabled = !usable;
+  rebuild.title = usable
+    ? "Пересобрать векторы заново (очередь эмбеддингов)"
+    : "Включите провайдер «local» во вкладке «Настройки» и скачайте модель на вкладке «Модель»";
+  if (!usable) {
+    const missing = health && health.health ? (health.health.missing || []).length : null;
+    const hint = missing === null ? "" : " Записей без векторов: " + missing + ".";
+    out.innerHTML = '<p class="muted">Карта RAG пока пуста: векторная нога выключена или модель не загружена.' + hint +
+      ' Включите провайдер «local» в настройках и скачайте модель на вкладке «Модель».</p>';
+    return;
+  }
+  const map = r.map;
+  const pts = map.points || [];
+  const width = 720, height = 440, pad = 28;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  }
+  if (!isFinite(minX)) { minX = maxX = minY = maxY = 0; }
+  const spanX = Math.max(1e-6, maxX - minX), spanY = Math.max(1e-6, maxY - minY);
+  const scale = Math.min((width - 2 * pad) / spanX, (height - 2 * pad) / spanY);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const sx = p => width / 2 + (p.x - cx) * scale;
+  const sy = p => height / 2 - (p.y - cy) * scale;
+  const dots = pts.map(p =>
+    '<circle cx="' + sx(p).toFixed(1) + '" cy="' + sy(p).toFixed(1) + '" r="5" fill="var(--acc, #5b8cff)" opacity="0.85">' +
+    '<title>' + esc(p.title) + ' — ' + esc(p.kind) + '/' + esc(p.scope) + ', чанков ' + (p.chunks || 0) + '</title></circle>'
+  ).join("");
+  const query = r.query;
+  const marker = query
+    ? '<circle cx="' + sx(query).toFixed(1) + '" cy="' + sy(query).toFixed(1) + '" r="8" fill="none" stroke="var(--err, #ff5b7f)" stroke-width="2"><title>Запрос: ' + esc(String(query.model || "")) + '</title></circle>'
+    : "";
+  out.innerHTML =
+    '<p class="muted">Модель ' + esc(map.model) + ' · записей ' + map.entries + ' · чанков ' + map.chunks +
+    ' · backend ' + esc(map.backend) + ' · оси объясняют ' + Math.round((map.explained[0] + map.explained[1]) * 100) + '% дисперсии' +
+    (map.cached ? " · из кэша" : "") + '</p>' +
+    '<svg viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:auto;background:var(--bg2);border:1px solid var(--line);border-radius:12px">' +
+    '<line x1="' + pad + '" y1="' + (height / 2) + '" x2="' + (width - pad) + '" y2="' + (height / 2) + '" stroke="var(--line)" stroke-dasharray="4 4"/>' +
+    '<line x1="' + (width / 2) + '" y1="' + pad + '" x2="' + (width / 2) + '" y2="' + (height - pad) + '" stroke="var(--line)" stroke-dasharray="4 4"/>' +
+    dots + marker + '</svg>';
 }
-$("btn-map-refresh").onclick = loadMap;
-$("btn-map-rebuild").onclick = () => toast("Векторный бэкенд в Kilo ещё не включён", true);
+$("btn-map-refresh").onclick = () => loadMap(true);
+$("btn-map-rebuild").onclick = async () => {
+  $("btn-map-rebuild").disabled = true;
+  const r = await api("POST", "/vectors/rebuild");
+  if (!r || !r.ok) { toast("Не удалось пересобрать векторы", true); return; }
+  toast("Векторы пересобираются в фоне");
+  await loadMap(true);
+};
 $("btn-recall").onclick = async () => {
   const query = ($("recall-q").value || "").trim();
   if (!query) { $("recall-out").innerHTML = '<span class="muted">Введите запрос…</span>'; return; }
   $("recall-out").innerHTML = '<span class="muted">Поиск…</span>';
-  const r = await api("GET", "/items?q=" + encodeURIComponent(query) + "&limit=20", undefined, true);
+  const r = await api("GET", "/recall?q=" + encodeURIComponent(query) + "&limit=20", undefined, true);
   if (!r.ok) { $("recall-out").textContent = r.error || "Ошибка поиска"; return; }
   $("recall-out").innerHTML = (r.items || []).length
     ? r.items.map(item => '<div class="report"><h4>' + esc(item.title) + '</h4><p class="muted">' + esc(item.kind) + ' · ' + esc(item.updated || "") + '</p><p>' + esc(String(item.content || "").slice(0, 240)) + '</p></div>').join("")

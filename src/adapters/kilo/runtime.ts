@@ -59,9 +59,9 @@ export function createKiloRuntime(options: {
   /** Frozen mode: cache the injected block per session (spike A7: base is stable). */
   const frozenBlocks = new Map<string, string>()
 
-  function digest(): string {
-    const rules = service.recall('', { kind: 'rules', limit: 5, touch: false })
-    const prefs = service.recall('', { kind: 'preferences', limit: 3, touch: false })
+  async function digest(): Promise<string> {
+    const rules = await service.recall('', { kind: 'rules', limit: 5, touch: false })
+    const prefs = await service.recall('', { kind: 'preferences', limit: 3, touch: false })
     const items = [...rules.items, ...prefs.items]
     if (items.length === 0) return ''
     const lines = items.map(item => `- [${item.kind}] ${item.title}`)
@@ -72,7 +72,7 @@ export function createKiloRuntime(options: {
     tool,
     'experimental.chat.system.transform': async (input, output) => {
       const sessionID = input.sessionID ?? defaultSession
-      const block = `${KILO_GUIDE}\n${digest()}`
+      const block = `${KILO_GUIDE}\n${await digest()}`
       if (config.memory.promptMode === 'frozen') {
         const cached = frozenBlocks.get(sessionID)
         const text = cached ?? block

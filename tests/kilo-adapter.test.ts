@@ -28,39 +28,39 @@ function service(configPatch: Partial<typeof DEFAULT_KILO_CONFIG.memory> = {}): 
 }
 
 describe('kilo adapter service', () => {
-  it('saves entries as pages and returns them from recall', () => {
+  it('saves entries as pages and returns them from recall', async () => {
     const { svc, root } = service()
     const saved = svc.save({ text: 'Правило: коммит после каждого шага', kind: 'rules', scope: 'global' })
     expect(saved.id).toMatch(/^m_/)
     expect(existsSync(join(root, '_user'))).toBe(true)
-    const recalled = svc.recall('коммит')
+    const recalled = await svc.recall('коммит')
     expect(recalled.items[0]?.id).toBe(saved.id)
     expect(recalled.text).toContain('коммит после каждого шага')
     svc.close()
   })
 
-  it('supports project scope, formats and reinforcement', () => {
+  it('supports project scope, formats and reinforcement', async () => {
     const { svc, repo } = service()
     const entry = svc.save({ text: 'Project fact about pnpm builds', scope: 'project', importance: 4 })
     expect(existsSync(join(repo, '.kilo', 'memory'))).toBe(true)
-    const first = svc.recall('pnpm')
+    const first = await svc.recall('pnpm')
     expect(first.items[0]?.accessCount).toBe(1)
     expect(first.items[0]?.lastAccess).toBeTruthy()
-    const second = svc.recall('pnpm')
+    const second = await svc.recall('pnpm')
     expect(second.items[0]?.accessCount).toBe(2)
-    const json = svc.recall('pnpm', { format: 'json' })
+    const json = await svc.recall('pnpm', { format: 'json' })
     expect(JSON.parse(json.text)[0].id).toBe(entry.id)
-    const table = svc.recall('pnpm', { format: 'table' })
+    const table = await svc.recall('pnpm', { format: 'table' })
     expect(table.text).toContain('| kind | title | excerpt |')
     svc.close()
   })
 
-  it('forget is soft, delete is hard, status and lint work', () => {
+  it('forget is soft, delete is hard, status and lint work', async () => {
     const { svc } = service()
     const a = svc.save({ text: 'first entry body', scope: 'global' })
     const b = svc.save({ text: 'second entry body', scope: 'global' })
     expect(svc.forget(a.id)).toBe(true)
-    expect(svc.recall('first').items).toHaveLength(0)
+    expect((await svc.recall('first')).items).toHaveLength(0)
     expect(svc.delete(b.id)).toBe(true)
     const status = svc.status()
     expect(status.total).toBe(1)

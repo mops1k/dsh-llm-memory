@@ -22,7 +22,7 @@ import {
 } from '../domain/config.js'
 import { entryChunks } from './chunks.js'
 import type { EmbeddingQueueStatus } from '../infrastructure/embed-queue.js'
-import { appendLog, debug } from '../infrastructure/log.js'
+import { appendLog } from '../infrastructure/log.js'
 import { sanitizeProjectKey } from '../layout/paths.js'
 import {
   DEFAULT_RANKING,
@@ -52,7 +52,6 @@ import type {
   MemoryStatus,
   MemoryTier,
   VectorMap,
-  VectorMapPoint,
   VectorMapQuery,
 } from '../domain/types.js'
 import { clampImportance } from '../domain/types.js'

@@ -173,6 +173,33 @@ export async function handleLegacyApi(
     json(200, { ok: true, ...result, config })
     return true
   }
+  if (path === '/vectors/status') {
+    json(200, { ok: true, status: service.vectorStatus() })
+    return true
+  }
+  if (path === '/vectors/health') {
+    json(200, { ok: true, health: service.vectorHealth() })
+    return true
+  }
+  if (path === '/vectors/map') {
+    const refresh = params.get('refresh') === '1' || params.get('refresh') === 'true'
+    const map = service.vectorsMap({ refresh })
+    const query = (params.get('q') ?? '').trim()
+    const limit = Math.max(1, Math.min(20, Number(params.get('limit') ?? 5) || 5))
+    const projected = query.length > 0 ? await service.projectQuery(query, limit) : null
+    json(200, { ok: true, map, query: projected })
+    return true
+  }
+  if (path === '/vectors/rebuild' && method === 'POST') {
+    service.rebuildVectors()
+    json(200, { ok: true, status: service.vectorStatus() })
+    return true
+  }
+  if (path === '/vectors/embed' && method === 'POST') {
+    await service.embedPending()
+    json(200, { ok: true, status: service.vectorStatus() })
+    return true
+  }
   if (path === '/model/status') {
     json(200, { ok: true, status: service.modelStatus() })
     return true
@@ -212,6 +239,22 @@ export async function handleLegacyApi(
       ctx.saveConfig?.(config)
       json(200, { ok: true, config })
     }
+    return true
+  }
+  if (path === '/recall') {
+    const query = (params.get('q') ?? params.get('query') ?? '').trim()
+    if (query.length === 0) {
+      json(200, { ok: true, items: [], text: '' })
+      return true
+    }
+    const limit = Math.max(1, Math.min(50, Number(params.get('limit') ?? 20) || 20))
+    const result = await service.recall(query, { limit })
+    json(200, {
+      ok: true,
+      items: result.items.map(toItem),
+      text: result.text,
+      sources: Object.fromEntries(result.sources ?? []),
+    })
     return true
   }
   if (path === '/items' && method === 'GET') {

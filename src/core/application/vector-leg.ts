@@ -386,7 +386,6 @@ export class VectorLeg {
    * @throws when the vector leg is disabled, because nothing would use the model.
    */
   downloadModel(): ModelStatus {
-    const settings = this.settings
     if (!this.configured()) {
       throw new Error(
         'Vector search is disabled: switch the embeddings provider to "local" and the backend away from "off" first.',
