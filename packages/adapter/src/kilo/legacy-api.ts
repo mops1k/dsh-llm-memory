@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs'
 import { selfHeal } from '@llm-memory/core/application/maintenance'
 import { clampImportance, type MemoryEntry, type MemoryFilter } from '@llm-memory/core/domain/types'
 import { writeItemPage } from '@llm-memory/core/application/wiki'
+import { panelSnapshot } from '@llm-memory/core/domain/ui-contract'
 
 import type { KiloService } from './service.js'
 import type { KiloMemoryConfig } from './config.js'
@@ -164,6 +165,10 @@ export async function handleLegacyApi(
     } catch (error) {
       json(400, { ok: false, error: error instanceof Error ? error.message : String(error) })
     }
+    return true
+  }
+  if (path === '/ui/snapshot') {
+    json(200, panelSnapshot('ru'))
     return true
   }
   if (path === '/settings/snapshot') {

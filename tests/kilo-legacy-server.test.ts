@@ -56,6 +56,20 @@ describe('kilo legacy panel API', () => {
     expect(model.status).toHaveProperty('cached')
   })
 
+  it('serves the universal UI snapshot with the panel screens', async () => {
+    const base = await start()
+    const snapshot = await (await fetch(`${base}api/legacy/ui/snapshot`)).json()
+    expect(snapshot.version).toBeGreaterThan(0)
+    const ids = snapshot.views.map((view: { id: string }) => view.id)
+    for (const required of ['overview', 'items', 'editor', 'graph', 'map', 'recall', 'health', 'settings', 'backup', 'model']) {
+      expect(ids).toContain(required)
+    }
+    const titles = snapshot.views.map((view: { title: string }) => view.title)
+    expect(titles).toContain('Карта RAG')
+    expect(titles).toContain('Бэкапы')
+    expect(snapshot.actions.length).toBeGreaterThan(0)
+  })
+
   it('creates, lists, verifies and deletes a backup through the panel API', async () => {
     const base = await start()
     const created = await (await fetch(`${base}api/legacy/backups/create`, { method: 'POST' })).json()

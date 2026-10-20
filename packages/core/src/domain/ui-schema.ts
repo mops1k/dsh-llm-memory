@@ -292,3 +292,10 @@ export function uiReferencedActions(): string[] {
 
 /** Known action ids (the settings registry owns them). */
 export const UI_KNOWN_ACTIONS: readonly string[] = SETTINGS_ACTIONS.map(action => action.id)
+
+
+/** Views with the titles of the requested locale (English is the base). */
+export function localizedViews(locale: 'en' | 'ru'): UIView[] {
+  if (locale === 'en') return UI_VIEWS.map(view => view)
+  return UI_VIEWS.map(view => ({ ...view, title: view.titleRu ?? view.title }))
+}

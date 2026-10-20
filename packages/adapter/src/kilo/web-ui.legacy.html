@@ -258,14 +258,7 @@
       </svg>
       LLM Memory
     </div>
-    <nav class="nav">
-      <button class="nav-btn active" data-tab="overview"><svg class="ic"><use href="#i-grid"/></svg> Обзор</button>
-      <button class="nav-btn" data-tab="items"><svg class="ic"><use href="#i-layers"/></svg> Записи</button>
-      <button class="nav-btn" data-tab="create"><svg class="ic"><use href="#i-plus"/></svg> Создать</button>
-      <button class="nav-btn" data-tab="graph"><svg class="ic"><use href="#i-share"/></svg> Граф</button>
-      <button class="nav-btn" data-tab="health"><svg class="ic"><use href="#i-activity"/></svg> Здоровье</button>
-      <button class="nav-btn" data-tab="settings"><svg class="ic"><use href="#i-sliders"/></svg> Настройки</button>
-    </nav>
+    <nav class="nav" id="nav"></nav>
     <div class="spacer"></div>
     <div class="foot" id="hdr-project">проект не определён</div>
   </aside>
@@ -321,6 +314,13 @@
             </span>
           </div>
           <div id="items-grid" class="cards"></div>
+        </div>
+        <div class="card">
+<p class="muted" style="margin-top:16px"><b>Импорт</b></p>
+          <div class="toolbar">
+            <button class="btn" id="btn-import">Импортировать память</button>
+            <span class="muted" id="import-info"></span>
+          </div>
         </div>
       </section>
 
@@ -403,27 +403,54 @@
           <div class="toolbar"><button class="btn secondary" id="btn-cfg-load"><svg class="ic"><use href="#i-refresh"/></svg> Перечитать</button><button class="btn" id="btn-cfg-save"><svg class="ic"><use href="#i-save"/></svg> Сохранить (применить сразу)</button></div>
           <p class="muted">Настройки пишутся в <code>~/.config/kilo/llm-memory.json</code> и применяются к активному движку сразу. Старый файл <code>kilo-memory.json</code> читается как fallback.</p>
           <div id="cfg-body"></div>
-          <p class="muted" style="margin-top:16px"><b>Модель эмбеддингов</b></p>
-          <p class="muted" id="model-info">Загрузка статуса…</p>
+                  </div>
+      </section>
+      <section id="tab-recall">
+        <div class="card">
           <div class="toolbar">
-            <button class="btn" id="btn-model-download">Скачать модель</button>
-            <button class="btn secondary" id="btn-model-remove"><svg class="ic"><use href="#i-trash"/></svg> Удалить модель</button>
-            <span class="muted" id="model-progress"></span>
+            <input id="recall-q" placeholder="Поиск по памяти" style="min-width:280px">
+            <button class="btn" id="btn-recall">Искать</button>
           </div>
-          <p class="muted" style="margin-top:16px"><b>Бэкапы</b></p>
+          <div id="recall-out" class="report"><span class="muted">Введите запрос…</span></div>
+        </div>
+      </section>
+
+      <section id="tab-map">
+        <div class="card">
+          <div class="toolbar">
+            <button class="btn secondary" id="btn-map-refresh">Обновить карту</button>
+            <button class="btn secondary" id="btn-map-rebuild" disabled title="Векторный бэкенд в Kilo включается на этапе 9">Перестроить векторы</button>
+          </div>
+          <div class="report" id="map-out"><span class="muted">Загрузка…</span></div>
+        </div>
+      </section>
+
+      <section id="tab-backup">
+        <div class="card">
+<p class="muted" style="margin-top:16px"><b>Бэкапы</b></p>
           <div class="toolbar">
             <button class="btn" id="btn-backup-create">Создать бэкап</button>
             <button class="btn secondary" id="btn-backup-refresh">Обновить список</button>
             <span class="muted" id="backup-info"></span>
           </div>
           <div id="backup-list"></div>
-          <p class="muted" style="margin-top:16px"><b>Импорт</b></p>
-          <div class="toolbar">
-            <button class="btn" id="btn-import">Импортировать память</button>
-            <span class="muted" id="import-info"></span>
-          </div>
+          
         </div>
       </section>
+
+      <section id="tab-model">
+        <div class="card">
+<p class="muted" style="margin-top:16px"><b>Модель эмбеддингов</b></p>
+          <p class="muted" id="model-info">Загрузка статуса…</p>
+          <div class="toolbar">
+            <button class="btn" id="btn-model-download">Скачать модель</button>
+            <button class="btn secondary" id="btn-model-remove"><svg class="ic"><use href="#i-trash"/></svg> Удалить модель</button>
+            <span class="muted" id="model-progress"></span>
+          </div>
+          
+        </div>
+      </section>
+
     </main>
   </div>
 </div>
@@ -483,7 +510,35 @@ function splitIds(v) { return (v || "").split(",").map(s => s.trim()).filter(Boo
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function firstLines(text, max) { const s = String(text || "").replace(/\s+/g, " ").trim(); return s.length > max ? s.slice(0, max) + "…" : s; }
 
-const TITLES = { overview: "Обзор", items: "Записи", create: "Создать запись", graph: "Граф памяти", health: "Здоровье памяти", settings: "Настройки" };
+const TITLES = { overview: "Обзор", items: "Записи", create: "Создать запись", graph: "Граф памяти", map: "Карта RAG", recall: "Поиск", health: "Здоровье памяти", settings: "Настройки", backup: "Бэкапы", model: "Модель" };
+const KILO_VIEWS = {
+  overview: { icon: "grid", section: "overview" },
+  items: { icon: "layers", section: "items" },
+  editor: { icon: "plus", section: "create" },
+  graph: { icon: "share", section: "graph" },
+  map: { icon: "activity", section: "map" },
+  recall: { icon: "search", section: "recall" },
+  health: { icon: "check", section: "health" },
+  settings: { icon: "sliders", section: "settings" },
+  backup: { icon: "database", section: "backup" },
+  model: { icon: "layers", section: "model" },
+};
+async function loadNav() {
+  try {
+    const snapshot = await api("GET", "/ui/snapshot");
+    const views = (snapshot.views || []).filter(view => KILO_VIEWS[view.id]);
+    if (!views.length) return;
+    $("nav").innerHTML = views.map(view => {
+      const meta = KILO_VIEWS[view.id];
+      const section = meta.section || view.id;
+      TITLES[section] = view.title;
+      return '<button class="nav-btn" data-tab="' + section + '"><svg class="ic"><use href="#i-' + meta.icon + '"/></svg> ' + esc(view.title) + '</button>';
+    }).join("");
+    document.querySelectorAll(".nav-btn").forEach(button => (button.onclick = () => switchTab(button.dataset.tab)));
+  } catch (error) {
+    /* the static markup fallback is not rendered; keep the default tab */
+  }
+}
 function switchTab(name) {
   currentTab = name;
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
@@ -492,6 +547,11 @@ function switchTab(name) {
   if (name === "overview") loadOverview();
   if (name === "items") loadItems(false);
   if (name === "graph") loadGraph();
+  if (name === "map") loadMap();
+  if (name === "recall") $("recall-q").focus();
+  if (name === "backup") loadBackups();
+  if (name === "model") loadModel();
+  if (name === "settings") loadConfig();
 }
 document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 
@@ -1079,8 +1139,26 @@ $("btn-cfg-save").onclick = async () => {
   loadConfig();
 };
 
+async function loadMap() {
+  $("map-out").innerHTML = '<p class="muted">Карта RAG недоступна: в Kilo векторный бэкенд включается на этапе 9. Модель можно скачать на вкладке «Модель», настройки RAG — во вкладке «Настройки».</p>';
+}
+$("btn-map-refresh").onclick = loadMap;
+$("btn-map-rebuild").onclick = () => toast("Векторный бэкенд в Kilo ещё не включён", true);
+$("btn-recall").onclick = async () => {
+  const query = ($("recall-q").value || "").trim();
+  if (!query) { $("recall-out").innerHTML = '<span class="muted">Введите запрос…</span>'; return; }
+  $("recall-out").innerHTML = '<span class="muted">Поиск…</span>';
+  const r = await api("GET", "/items?q=" + encodeURIComponent(query) + "&limit=20", undefined, true);
+  if (!r.ok) { $("recall-out").textContent = r.error || "Ошибка поиска"; return; }
+  $("recall-out").innerHTML = (r.items || []).length
+    ? r.items.map(item => '<div class="report"><h4>' + esc(item.title) + '</h4><p class="muted">' + esc(item.kind) + ' · ' + esc(item.updated || "") + '</p><p>' + esc(String(item.content || "").slice(0, 240)) + '</p></div>').join("")
+    : '<span class="muted">Ничего не найдено.</span>';
+};
+$("recall-q").addEventListener("keydown", (event) => { if (event.key === "Enter") $("btn-recall").click(); });
+
 (async function init() {
   applyTheme();
+  await loadNav();
   $("pager-size").value = String(itemsLimit);
   await loadHealthHeader();
   await loadProjects();

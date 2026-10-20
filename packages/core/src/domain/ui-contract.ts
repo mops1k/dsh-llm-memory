@@ -9,6 +9,7 @@ import {
   UI_OPERATIONS,
   UI_SCHEMA_VERSION,
   UI_VIEWS,
+  localizedViews,
   type UIView,
 } from './ui-schema.js'
 import {
@@ -97,8 +98,13 @@ export interface UIPanelSnapshot {
 }
 
 /** Screens/actions without settings values (dsh keeps settings in its own service). */
-export function panelSnapshot(): UIPanelSnapshot {
-  return { version: UI_SCHEMA_VERSION, views: UI_VIEWS, actions: SETTINGS_ACTIONS, operations: UI_OPERATIONS }
+export function panelSnapshot(locale: 'en' | 'ru' = 'en'): UIPanelSnapshot {
+  return {
+    version: UI_SCHEMA_VERSION,
+    views: locale === 'en' ? UI_VIEWS : localizedViews('ru'),
+    actions: SETTINGS_ACTIONS,
+    operations: UI_OPERATIONS,
+  }
 }
 
 /** One payload every panel renders; design and embedding stay host-specific. */
