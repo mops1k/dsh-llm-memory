@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -68,6 +68,18 @@ describe('kilo legacy panel API', () => {
     expect(titles).toContain('Карта RAG')
     expect(titles).toContain('Бэкапы')
     expect(snapshot.actions.length).toBeGreaterThan(0)
+  })
+
+  it('resolves a relative backupDir inside the store, not the process cwd', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'kilo-backup-dir-'))
+    dirs.push(root)
+    const config = resolveKiloConfig({ memory: { storageRoot: root, backupDir: 'backups' }, web: { enabled: false } })
+    const created = new KiloService({ config })
+    created.init()
+    service = created
+    const report = created.backupCreate()
+    expect(report.archive.startsWith(join(root, 'backups'))).toBe(true)
+    expect(existsSync(report.archive)).toBe(true)
   })
 
   it('creates, lists, verifies and deletes a backup through the panel API', async () => {

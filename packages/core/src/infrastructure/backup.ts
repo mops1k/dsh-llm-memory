@@ -16,7 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, win32 } from 'node:path'
 
 import { CORE_SCHEMA_VERSION, ensureSchemaV2 } from './schema.js'
 import { ensureRevisionsTable } from '../sync/index.js'
@@ -542,3 +542,17 @@ export type { BackupManifest as Manifest }
 
 /** ZIP helpers exposed for tests that need to craft malformed archives. */
 export const __archive = { zipWrite, zipRead }
+
+
+/**
+ * Directory backups are written to: empty means `<store>/backups`, a relative
+ * value is resolved against the store (never against the process cwd, which is
+ * why archives used to land in an unexpected folder), absolute Windows/UNC and
+ * Linux paths are kept as-is.
+ */
+export function resolveBackupDir(storeDir: string, backupDir: string | undefined): string {
+  const value = (backupDir ?? '').trim()
+  if (value.length === 0) return join(storeDir, 'backups')
+  if (isAbsolute(value) || win32.isAbsolute(value)) return value
+  return join(storeDir, value)
+}

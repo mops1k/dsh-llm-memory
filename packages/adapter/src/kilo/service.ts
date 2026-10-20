@@ -15,7 +15,8 @@ import {
   type UISettingsSnapshot,
 } from '@llm-memory/core/domain/ui-contract'
 import { runImport, type ImportReport } from '@llm-memory/core/infrastructure/import/index'
-import { createBackup, deleteBackup, listBackups, restoreBackup, verifyBackup, type BackupRecord, type BackupReport, type RestoreReport, type VerifyReport } from '@llm-memory/core/infrastructure/backup'
+import { createBackup, deleteBackup, listBackups, resolveBackupDir, restoreBackup, verifyBackup, type BackupRecord, type BackupReport, type RestoreReport, type VerifyReport } from '@llm-memory/core/infrastructure/backup'
+import { createEmbeddingProvider } from '@llm-memory/core/infrastructure/embeddings'
 import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
 import { entryPathFor } from '@llm-memory/core/layout/paths'
 import { createKiloLayout, type LayoutPort } from '@llm-memory/core/layout/index'
@@ -120,6 +121,9 @@ export class KiloService {
     this.model = new ModelManager({
       settings: this.embeddingsConfig(),
       cacheDir: join(root, '_models'),
+      // The Kilo plugin ships as a single file, so there is no compiled
+      // `embed-worker.js` next to it: run the model in-process instead.
+      createProvider: (settings, options) => createEmbeddingProvider(settings, { ...options, inline: true }),
       isConfigured: () => this.config.embeddings.provider !== 'off',
       // The Kilo adapter has no vector leg yet (stage 9), so nothing is live.
       isEnabled: () => false,
@@ -133,7 +137,7 @@ export class KiloService {
     return {
       ...defaults,
       provider: embeddings.provider,
-      model: embeddings.model,
+      model: embeddings.model.includes('/') ? embeddings.model : `Xenova/${embeddings.model}`,
       dim: embeddings.dim,
       topK: embeddings.topK,
       minScore: embeddings.minScore,
@@ -359,7 +363,7 @@ export class KiloService {
       storeDir,
       dbPath: this.store.dbPath,
       projectDirs: this.projectRoot ? [join(this.projectRoot, KILO_PROJECT_DIR)] : [],
-      backupsDir: this.config.memory.backupDir || join(storeDir, 'backups'),
+      backupsDir: resolveBackupDir(storeDir, this.config.memory.backupDir),
     }
   }
 

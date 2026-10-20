@@ -433,6 +433,8 @@
             <button class="btn secondary" id="btn-backup-refresh">Обновить список</button>
             <span class="muted" id="backup-info"></span>
           </div>
+          <p class="muted" id="backup-dir">Куда сохраняются: —</p>
+          <p class="muted" id="backup-last"></p>
           <div id="backup-list"></div>
           
         </div>
@@ -1075,13 +1077,15 @@ async function loadBackups() {
   const r = await api("GET", "/backups");
   if (!r.ok) { $("backup-info").textContent = r.error || "Не удалось получить список"; return; }
   const list = r.backups || [];
+  if (r.backupsDir) $("backup-dir").textContent = "Куда сохраняются: " + r.backupsDir;
   $("backup-info").textContent = list.length + " архив(ов)";
   if (!list.length) { $("backup-list").innerHTML = '<p class="muted">Бэкапов пока нет.</p>'; return; }
   $("backup-list").innerHTML = list.map(b => {
     const name = String(b.archive).split(/[\\/]/).pop();
     const size = b.bytes ? (b.bytes / 1048576).toFixed(1) + " МБ" : "0 Б";
     return '<div class="cfg-group"><div class="toolbar" style="justify-content:space-between">' +
-      '<span>' + esc(name) + ' · ' + esc(b.createdAt) + ' · ' + size + (b.encrypted ? " · шифр" : "") + '</span>' +
+      '<span title="' + esc(b.archive) + '">' + esc(name) + ' · ' + esc(b.createdAt) + ' · ' + size + (b.encrypted ? " · шифр" : "") +
+      '<br><span class="muted">' + esc(b.archive) + '</span></span>' +
       '<span><button class="btn secondary" data-backup-verify="' + esc(name) + '">Проверить</button> ' +
       '<button class="btn secondary" data-backup-restore="' + esc(name) + '">Восстановить</button> ' +
       '<button class="btn secondary" data-backup-delete="' + esc(name) + '">Удалить</button></span></div></div>';
@@ -1112,6 +1116,13 @@ $("btn-backup-create").onclick = async () => {
   $("backup-info").textContent = "создание…";
   const r = await api("POST", "/backups/create", {}, true);
   if (!r.ok) { toast(r.error || "Не удалось создать бэкап", true); $("backup-info").textContent = ""; return; }
+  const archive = (r.report && r.report.archive) || "";
+  $("backup-last").innerHTML = archive
+    ? 'Создан: <code>' + esc(archive) + '</code> <button class="btn secondary" id="btn-backup-copy">Копировать путь</button>'
+    : "";
+  if (archive) $("btn-backup-copy").onclick = () => {
+    navigator.clipboard.writeText(archive).then(() => toast("Путь скопирован"), () => toast("Не удалось скопировать", true));
+  };
   toast("Бэкап создан: " + Math.round((r.report.bytes || 0) / 1024) + " КБ");
   loadBackups();
 };

@@ -4,7 +4,7 @@
  */
 import { join } from 'node:path'
 
-import { createBackup, deleteBackup, listBackups, restoreBackup, verifyBackup } from '@llm-memory/core/infrastructure/backup'
+import { createBackup, deleteBackup, listBackups, resolveBackupDir, restoreBackup, verifyBackup } from '@llm-memory/core/infrastructure/backup'
 import type { MemoryEngine } from '@llm-memory/core/application/engine'
 import { DshUiHost, type UiOperation } from '@llm-memory/ui/headless/host'
 
@@ -20,7 +20,7 @@ export interface DshBridge {
 }
 
 function backupsDirOf(options: DshBridgeOptions): string {
-  return options.backupsDir ?? (options.engine.config.backupDir || join(options.storageRoot, 'backups'))
+  return options.backupsDir ?? resolveBackupDir(options.storageRoot, options.engine.config.backupDir)
 }
 
 export function createDshBridge(options: DshBridgeOptions): DshBridge {

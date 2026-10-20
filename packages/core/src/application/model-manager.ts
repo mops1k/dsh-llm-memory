@@ -9,6 +9,7 @@
 import type { EmbeddingConfig } from '../domain/config.js'
 import type { EmbeddingProvider } from '../domain/types.js'
 import { createEmbeddingProvider, type EmbeddingProviderOptions } from '../infrastructure/embeddings.js'
+import { downloadModelFiles, type FetchLike } from '../infrastructure/model-download.js'
 import {
   removeModelCache,
   scanModelCache,
@@ -50,6 +51,8 @@ export interface ModelManagerOptions {
   isEnabled?: () => boolean
   /** Called once a download actually put the model on disk. */
   onCached?: () => void
+  /** HTTP client for the download-only fallback (tests stub it). */
+  fetchImpl?: FetchLike
   debug?: (message: string) => void
 }
 
@@ -132,7 +135,10 @@ export class ModelManager {
     }
     const provider = this.providerFor()
     if (!provider) {
-      throw new Error('No embedding provider is available; install @huggingface/transformers and retry.')
+      // No embedding runtime in this host (a single-file plugin): fall back to a
+      // plain file download so the weights are on disk for a later runtime.
+      void this.downloadFilesOnly(this.options.settings.model)
+      return this.status()
     }
     if (this.state.downloading) return this.status()
 
@@ -173,17 +179,42 @@ export class ModelManager {
         }
       })
       .catch((error: unknown) => {
-        this.state = {
-          downloading: false,
-          progress: null,
-          error: error instanceof Error ? error.message : String(error),
-        }
-        this.options.debug?.(`embeddings: model download failed (${this.state.error})`)
+        // The runtime may be unusable in this host (missing native modules in a
+        // bundled plugin); the files themselves can still be fetched.
+        this.options.debug?.(`embeddings: provider download failed (${error instanceof Error ? error.message : String(error)}); falling back to a plain file download`)
+        void this.downloadFilesOnly(model)
       })
       .finally(() => {
         provider.watchProgress?.(null)
       })
     return this.status()
+  }
+
+  /** Fetch the model files over HTTP without loading the model. */
+  private async downloadFilesOnly(model: string): Promise<void> {
+    this.state = { downloading: true, progress: null, error: null }
+    try {
+      const result = await downloadModelFiles({
+        cacheDir: this.options.cacheDir,
+        model,
+        onProgress: progress => {
+          this.state.progress = progress
+        },
+        debug: this.options.debug,
+        ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+      })
+      const after = scanModelCache(this.options.cacheDir, model)
+      this.options.debug?.(`embeddings: downloaded ${result.files} files (${result.bytes} bytes) of ${model} without loading it`)
+      this.state = { downloading: false, progress: null, error: after.cached ? null : `No ONNX weights were written to ${after.dir}` }
+      if (after.cached) this.options.onCached?.()
+    } catch (error) {
+      this.state = {
+        downloading: false,
+        progress: null,
+        error: error instanceof Error ? error.message : String(error),
+      }
+      this.options.debug?.(`embeddings: file download failed (${this.state.error})`)
+    }
   }
 
   /** Delete the cached model files; the next load downloads them again. */

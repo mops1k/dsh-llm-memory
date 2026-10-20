@@ -56,7 +56,7 @@ export const DEFAULT_KILO_CONFIG: KiloMemoryConfig = {
   web: { enabled: true, host: '127.0.0.1', port: 8787 },
   embeddings: {
     provider: 'off',
-    model: 'multilingual-e5-small',
+    model: 'Xenova/multilingual-e5-small',
     dim: 384,
     topK: 8,
     minScore: 0.2,

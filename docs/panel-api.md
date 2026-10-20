@@ -87,6 +87,10 @@ Kilo:
 DSH: `GET /api/backup` (список) и `POST /api/backup` c `{ operation, archive?, name?, confirm? }`, где
 `operation` ∈ `backup.create|backup.list|backup.verify|backup.restore|backup.delete`.
 
+`memory.backupDir`: пусто → `<store>/backups`; **относительный** путь (`"backups"`) разрешается от store, а не от
+cwd процесса; абсолютный Windows (`C:\...`), UNC и Linux (`/...`) — как есть. Ответы содержат `backupsDir`,
+а панель показывает точный путь архива после создания и в списке (кнопка «Копировать путь»).
+
 Формат архива `.llmmem`: магия `LLMMEM1` + ZIP (stored) + `manifest.json` с sha256 по каждому файлу;
 опционально AES-256-GCM. Имя архива в Kilo принимается только как basename — пути извне отклоняются.
 Перед восстановлением создаётся pre-restore копия; в Kilo store на время restore закрывается и открывается заново.
@@ -102,7 +106,13 @@ DSH: `GET /api/model/status`, `POST /api/model/download`, `POST /api/model/remov
 { provider, model, configured, enabled, dir, cached, files, bytes, downloading, progress, error }
 ```
 
-Кэш: `<store>/_models/<model>/`. При `provider: "off"` скачивание возвращает 400 с причиной
+Кэш: `<store>/_models/<model>/` (голое имя вида `multilingual-e5-small` нормализуется в `Xenova/...`).
+
+Если рантайм эмбеддингов в хосте недоступен (однофайловый Kilo-плагин), `model.download` переключается на
+**скачивание файлов по HTTP** с Hugging Face прямо в кэш (выбирается квантованная ONNX-модель, прогресс и
+резюмирование по `content-length`): файлы появляются на диске, статус `cached: true`, но `enabled` остаётся
+`false` — загрузка модели и RAG требуют решения по упаковке (P4 плана). При `provider: "off"` скачивание
+возвращает 400 с причиной
 («switch embeddings provider to local…»); статус при этом доступен всегда. Логика общая — core `ModelManager`.
 
 ## 5. Импорт

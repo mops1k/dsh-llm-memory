@@ -129,12 +129,12 @@ export async function handleLegacyApi(
     return true
   }
   if (path === '/backups' && method === 'GET') {
-    json(200, { ok: true, backups: service.backupList() })
+    json(200, { ok: true, backups: service.backupList(), backupsDir: service.backupTarget().backupsDir })
     return true
   }
   if (path === '/backups/create' && method === 'POST') {
     try {
-      json(200, { ok: true, report: service.backupCreate() })
+      json(200, { ok: true, report: service.backupCreate(), backupsDir: service.backupTarget().backupsDir })
     } catch (error) {
       json(400, { ok: false, error: error instanceof Error ? error.message : String(error) })
     }
