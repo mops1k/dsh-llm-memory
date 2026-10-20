@@ -4,7 +4,8 @@
 отличаются только базовые пути и форма ответа legacy-адаптера.
 
 - DSH: база `/llm-memory` (настраивается `webPath`), API — `/llm-memory/api/*`.
-- Kilo: база — отдельная страница на `http://<host>:<port>/`, API — `/api/legacy/*`.
+- Kilo: страницы на `http://<host>:<port>/` — `/` общий schema-driven UI, `/legacy` прежний дашборд,
+  `/web.js` бандл; API — `/api/legacy/*`.
 - Все ответы — JSON (`content-type: application/json`), ошибки — `{ "error": "..." }` с 4xx.
 - DSH-web принимает только loopback (`127.0.0.1/::1`), иначе 403.
 
@@ -12,12 +13,31 @@
 
 | Операция | DSH | Kilo |
 |---|---|---|
-| снимок экранов | `GET /api/ui/snapshot` | `GET /api/legacy/ui/snapshot` |
+| снимок экранов | `GET /api/ui/snapshot` | `GET /api/legacy/ui/snapshot[?locale=ru]` |
 | схема настроек + значения | `GET /api/settings/schema` | `GET /api/legacy/settings/snapshot` |
 | сохранить настройки | через settings-сервис DSH | `PUT /api/legacy/settings` |
 | сырой конфиг | — | `GET|PUT /api/legacy/config` |
 
 Подробная форма полей/экранов — в [ui-sdk.md](ui-sdk.md).
+
+Общая панель Kilo (`/`) — тот же React-рендерер, что у OpenCode/MCP: навигация и виджеты берутся из
+`/api/legacy/ui/snapshot`, настройки — из `/api/legacy/settings/snapshot` (группы/поля/значения ядра),
+действия — из реестра. Операция → маршрут:
+
+| Операция | Маршрут |
+|---|---|
+| `ui.snapshot` | `GET /api/legacy/ui/snapshot` |
+| `settings.snapshot` | `GET /api/legacy/settings/snapshot` |
+| `status`, `items.list`, `items.get`, `graph`, `lint.report`, `health` | `GET /api/legacy/*` |
+| `heal.report`, `heal.apply` | `POST /api/legacy/heal` (`{mode}`) |
+| `items.save` / `items.update` / `items.forget` / `items.delete` | `POST|PUT|POST|DELETE /api/legacy/items[/{{id}}]` |
+| `settings.save` | `PUT /api/legacy/settings` |
+| `ui.locale.set` | `PUT /api/legacy/config` (`{uiLocale}`) |
+| `action.backup.*`, `action.model.*` | `POST /api/legacy/{backups,model}/*` |
+
+Смена языка (`ru`/`en`) сохраняется в `uiLocale` конфига Kilo и применяется к странице при следующей загрузке;
+`?locale=ru` переопределяет её для одного запроса snapshot. RAG-карта пока показывает «недоступно» — ждёт
+`VectorLeg` из плана `p_c7de70db394f`.
 
 `PUT /api/legacy/settings` принимает **плоский патч dotted-путей**:
 
@@ -139,3 +159,5 @@ DSH: `GET /api/model/status`, `POST /api/model/download`, `POST /api/model/remov
 | Модель: нет кнопок в Kilo | не был подключён `ModelManager` | общий `ModelManager` + `/model/*` + карточка |
 | Пагинация не по схеме | размеры были захардкожены | `pagination` в схеме, обе панели из неё |
 | Импорт памяти | фича признана ненужной | удалён полностью: core-модуль, API, UI, команда `/memory import`, настройки |
+| Kilo-панель: свой дашборд | дублировал экраны/настройки | `/` рендерит общий schema-driven UI, прежний дашборд остался на `/legacy` |
+| Язык панели Kilo | локаль была захардкожена | `uiLocale` в конфиге, переключатель в панели, `?locale=` для snapshot |

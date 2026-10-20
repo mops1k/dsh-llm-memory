@@ -209,8 +209,11 @@ export async function handleLegacyApi(
     else {
       const body = await readJson(req)
       const next = { ...config, ...body, memory: { ...config.memory, ...(body.memory as Json | undefined) }, web: { ...config.web, ...(body.web as Json | undefined) }, embeddings: { ...config.embeddings, ...(body.embeddings as Json | undefined) } } as KiloMemoryConfig
-      ctx.saveConfig?.(next)
-      json(200, { ok: true, config: next })
+      // Mutate in place: the panel server and the service hold this object, and
+      // a locale change must be visible to the next page request immediately.
+      Object.assign(config, next)
+      ctx.saveConfig?.(config)
+      json(200, { ok: true, config })
     }
     return true
   }

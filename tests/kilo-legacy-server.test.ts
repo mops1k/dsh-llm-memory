@@ -72,6 +72,22 @@ describe('kilo legacy panel API', () => {
     expect(ru.views.map((view: { title: string }) => view.title)).toContain('Карта RAG')
   })
 
+  it('serves the shared panel at /, falls back to it for /legacy and serves the bundle', async () => {
+    const base = await start()
+    const shared = await (await fetch(base)).text()
+    expect(shared).toContain('id="root"')
+    expect(shared).toContain("'/web.js'")
+    expect(shared).toContain('"ui.snapshot"')
+    expect(shared).toContain('"items.list"')
+    const legacy = await fetch(`${base}legacy`)
+    expect(legacy.status).toBe(200)
+    expect(legacy.headers.get('content-type')).toContain('text/html')
+    const bundle = await fetch(`${base}web.js`)
+    expect(bundle.status).toBe(200)
+    expect(bundle.headers.get('content-type')).toContain('javascript')
+    expect(await bundle.text()).toContain('lm-nav')
+  })
+
   it('resolves a relative backupDir inside the store, not the process cwd', async () => {
     const root = mkdtempSync(join(tmpdir(), 'kilo-backup-dir-'))
     dirs.push(root)

@@ -56,6 +56,20 @@ const EN = {
   'backup.restoreConfirm': 'Type RESTORE to confirm',
   'backup.deleteConfirm': 'Type DELETE to confirm',
   'backup.locked': 'Restore and delete are user-only actions',
+  'panel.loading': 'Loading…',
+  'panel.failed': 'Request failed',
+  'panel.refresh': 'Refresh',
+  'panel.save': 'Save',
+  'panel.cancel': 'Cancel',
+  'editor.id': 'Entry id',
+  'editor.load': 'Load',
+  'editor.create': 'New entry',
+  'editor.save': 'Save entry',
+  'editor.forget': 'Forget',
+  'editor.delete': 'Delete',
+  'settings.unsupported': 'Not applied by this harness',
+  'map.unavailable': 'Vector search is not enabled in this harness',
+  'items.total': 'Total',
 } as const
 
 export type MessageKey = keyof typeof EN
@@ -100,6 +114,20 @@ const RU: Record<MessageKey, string> = {
   'backup.restoreConfirm': 'Введи RESTORE для подтверждения',
   'backup.deleteConfirm': 'Введи DELETE для подтверждения',
   'backup.locked': 'Восстановление и удаление — только действие пользователя',
+  'panel.loading': 'Загрузка…',
+  'panel.failed': 'Ошибка запроса',
+  'panel.refresh': 'Обновить',
+  'panel.save': 'Сохранить',
+  'panel.cancel': 'Отмена',
+  'editor.id': 'Id записи',
+  'editor.load': 'Загрузить',
+  'editor.create': 'Новая запись',
+  'editor.save': 'Сохранить запись',
+  'editor.forget': 'Забыть',
+  'editor.delete': 'Удалить',
+  'settings.unsupported': 'Не применяется этим харнессом',
+  'map.unavailable': 'Векторный поиск в этом харнессе не включён',
+  'items.total': 'Всего',
 }
 
 export interface Translator {

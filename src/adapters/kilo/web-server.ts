@@ -135,6 +135,8 @@ export async function startKiloWebServer(options: {
   const server: Server = createServer((req, res) => {
     try {
       const url = new URL(req.url ?? '/', `http://${host}`)
+      // The shared schema-driven panel is the default UI; the previous
+      // dashboard stays reachable at /legacy until the switch is accepted.
       if (req.method === 'GET' && url.pathname === '/') return html(res, sharedPage(options.config.uiLocale))
       if (req.method === 'GET' && url.pathname === '/legacy') return html(res, legacyPage())
       if (url.pathname.startsWith('/api/legacy/')) {
