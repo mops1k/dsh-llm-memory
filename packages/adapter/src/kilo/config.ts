@@ -9,6 +9,8 @@ export type RecallScope = 'global' | 'project' | 'all'
 
 export interface KiloMemoryConfig {
   enabled: boolean
+  /** Language of the panel UI (`en` is the default, like the rest of the kit). */
+  uiLocale: 'en' | 'ru'
   memory: {
     storageRoot: string
     promptMode: PromptMode
@@ -42,6 +44,7 @@ export interface KiloMemoryConfig {
 
 export const DEFAULT_KILO_CONFIG: KiloMemoryConfig = {
   enabled: true,
+  uiLocale: 'en',
   memory: {
     storageRoot: '',
     promptMode: 'dynamic',
@@ -82,6 +85,7 @@ export function resolveKiloConfig(raw: unknown): KiloMemoryConfig {
   return {
     ...DEFAULT_KILO_CONFIG,
     ...input,
+    uiLocale: input.uiLocale === 'ru' ? 'ru' : 'en',
     memory: mergeSection(DEFAULT_KILO_CONFIG.memory, input.memory),
     web: mergeSection(DEFAULT_KILO_CONFIG.web, input.web),
     embeddings: mergeSection(DEFAULT_KILO_CONFIG.embeddings, input.embeddings),

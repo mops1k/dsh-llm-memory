@@ -33,7 +33,7 @@ function legacyContext(options: { service: KiloService; config: KiloMemoryConfig
 /** The original dashboard, with its API calls pointed at the compatibility routes. */
 function legacyPage(): string {
   const html = embeddedLegacyHtml()
-  if (!html) return PAGE
+  if (!html) return sharedPage('en')
   return html.replaceAll('"/api" + path', '"/api/legacy" + path')
 }
 
@@ -48,23 +48,55 @@ function html(res: ServerResponse, body: string): void {
   res.end(body)
 }
 
-const PAGE = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>LLM Memory</title>
+/** Operations the shared UI performs, mapped onto the compatibility API. */
+const KILO_ROUTES: Record<string, { method: string; path: string }> = {
+  'ui.snapshot': { method: 'GET', path: '/api/legacy/ui/snapshot' },
+  'settings.snapshot': { method: 'GET', path: '/api/legacy/settings/snapshot' },
+  status: { method: 'GET', path: '/api/legacy/status' },
+  'items.list': { method: 'GET', path: '/api/legacy/items' },
+  'items.get': { method: 'GET', path: '/api/legacy/items/{{id}}' },
+  graph: { method: 'GET', path: '/api/legacy/graph' },
+  'lint.report': { method: 'GET', path: '/api/legacy/lint' },
+  'heal.report': { method: 'POST', path: '/api/legacy/heal' },
+  health: { method: 'GET', path: '/api/legacy/health' },
+  'backup.list': { method: 'GET', path: '/api/legacy/backups' },
+  'model.status': { method: 'GET', path: '/api/legacy/model/status' },
+  'items.save': { method: 'POST', path: '/api/legacy/items' },
+  'items.update': { method: 'PUT', path: '/api/legacy/items/{{id}}' },
+  'items.forget': { method: 'POST', path: '/api/legacy/items/{{id}}/forget' },
+  'items.delete': { method: 'DELETE', path: '/api/legacy/items/{{id}}' },
+  'settings.save': { method: 'PUT', path: '/api/legacy/settings' },
+  'ui.locale.set': { method: 'PUT', path: '/api/legacy/config' },
+  'action.lint.run': { method: 'GET', path: '/api/legacy/lint' },
+  'action.heal.report': { method: 'POST', path: '/api/legacy/heal' },
+  'action.heal.apply': { method: 'POST', path: '/api/legacy/heal' },
+  'action.backup.create': { method: 'POST', path: '/api/legacy/backups/create' },
+  'action.backup.verify': { method: 'POST', path: '/api/legacy/backups/verify' },
+  'action.backup.restore': { method: 'POST', path: '/api/legacy/backups/restore' },
+  'action.backup.delete': { method: 'POST', path: '/api/legacy/backups/delete' },
+  'action.model.status': { method: 'GET', path: '/api/legacy/model/status' },
+  'action.model.download': { method: 'POST', path: '/api/legacy/model/download' },
+  'action.model.remove': { method: 'POST', path: '/api/legacy/model/remove' },
+}
+
+/** The shared schema-driven panel; the data still comes from the compat API. */
+function sharedPage(locale: 'en' | 'ru'): string {
+  return `<!doctype html>
+<html lang="${locale}"><head><meta charset="utf-8"><title>LLM Memory</title>
 <style>body{font-family:system-ui,sans-serif;margin:0;padding:0}</style></head>
 <body><div id="root"></div>
 <script type="module">
   const root = document.getElementById('root')
+  const locale = ${JSON.stringify(locale)}
+  const routes = ${JSON.stringify(KILO_ROUTES)}
   import('/web.js')
-    .then(({ mount, HttpUiHost }) => {
-      const params = new URLSearchParams(location.search)
-      const locale = params.get('locale') === 'ru' ? 'ru' : 'en'
-      mount(root, new HttpUiHost({ kind: 'kilo', baseUrl: location.origin, locale }))
-    })
+    .then(({ mount, HttpUiHost }) => mount(root, new HttpUiHost({ kind: 'kilo', baseUrl: location.origin, locale, routes })))
     .catch(error => {
       root.innerHTML = '<pre style="font:14px/1.4 monospace;padding:16px;color:#b00020">' +
         'UI bundle failed to load: ' + String(error) + '</pre>'
     })
 </script></body></html>`
+}
 
 function bundlePath(): string | null {
   try {
@@ -103,7 +135,8 @@ export async function startKiloWebServer(options: {
   const server: Server = createServer((req, res) => {
     try {
       const url = new URL(req.url ?? '/', `http://${host}`)
-      if (req.method === 'GET' && url.pathname === '/') return html(res, legacyPage())
+      if (req.method === 'GET' && url.pathname === '/') return html(res, sharedPage(options.config.uiLocale))
+      if (req.method === 'GET' && url.pathname === '/legacy') return html(res, legacyPage())
       if (url.pathname.startsWith('/api/legacy/')) {
         const legacyPath = url.pathname.slice('/api/legacy'.length)
         void handleLegacyApi(req, legacyPath, url.searchParams, legacyContext(options), (status, body) => json(res, status, body))

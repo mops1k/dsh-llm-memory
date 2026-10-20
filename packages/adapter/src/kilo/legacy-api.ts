@@ -159,11 +159,12 @@ export async function handleLegacyApi(
     return true
   }
   if (path === '/ui/snapshot') {
-    json(200, panelSnapshot('ru'))
+    json(200, panelSnapshot(params.get('locale') === 'en' ? 'en' : config.uiLocale))
     return true
   }
   if (path === '/settings/snapshot') {
-    json(200, { ok: true, ...service.settingsSnapshot() })
+    const locale = params.get('locale') === 'en' ? 'en' : config.uiLocale
+    json(200, { ok: true, ...service.settingsSnapshot(locale), locale })
     return true
   }
   if (path === '/settings' && method === 'PUT') {
