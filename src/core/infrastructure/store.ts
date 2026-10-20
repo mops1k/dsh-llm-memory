@@ -279,6 +279,25 @@ export interface ReconcileReport {
  * Derived memory index. Construct with a storage root (or `dbPath` override)
  * and use the methods below; the database is opened on first use.
  */
+
+/**
+ * Explain a database open failure in terms of the store's own constraint.
+ *
+ * The store lives on a local disk: SQLite WAL needs real file locks, which a
+ * UNC/SMB share or a 9p mount does not provide (spikes A1/A10). Windows also
+ * reports a read-only or locked file as "unable to open database file", so the
+ * hint names both suspects instead of relaying the driver message alone.
+ */
+function describeStorageError(error: unknown, dbPath: string): string {
+  const reason = error instanceof Error ? error.message : String(error)
+  const lower = reason.toLowerCase()
+  const network = /disk i\/o|unable to open|database is locked|busy|unc|network|9p/.test(lower)
+  const hint = network
+    ? 'The store must live on a local disk: WAL does not work over a network share (UNC/9p), and the path must be writable by this process.'
+    : 'Check that the path exists, is writable and is not locked by another process.'
+  return `Cannot open the memory database at ${dbPath}: ${reason}. ${hint}`
+}
+
 export class MemoryStore {
   readonly root: string
   readonly dbPath: string
@@ -399,14 +418,21 @@ export class MemoryStore {
   open(): void {
     if (this.db) return
     ensureDir(dirname(this.dbPath))
-    const db = this.allowExtension
-      ? openDatabase(this.dbPath, { allowExtension: true })
-      : openDatabase(this.dbPath)
+    let db: SqliteDatabase
+    try {
+      db = this.allowExtension
+        ? openDatabase(this.dbPath, { allowExtension: true })
+        : openDatabase(this.dbPath)
+    } catch (error) {
+      throw new Error(describeStorageError(error, this.dbPath))
+    }
     try {
       db.exec('PRAGMA journal_mode = WAL;')
       db.exec('PRAGMA busy_timeout = 5000;')
     } catch (error) {
-      debug(`pragma setup failed: ${String(error)}`)
+      // A read-only or network-mounted file still works in rollback mode; the
+      // warning points at the actual constraint instead of failing the open.
+      debug(`pragma setup failed (${describeStorageError(error, this.dbPath)})`)
     }
     this.db = db
     this.ensureSchema()

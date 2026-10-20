@@ -100,12 +100,21 @@ describe('paths', () => {
     }
   })
 
-  it('treats a missing file, a directory and an unreadable file as absent', () => {
+  it('treats a missing file and a directory as absent', () => {
     const root = makeTempRoot()
     try {
       expect(readFileIfExists(join(root, 'nope.md'))).toBeNull()
       expect(readFileIfExists(root)).toBeNull()
+    } finally {
+      cleanupRoot(root)
+    }
+  })
 
+  // Windows has no POSIX permission bits: chmod leaves the file readable, so the
+  // "unreadable file" case cannot be reproduced there (CI matrix).
+  it.skipIf(process.platform === 'win32')('treats an unreadable file as absent', () => {
+    const root = makeTempRoot()
+    try {
       const locked = join(root, 'locked.md')
       writeFileAtomic(locked, 'secret')
       chmodSync(locked, 0o000)

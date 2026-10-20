@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  push:
+    branches: [main, llm-memory-unified-core]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # `node:sqlite` (Node 24) and the optional ONNX runtime are not needed for
+      # the suite: the vector tests use a deterministic fake provider, so the
+      # matrix stays offline and fast.
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm lint
+
+      - run: pnpm test
+
+      - name: build the published bundles
+        run: pnpm build
+
+  # The plugin and the panel are packed into single files; a Windows-only smoke
+  # proves the shipped artifacts resolve their config and start.
+  windows-bundle:
+    name: windows bundle smoke
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node -e "const fs=require('node:fs');for (const f of ['lib/kilo.js','lib/web-ui.js','lib/client.js']) { if (!fs.existsSync(f) || fs.statSync(f).size === 0) throw new Error('missing '+f) } console.log('bundles present')"
