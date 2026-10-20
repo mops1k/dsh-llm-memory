@@ -1,8 +1,11 @@
+import { sep } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { createLayout, StorePathError, assertLocalPath, sanitizeProjectKey } from '@llm-memory/core/layout/index'
 
 const opts = { home: '/home/u', cwd: '/repo/proj-a' }
+const posix = (path: string): string => path.split('/').join(sep)
 
 describe('layouts', () => {
   it('kilo: user and project roots, db inside its own memory dir', () => {

@@ -12,6 +12,8 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { cleanupRoot, trackResource } from './helpers'
+
 import { MemoryEngine } from '@llm-memory/core/application/engine'
 import { FakeEmbeddingProvider } from './helpers/fake-embeddings'
 
@@ -32,12 +34,12 @@ function dbPath(root: string): string {
 function makeEngine(): { engine: MemoryEngine; provider: FakeEmbeddingProvider; root: string } {
   const root = makeRoot()
   const provider = new FakeEmbeddingProvider()
-  const engine = new MemoryEngine({
+  const engine = trackResource(new MemoryEngine({
     storageRoot: root,
     project: 'demo',
     embeddingProvider: provider,
     config: { embeddings: { provider: 'local', chunkChars: 200, chunkOverlap: 0 } },
-  })
+  }))
   return { engine, provider, root }
 }
 
@@ -93,7 +95,7 @@ function storedStatus(root: string, entryId: string): string | null {
 }
 
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  for (const root of roots.splice(0)) cleanupRoot(root)
 })
 
 describe('vector health', () => {

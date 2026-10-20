@@ -487,6 +487,9 @@ export function restoreBackup(options: RestoreOptions & { _skipPreBackup?: boole
   if (options.confirm !== 'RESTORE') throw new Error('restore requires confirm: "RESTORE"')
   const verification = verifyBackup(options.archive, options.passphrase)
   if (!verification.ok) throw new Error(`archive failed verification: ${verification.errors.join('; ')}`)
+  if (verification.manifest && verification.manifest.harness !== options.harness) {
+    throw new Error(`cross-harness restore is forbidden: archive ${verification.manifest.harness}, target ${options.harness}`)
+  }
   let preRestoreBackup: string | null = null
   const report: RestoreReport = {
     restored: false,

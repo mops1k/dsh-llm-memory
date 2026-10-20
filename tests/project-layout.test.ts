@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -35,7 +35,7 @@ describe('paths: project registry', () => {
   })
 
   it('builds the project memory directory', () => {
-    expect(projectMemoryRoot('/repo/proj')).toBe(join('/repo/proj', '.dsh', 'llm-memory'))
+    expect(projectMemoryRoot('/repo/proj')).toBe(resolve('/repo/proj', '.dsh', 'llm-memory'))
   })
 
   it('writes and reads projects.json round-trip', () => {

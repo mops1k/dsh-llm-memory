@@ -9,6 +9,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { cleanupRoot, trackResource } from './helpers'
+
 import { DEFAULT_MCP_CONFIG, resolveMcpConfig, saveMcpConfig } from '@llm-memory/adapter/mcp/config'
 import { startHttpTransport } from '@llm-memory/adapter/mcp/http'
 import { startMcpWebServer } from '@llm-memory/adapter/mcp/panel'
@@ -19,7 +21,7 @@ const TOKEN = 'secret-token-0123456789abcdef'
 
 const dirs: string[] = []
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  for (const dir of dirs.splice(0)) cleanupRoot(dir)
 })
 
 function setup(): { home: string; repo: string; store: string; service: McpService; server: McpServer; config: ReturnType<typeof resolveMcpConfig> } {
@@ -35,7 +37,7 @@ function setup(): { home: string; repo: string; store: string; service: McpServi
     memory: { ...DEFAULT_MCP_CONFIG.memory, storageRoot: store },
     mcp: { ...DEFAULT_MCP_CONFIG.mcp, token: TOKEN },
   })
-  const service = new McpService({ config, clientId: 'security', home, projectRoot: repo })
+  const service = trackResource(new McpService({ config, clientId: 'security', home, projectRoot: repo }))
   service.init()
   const server = new McpServer({ service, config })
   return { home, repo, store, service, server, config }

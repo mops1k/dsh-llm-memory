@@ -38,7 +38,7 @@ describe('normalizeStoragePath', () => {
 
   it('keeps unknown variables and spaces untouched and strips wrapping quotes', () => {
     expect(normalizeStoragePath('"C:\\My Memory\\x"')).toBe('C:\\My Memory\\x')
-    expect(normalizeStoragePath('$LLM_MEMORY_NOT_SET/x')).toBe('$LLM_MEMORY_NOT_SET/x')
+    expect(normalizeStoragePath('$LLM_MEMORY_NOT_SET/x')).toBe(join('$LLM_MEMORY_NOT_SET', 'x'))
   })
 })
 

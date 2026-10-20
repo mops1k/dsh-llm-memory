@@ -8,6 +8,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { cleanupRoot, trackResource } from './helpers'
+
 import { resolveOpenCodeConfig } from '@llm-memory/adapter/opencode/config'
 import { OpenCodeService } from '@llm-memory/adapter/opencode/service'
 import { createOpenCodeV2Plugin, type OpenCodeV2Context } from '@llm-memory/adapter/opencode/plugin-v2'
@@ -15,7 +17,7 @@ import { createLayout } from '@llm-memory/core/layout/index'
 
 const dirs: string[] = []
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  for (const dir of dirs.splice(0)) cleanupRoot(dir)
 })
 
 interface Recorded {
@@ -49,12 +51,12 @@ function makeService(directory: string): OpenCodeService {
   const home = join(directory, 'home')
   const repo = join(directory, 'repo')
   mkdirSync(repo, { recursive: true })
-  const service = new OpenCodeService({
+  const service = trackResource(new OpenCodeService({
     config: resolveOpenCodeConfig({ memory: { storageRoot: join(directory, 'store') } }),
     projectRoot: repo,
     layout: createLayout('opencode', { home, cwd: repo }),
     manualEmbeddings: true,
-  })
+  }))
   service.init()
   return service
 }

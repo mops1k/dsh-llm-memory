@@ -1,14 +1,16 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { cleanupRoot } from './helpers'
+
 import { cleanupWorkDir, rehearseCutover } from '@llm-memory/adapter/kilo/cutover'
 
 const dirs: string[] = []
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  for (const dir of dirs.splice(0)) cleanupRoot(dir)
 })
 
 function sourceStore(): string {

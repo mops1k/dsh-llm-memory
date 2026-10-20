@@ -32,14 +32,16 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: typecheck, lint, tests
+      - name: typecheck and lint
         run: |
           pnpm typecheck
           pnpm lint
-          pnpm test
 
       - name: build bundles
         run: pnpm build
+
+      - name: tests
+        run: pnpm test
 
       - name: per-harness artifacts + checksums
         run: node scripts/build-release-artifacts.mjs --out dist/release

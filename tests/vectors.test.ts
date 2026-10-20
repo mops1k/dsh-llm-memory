@@ -11,6 +11,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { cleanupRoot, trackResource } from './helpers'
+
 import { EmbeddingQueue } from '@llm-memory/core/infrastructure/embed-queue'
 import { MemoryEngine } from '@llm-memory/core/application/engine'
 import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
@@ -74,13 +76,13 @@ function embeddingsConfig() {
 }
 
 function makeEngine(options: { provider?: EmbeddingProvider } = {}): MemoryEngine {
-  return new MemoryEngine({
+  return trackResource(new MemoryEngine({
     storageRoot: makeRoot(),
     project: 'demo',
     manualEmbeddings: true,
     ...(options.provider ? { embeddingProvider: options.provider } : {}),
     config: { embeddings: { chunkChars: 400, chunkOverlap: 60 } },
-  })
+  }))
 }
 
 function record(entryId: string, vector: number[], overrides: Partial<VectorRecord> = {}): VectorRecord {
@@ -99,12 +101,12 @@ function record(entryId: string, vector: number[], overrides: Partial<VectorReco
 }
 
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  for (const root of roots.splice(0)) cleanupRoot(root)
 })
 
 describe('JsVectorIndex', () => {
   it('indexes chunks and searches by cosine with filters', () => {
-    const store = new MemoryStore({ storageRoot: makeRoot() })
+    const store = trackResource(new MemoryStore({ storageRoot: makeRoot() }))
     const index = store.initVectorIndex({ model: 'test-model', dim: 2, backend: 'js' })
     expect(index).not.toBeNull()
     index!.upsert([
@@ -144,7 +146,7 @@ describe('JsVectorIndex', () => {
   })
 
   it('keeps vectors of different models apart', () => {
-    const store = new MemoryStore({ storageRoot: makeRoot() })
+    const store = trackResource(new MemoryStore({ storageRoot: makeRoot() }))
     const first = store.initVectorIndex({ model: 'model-one', dim: 2, backend: 'js' })!
     first.upsert([record('a', [1, 0])])
     const second = store.initVectorIndex({ model: 'model-two', dim: 2, backend: 'js' })!
@@ -161,7 +163,7 @@ describe('JsVectorIndex', () => {
   })
 
   it('rejects vectors of the wrong length', () => {
-    const store = new MemoryStore({ storageRoot: makeRoot() })
+    const store = trackResource(new MemoryStore({ storageRoot: makeRoot() }))
     const index = store.initVectorIndex({ model: 'test-model', dim: 2, backend: 'js' })!
     expect(() => index.upsert([record('a', [1, 0, 0])])).toThrow(/dimensions/)
     expect(index.size()).toBe(0)
@@ -169,7 +171,7 @@ describe('JsVectorIndex', () => {
   })
 
   it('is disabled for the off backend', () => {
-    const store = new MemoryStore({ storageRoot: makeRoot() })
+    const store = trackResource(new MemoryStore({ storageRoot: makeRoot() }))
     expect(store.initVectorIndex({ model: 'test-model', dim: 2, backend: 'off' })).toBeNull()
     store.close()
   })
@@ -241,7 +243,7 @@ describe('EmbeddingQueue', () => {
   })
 
   it('can be driven by hand over a store', async () => {
-    const store = new MemoryStore({ storageRoot: makeRoot() })
+    const store = trackResource(new MemoryStore({ storageRoot: makeRoot() }))
     const index = store.initVectorIndex({ model: 'fake-vocab-3', dim: VOCABULARY.length, backend: 'js' })!
     const queue = new EmbeddingQueue({
       store,

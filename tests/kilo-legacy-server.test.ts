@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
+
+import { cleanupRoot, trackResource } from './helpers'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -15,7 +17,7 @@ function makeService(): KiloService {
   const root = mkdtempSync(join(tmpdir(), 'kilo-legacy-server-'))
   dirs.push(root)
   const config = resolveKiloConfig({ memory: { storageRoot: root }, web: { enabled: false } })
-  const created = new KiloService({ config })
+  const created = trackResource(new KiloService({ config }))
   created.init()
   service = created
   return created
@@ -26,7 +28,7 @@ afterEach(async () => {
   handle = null
   service?.close()
   service = null
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  for (const dir of dirs.splice(0)) cleanupRoot(dir)
 })
 
 async function start(): Promise<string> {
@@ -110,7 +112,7 @@ describe('kilo legacy panel API', () => {
     const root = mkdtempSync(join(tmpdir(), 'kilo-backup-dir-'))
     dirs.push(root)
     const config = resolveKiloConfig({ memory: { storageRoot: root, backupDir: 'backups' }, web: { enabled: false } })
-    const created = new KiloService({ config })
+    const created = trackResource(new KiloService({ config }))
     created.init()
     service = created
     const report = created.backupCreate()

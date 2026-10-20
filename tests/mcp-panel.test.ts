@@ -47,7 +47,7 @@ describe('MCP web panel', () => {
       const body = (await status.json()) as { ok: boolean; status: { total: number; root: string } }
       expect(body.ok).toBe(true)
       expect(body.status.total).toBe(0)
-      expect(body.status.root).toContain('.llm-memory/mcp/cursor')
+      expect(body.status.root.replace(/\\/g, '/')).toContain('.llm-memory/mcp/cursor')
       await panel.close()
     } finally {
       service.close()

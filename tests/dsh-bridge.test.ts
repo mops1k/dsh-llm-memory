@@ -1,8 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
+
+import { cleanupRoot, trackResource } from './helpers'
 
 import { createMemoryRuntime } from '../src/adapters/dsh/engine'
 import { createDshBridge } from '../src/adapters/dsh/ui-bridge'
@@ -11,13 +13,13 @@ import { storesAreSeparate } from '../src/testkit/index'
 
 const dirs: string[] = []
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  for (const dir of dirs.splice(0)) cleanupRoot(dir)
 })
 
 function setup() {
   const root = mkdtempSync(join(tmpdir(), 'llm-dsh-bridge-'))
   dirs.push(root)
-  const runtime = createMemoryRuntime({ storageRoot: join(root, 'store') })
+  const runtime = trackResource(createMemoryRuntime({ storageRoot: join(root, 'store') }))
   const bridge = createDshBridge({ engine: runtime.engine, storageRoot: join(root, 'store') })
   return { runtime, bridge, root }
 }

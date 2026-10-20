@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { cleanupRoot, trackResource } from './helpers'
+
 import { DEFAULT_MCP_CONFIG, resolveMcpConfig } from '@llm-memory/adapter/mcp/config'
 import { McpServer } from '@llm-memory/adapter/mcp/server'
 import { McpService } from '@llm-memory/adapter/mcp/service'
@@ -15,7 +17,7 @@ import { storesAreSeparate } from '@llm-memory/testkit'
 
 const dirs: string[] = []
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  for (const dir of dirs.splice(0)) cleanupRoot(dir)
 })
 
 function sandbox(): { home: string; repo: string } {
@@ -32,7 +34,7 @@ describe('concurrency', () => {
   it('serves 20 parallel calls without lock errors', async () => {
     const { home, repo } = sandbox()
     const config = resolveMcpConfig(DEFAULT_MCP_CONFIG)
-    const service = new McpService({ config, clientId: 'cursor', home, projectRoot: repo })
+    const service = trackResource(new McpService({ config, clientId: 'cursor', home, projectRoot: repo }))
     service.init()
     const server = new McpServer({ service, config })
     try {
@@ -67,8 +69,8 @@ describe('isolation', () => {
   it('keeps two client ids in separate stores', async () => {
     const { home, repo } = sandbox()
     const config = resolveMcpConfig(DEFAULT_MCP_CONFIG)
-    const first = new McpService({ config, clientId: 'cursor', home, projectRoot: repo })
-    const second = new McpService({ config, clientId: 'zed', home, projectRoot: repo })
+    const first = trackResource(new McpService({ config, clientId: 'cursor', home, projectRoot: repo }))
+    const second = trackResource(new McpService({ config, clientId: 'zed', home, projectRoot: repo }))
     first.init()
     second.init()
     try {
@@ -86,7 +88,7 @@ describe('isolation', () => {
   it('does not leak one project into another within a store', async () => {
     const { home, repo } = sandbox()
     const config = resolveMcpConfig(DEFAULT_MCP_CONFIG)
-    const service = new McpService({ config, clientId: 'cursor', home, projectRoot: repo })
+    const service = trackResource(new McpService({ config, clientId: 'cursor', home, projectRoot: repo }))
     service.init()
     try {
       service.save({ text: 'alpha only', scope: 'project', project: 'alpha', title: 'alpha' })
@@ -103,12 +105,12 @@ describe('isolation', () => {
   it('keeps the memory across a restart', async () => {
     const { home, repo } = sandbox()
     const config = resolveMcpConfig(DEFAULT_MCP_CONFIG)
-    const first = new McpService({ config, clientId: 'cursor', home, projectRoot: repo })
+    const first = trackResource(new McpService({ config, clientId: 'cursor', home, projectRoot: repo }))
     first.init()
     const saved = first.save({ text: 'survives restart', title: 'durable', scope: 'user' })
     first.close()
 
-    const second = new McpService({ config, clientId: 'cursor', home, projectRoot: repo })
+    const second = trackResource(new McpService({ config, clientId: 'cursor', home, projectRoot: repo }))
     second.init()
     try {
       expect(second.status().total).toBe(1)

@@ -4,10 +4,12 @@
  * Nothing of one store is visible through another, a parallel workload stays
  * clean, and a backup cannot be restored into a foreign harness.
  */
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+
+import { cleanupRoot } from './helpers'
 
 import { MemoryEngine } from '@llm-memory/core/application/engine'
 import { mergeConfig } from '@llm-memory/core/domain/config'
@@ -24,7 +26,7 @@ import { McpService } from '@llm-memory/adapter/mcp/service'
 
 const dirs: string[] = []
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  for (const dir of dirs.splice(0)) cleanupRoot(dir)
 })
 
 interface Matrix {
@@ -207,5 +209,5 @@ describe('coexistence of all four harnesses', () => {
     } finally {
       m.close()
     }
-  })
+  }, 60_000)
 })

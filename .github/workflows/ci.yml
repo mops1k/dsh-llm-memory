@@ -38,10 +38,12 @@ jobs:
 
       - run: pnpm lint
 
-      - run: pnpm test
-
+      # The DSH WebUI test serves the built browser bundle from lib/, exactly as
+      # a user gets it, so the bundles are built before the suite runs.
       - name: build the published bundles
         run: pnpm build
+
+      - run: pnpm test
 
   # The plugin and the panel are packed into single files; a Windows-only smoke
   # proves the shipped artifacts resolve their config and start.

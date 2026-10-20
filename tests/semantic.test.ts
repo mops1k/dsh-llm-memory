@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { cleanupRoot, trackResource } from './helpers'
+
 import { MemoryEngine } from '@llm-memory/core/application/engine'
 import { semanticPairs } from '@llm-memory/core/application/ranking'
 import { FakeEmbeddingProvider, VOCABULARY } from './helpers/fake-embeddings'
@@ -20,7 +22,7 @@ function makeRoot(): string {
 }
 
 function makeEngine(options: { embeddings?: Record<string, unknown> } = {}): MemoryEngine {
-  return new MemoryEngine({
+  return trackResource(new MemoryEngine({
     storageRoot: makeRoot(),
     project: 'demo',
     manualEmbeddings: true,
@@ -34,7 +36,7 @@ function makeEngine(options: { embeddings?: Record<string, unknown> } = {}): Mem
         ...(options.embeddings ?? {}),
       },
     },
-  })
+  }))
 }
 
 function unit(...values: number[]): Float32Array {
@@ -43,7 +45,7 @@ function unit(...values: number[]): Float32Array {
 }
 
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  for (const root of roots.splice(0)) cleanupRoot(root)
 })
 
 describe('semanticPairs', () => {
@@ -112,7 +114,7 @@ describe('graph and lint', () => {
   })
 
   it('reports no semantic edges when vectors are off', async () => {
-    const engine = new MemoryEngine({ storageRoot: makeRoot(), project: 'demo' })
+    const engine = trackResource(new MemoryEngine({ storageRoot: makeRoot(), project: 'demo' }))
     engine.save({ title: 'Инкрементальный индекс', text: 'Fingerprint и reconcileFromDisk.' })
     engine.save({ title: 'Индексация памяти', text: 'Fingerprint и reconcileFromDisk, ещё раз.' })
     expect(engine.graph().edges.filter((edge) => edge.type === 'related')).toEqual([])

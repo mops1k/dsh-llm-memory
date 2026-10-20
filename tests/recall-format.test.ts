@@ -10,6 +10,8 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { cleanupRoot, trackResource } from './helpers'
+
 import { DEFAULT_CONFIG, mergeConfig } from '@llm-memory/core/domain/config'
 import { MemoryEngine } from '@llm-memory/core/application/engine'
 
@@ -22,13 +24,13 @@ function makeRoot(): string {
 }
 
 function makeEngine(config: Record<string, unknown> = {}): MemoryEngine {
-  const engine = new MemoryEngine({ storageRoot: makeRoot(), project: 'demo', config })
+  const engine = trackResource(new MemoryEngine({ storageRoot: makeRoot(), project: 'demo', config }))
   engine.save({ title: 'Нужный факт', text: 'Здесь есть слово needle и пояснение к нему.' })
   return engine
 }
 
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  for (const root of roots.splice(0)) cleanupRoot(root)
 })
 
 describe('recall format setting', () => {
