@@ -4,7 +4,7 @@
  * file that stores it is owner-only; destructive backup operations stay behind
  * typed confirmations.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'

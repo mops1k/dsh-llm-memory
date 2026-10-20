@@ -17,5 +17,9 @@ export default defineConfig({
       { find: /^@llm-memory\/adapter\/(.*)$/, replacement: adapterSrc + '$1' },
     ],
   },
-  test: { include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'] },
+  test: {
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+  },
 })

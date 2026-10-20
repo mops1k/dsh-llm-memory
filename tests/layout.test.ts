@@ -10,27 +10,27 @@ const posix = (path: string): string => path.split('/').join(sep)
 describe('layouts', () => {
   it('kilo: user and project roots, db inside its own memory dir', () => {
     const l = createLayout('kilo', opts)
-    expect(l.userRoot()).toBe('/home/u/.config/kilo/memory')
-    expect(l.projectRoot('proj-a')).toBe('/repo/proj-a/.kilo/memory')
-    expect(l.dbPath()).toBe('/home/u/.config/kilo/memory/db/memory.db')
-    expect(l.pagesDir('global')).toBe('/home/u/.config/kilo/memory/pages')
-    expect(l.pagesDir('project', 'proj-a')).toBe('/repo/proj-a/.kilo/memory/pages')
+    expect(l.userRoot()).toBe(posix('/home/u/.config/kilo/memory'))
+    expect(l.projectRoot('proj-a')).toBe(posix('/repo/proj-a/.kilo/memory'))
+    expect(l.dbPath()).toBe(posix('/home/u/.config/kilo/memory/db/memory.db'))
+    expect(l.pagesDir('global')).toBe(posix('/home/u/.config/kilo/memory/pages'))
+    expect(l.pagesDir('project', 'proj-a')).toBe(posix('/repo/proj-a/.kilo/memory/pages'))
     expect(l.projectKey('/repo/proj-a')).toBe('proj-a')
   })
 
   it('dsh: _db layout and project mirror', () => {
     const l = createLayout('dsh', opts)
-    expect(l.userRoot()).toBe('/home/u/.dsh/llm-memory')
-    expect(l.dbPath()).toBe('/home/u/.dsh/llm-memory/_db/memory.db')
-    expect(l.projectRoot('proj-a')).toBe('/repo/proj-a/.dsh/llm-memory')
+    expect(l.userRoot()).toBe(posix('/home/u/.dsh/llm-memory'))
+    expect(l.dbPath()).toBe(posix('/home/u/.dsh/llm-memory/_db/memory.db'))
+    expect(l.projectRoot('proj-a')).toBe(posix('/repo/proj-a/.dsh/llm-memory'))
   })
 
   it('opencode and mcp keep their own stores', () => {
     const oc = createLayout('opencode', opts)
-    expect(oc.dbPath()).toBe('/home/u/.config/opencode/memory/db/memory.db')
+    expect(oc.dbPath()).toBe(posix('/home/u/.config/opencode/memory/db/memory.db'))
     const mcp = createLayout('mcp', { ...opts, clientId: 'Cursor' })
-    expect(mcp.userRoot()).toBe('/home/u/.llm-memory/mcp/cursor')
-    expect(mcp.dbPath()).toBe('/home/u/.llm-memory/mcp/cursor/_db/memory.db')
+    expect(mcp.userRoot()).toBe(posix('/home/u/.llm-memory/mcp/cursor'))
+    expect(mcp.dbPath()).toBe(posix('/home/u/.llm-memory/mcp/cursor/_db/memory.db'))
   })
 
   it('mcp requires a client id', () => {

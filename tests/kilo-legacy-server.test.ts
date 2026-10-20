@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { cleanupRoot, trackResource } from './helpers'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 import { resolveKiloConfig } from '@llm-memory/adapter/kilo/config'
 import { KiloService } from '@llm-memory/adapter/kilo/service'
@@ -128,7 +128,7 @@ describe('kilo legacy panel API', () => {
 
     const listed = await (await fetch(`${base}api/legacy/backups`)).json()
     expect(listed.backups).toHaveLength(1)
-    const name = String(listed.backups[0].archive).split('/').pop()
+    const name = basename(String(listed.backups[0].archive))
 
     const verified = await (
       await fetch(`${base}api/legacy/backups/verify`, {

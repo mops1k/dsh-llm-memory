@@ -2,7 +2,7 @@
  * Semantic layer without a model: relative neighbour selection, the graph edges
  * it feeds, the duplicate report and the excerpt rendering of recall.
  */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'

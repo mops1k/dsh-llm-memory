@@ -4,7 +4,7 @@
  * `defaultRecallFormat`; the port to dsh dropped it, so recall silently stayed on
  * markdown whatever the user wanted (16.10.2026).
  */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 

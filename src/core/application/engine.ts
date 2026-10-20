@@ -1158,6 +1158,16 @@ export class MemoryEngine {
     this.store.close()
   }
 
+  /** Release the SQLite handle before a restore replaces the database file. */
+  closeStore(): void {
+    this.store.close()
+  }
+
+  /** Reopen the store after {@link closeStore}. */
+  openStore(): void {
+    this.store.open()
+  }
+
   private dbSizeBytes(): number {
     try {
       return statSync(this.dbPath).size

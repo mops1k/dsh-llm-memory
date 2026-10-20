@@ -6,7 +6,7 @@
  * The real model is exercised by `tests/embeddings-e2e.test.ts`, enabled
  * explicitly with `DSH_LLM_MEMORY_E2E_EMBEDDINGS=1`.
  */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'

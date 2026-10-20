@@ -214,8 +214,15 @@ export function createDshBridge(options: DshBridgeOptions): DshBridge {
       case 'backup.verify':
         return verifyBackup(String(payload['archive'] ?? payload['name'] ?? ''))
       case 'backup.restore': {
-        const report = restoreBackup({ ...target(), archive: String(payload['archive'] ?? payload['name'] ?? ''), confirm: String(payload['confirm'] ?? '') })
-        return { restored: report.restored, counts: report.counts }
+        // The restore replaces the database file: release it first, or Windows
+        // refuses to replace the file that is still open.
+        options.engine.closeStore()
+        try {
+          const report = restoreBackup({ ...target(), archive: String(payload['archive'] ?? payload['name'] ?? ''), confirm: String(payload['confirm'] ?? '') })
+          return { restored: report.restored, counts: report.counts }
+        } finally {
+          options.engine.openStore()
+        }
       }
       case 'backup.delete':
         return { deleted: deleteBackup(String(payload['archive'] ?? payload['name'] ?? ''), String(payload['confirm'] ?? ''), backupsDirOf(options)) }

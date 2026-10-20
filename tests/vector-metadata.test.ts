@@ -5,7 +5,7 @@
  * stale (16.10.2026). These tests pin both halves: the copy follows the entry,
  * and the embedding provider is *not* called again for a metadata-only change.
  */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

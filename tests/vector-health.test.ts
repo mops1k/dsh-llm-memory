@@ -5,7 +5,7 @@
  * and hands the re-embedding to the background queue — these tests build every
  * kind of drift by hand and check both the report and the table afterwards.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

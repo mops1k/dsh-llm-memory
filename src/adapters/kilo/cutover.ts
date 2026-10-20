@@ -202,6 +202,9 @@ export async function rehearseCutover(options: CutoverOptions): Promise<CutoverR
   } finally {
     await panel.close()
   }
+  // The restore replaces the database file, so the service must release it first:
+  // Windows refuses to unlink a file that still has an open handle.
+  service.close()
   const smokeBackup = createBackup({ harness: 'kilo', storeDir: migratedRoot, dbPath: join(migratedRoot, 'db', 'memory.db'), backupsDir: join(workDir, 'smoke-backups') })
   const smokeRestore = restoreBackup({
     harness: 'kilo',
@@ -218,7 +221,6 @@ export async function rehearseCutover(options: CutoverOptions): Promise<CutoverR
     backupRestore: smokeRestore.restored && verifyBackup(smokeBackup.archive).ok,
     settings: config.memory.promptMode === 'dynamic',
   }
-  service.close()
 
   // 6. Rollback rehearsal: restore the source backup into a clean target.
   const rollbackRoot = join(workDir, 'rollback')

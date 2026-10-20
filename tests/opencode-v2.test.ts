@@ -3,7 +3,7 @@
  * prompt and compaction through `ctx.session.hook`, all on the shared service.
  * The host Effect runtime is stubbed — the live host check uses the real one.
  */
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
