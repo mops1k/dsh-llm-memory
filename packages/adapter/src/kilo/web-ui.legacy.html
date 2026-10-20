@@ -403,6 +403,13 @@
           <div class="toolbar"><button class="btn secondary" id="btn-cfg-load"><svg class="ic"><use href="#i-refresh"/></svg> Перечитать</button><button class="btn" id="btn-cfg-save"><svg class="ic"><use href="#i-save"/></svg> Сохранить (применить сразу)</button></div>
           <p class="muted">Настройки пишутся в <code>~/.config/kilo/llm-memory.json</code> и применяются к активному движку сразу. Старый файл <code>kilo-memory.json</code> читается как fallback.</p>
           <div id="cfg-body"></div>
+          <p class="muted" style="margin-top:16px"><b>Модель эмбеддингов</b></p>
+          <p class="muted" id="model-info">Загрузка статуса…</p>
+          <div class="toolbar">
+            <button class="btn" id="btn-model-download">Скачать модель</button>
+            <button class="btn secondary" id="btn-model-remove"><svg class="ic"><use href="#i-trash"/></svg> Удалить модель</button>
+            <span class="muted" id="model-progress"></span>
+          </div>
         </div>
       </section>
     </main>
@@ -1020,6 +1027,32 @@ async function loadConfig() {
     '<div class="cfg-group"><h4>' + esc(gr.title) + '</h4><div class="cfg-grid">' + gr.fields.map(fl => fieldHtml(fl, cfg)).join("") + "</div></div>"
   ).join("");
 }
+async function loadModel() {
+  const r = await api("GET", "/model/status");
+  if (!r.ok) { $("model-info").textContent = r.error || "Модель недоступна"; return; }
+  const st = r.status;
+  const size = st.bytes ? (st.bytes / 1048576).toFixed(1) + " МБ" : "0 Б";
+  let text = st.model + " · " + (st.cached ? "в кэше (" + size + ", файлов " + st.files + ")" : "не скачана") +
+    " · провайдер " + st.provider + (st.configured ? "" : " (векторный поиск выключен: выберите local)");
+  if (st.dir) text += " · " + st.dir;
+  if (st.error) text += " · ошибка: " + st.error;
+  $("model-info").textContent = text;
+  $("model-progress").textContent = st.downloading ? "скачивание…" + (st.progress && st.progress.percent ? " " + Math.round(st.progress.percent) + "%" : "") : "";
+  if (st.downloading) setTimeout(loadModel, 1500);
+}
+$("btn-model-download").onclick = async () => {
+  $("model-progress").textContent = "запуск…";
+  const r = await api("POST", "/model/download", {}, true);
+  if (!r.ok) { toast(r.error || "Не удалось скачать модель", true); $("model-progress").textContent = ""; return; }
+  toast("Скачивание запущено");
+  loadModel();
+};
+$("btn-model-remove").onclick = async () => {
+  if (!confirm("Удалить скачанную модель из кэша?")) return;
+  const r = await api("POST", "/model/remove", {}, true);
+  toast(r.ok ? "Модель удалена из кэша" : (r.error || "Ошибка"), !r.ok);
+  loadModel();
+};
 $("btn-cfg-load").onclick = loadConfig;
 $("btn-cfg-save").onclick = async () => {
   const body = {};
@@ -1045,6 +1078,7 @@ $("btn-cfg-save").onclick = async () => {
   await loadProjects();
   await loadOverview();
   await loadConfig();
+  loadModel();
   await loadItems(true);
 })();
 </script>

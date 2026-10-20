@@ -110,6 +110,22 @@ export async function handleLegacyApi(
   const method = (req.method ?? 'GET').toUpperCase()
   const { service, config } = ctx
 
+  if (path === '/model/status') {
+    json(200, { ok: true, status: service.modelStatus() })
+    return true
+  }
+  if (path === '/model/download' && method === 'POST') {
+    try {
+      json(200, { ok: true, status: service.downloadModel() })
+    } catch (error) {
+      json(400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+    return true
+  }
+  if (path === '/model/remove' && method === 'POST') {
+    json(200, { ok: true, status: service.removeModel() })
+    return true
+  }
   if (path === '/health') {
     json(200, { ok: true, projectRoot: service.store.root, enabled: config.enabled, projects: Object.keys(service.store.projectRoots()), ts: new Date().toISOString() })
     return true

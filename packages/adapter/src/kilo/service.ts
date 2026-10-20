@@ -7,6 +7,8 @@ import { DEFAULT_RANKING, KILO_RANKING_WEIGHTS, rankItems } from '@llm-memory/co
 import { buildGraph, deleteItemPage, initMemoryRoot, writeItemPage } from '@llm-memory/core/application/wiki'
 import { entryFromKiloRow, entryToKiloRow } from '@llm-memory/core/domain/mapping'
 import { clampImportance, type MemoryEntry, type MemoryGraph, type MemoryKind, type MemoryScope, type MemoryTier } from '@llm-memory/core/domain/types'
+import { ModelManager, type ModelStatus } from '@llm-memory/core/application/model-manager'
+import { DEFAULT_CONFIG, type EmbeddingConfig } from '@llm-memory/core/domain/config'
 import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
 import { entryPathFor } from '@llm-memory/core/layout/paths'
 import { createKiloLayout, type LayoutPort } from '@llm-memory/core/layout/index'
@@ -66,6 +68,8 @@ export interface KiloStatus {
 export class KiloService {
   readonly layout: LayoutPort
   readonly store: MemoryStore
+  /** Embedding-model lifecycle shared with the other harnesses (core). */
+  readonly model: ModelManager
   private readonly config: KiloMemoryConfig
   private readonly projectRoot: string | undefined
 
@@ -76,6 +80,46 @@ export class KiloService {
     const root = options.config.memory.storageRoot || this.layout.userRoot()
     // Kilo keeps its database in <store>/db/memory.db (not the core _db dialect).
     this.store = new MemoryStore({ storageRoot: root, dbPath: join(root, 'db', 'memory.db') })
+    this.model = new ModelManager({
+      settings: this.embeddingsConfig(),
+      cacheDir: join(root, '_models'),
+      isConfigured: () => this.config.embeddings.provider !== 'off',
+      // The Kilo adapter has no vector leg yet (stage 9), so nothing is live.
+      isEnabled: () => false,
+    })
+  }
+
+  /** Kilo settings folded into the core embedding shape. */
+  private embeddingsConfig(): EmbeddingConfig {
+    const defaults = DEFAULT_CONFIG.embeddings
+    const embeddings = this.config.embeddings
+    return {
+      ...defaults,
+      provider: embeddings.provider,
+      model: embeddings.model,
+      dim: embeddings.dim,
+      topK: embeddings.topK,
+      minScore: embeddings.minScore,
+      chunkChars: embeddings.chunkChars,
+      chunkOverlap: embeddings.chunkOverlap,
+      prewarm: embeddings.prewarm,
+      backend: embeddings.provider === 'off' ? 'off' : 'js',
+    }
+  }
+
+  /** State of the embedding model shown by the panel. */
+  modelStatus(): ModelStatus {
+    return this.model.status()
+  }
+
+  /** Start (or report) the model download. */
+  downloadModel(): ModelStatus {
+    return this.model.download()
+  }
+
+  /** Delete the cached model files. */
+  removeModel(): ModelStatus {
+    return this.model.remove()
   }
 
   /** Validate paths, create the wiki root and open the store. */
