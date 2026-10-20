@@ -105,13 +105,11 @@ describe('memory settings schema', () => {
     expect(
       unwrapSettings({
         recallLimit: volatileOf(5),
-        importRoots: [volatileOf('/mnt/c/memory'), '/opt/memory'],
         embeddingsProvider: volatileOf('local'),
         embeddingsDim: volatileOf(384),
       }),
     ).toEqual({
       recallLimit: 5,
-      importRoots: ['/mnt/c/memory', '/opt/memory'],
       embeddingsProvider: 'local',
       embeddingsDim: 384,
     })

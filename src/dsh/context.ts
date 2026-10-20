@@ -30,9 +30,7 @@ declare module '@deepseek-ai/dsh-llm' {
 
 import type { MemoryConfig } from '@llm-memory/core/domain/config.js'
 import type { MemoryEngine } from '@llm-memory/core/application/engine.js'
-import { detectImportProjects, mergeImportedProjects, runImport } from '@llm-memory/core/infrastructure/import/index.js'
 import { DIGEST_DIR, projectKeyFromCwd } from '@llm-memory/core/layout/paths.js'
-import { registerProjectRoots } from './workspaces.js'
 
 /** Unique name of the system-prompt section contributed by this plugin. */
 const PROMPT_SECTION_NAME = 'llm-memory'
@@ -304,26 +302,7 @@ export function runMemoryCommand(
     return { kind: 'success', text: statusText(engine) }
   }
 
-  if (sub === 'import') {
-    try {
-      const importConfig = {
-        importRoots: config.importRoots,
-        importAutoDetect: config.importAutoDetect,
-      }
-      registerProjectRoots(engine, detectImportProjects({ config: importConfig }))
-      const reports = runImport({ store: engine.getStore(), config: importConfig })
-      registerProjectRoots(engine, mergeImportedProjects(reports.map((report) => report.projects)))
-      const text =
-        reports
-          .map((report) => `${report.source}: imported=${report.imported} updated=${report.updated} skipped=${report.skipped}`)
-          .join('\n') || 'Nothing to import.'
-      return { kind: 'success', text }
-    } catch (error) {
-      return { kind: 'error', text: `Memory import failed: ${errorMessage(error)}` }
-    }
-  }
-
-  return { kind: 'error', text: `Unknown memory subcommand "${sub}". Use status, import or export.` }
+  return { kind: 'error', text: `Unknown memory subcommand "${sub}". Use status.` }
 }
 
 /** Register the `/memory` human command when the commands service is present. */

@@ -291,61 +291,6 @@ describe('MemoryEngine', () => {
     expect(engine.rulesForPrompt(10)).toContain('Other rule')
   })
 
-  it('imports entries idempotently by extKey', () => {
-    const entry = {
-      extKey: 'kilo:42',
-      text: 'Imported fact about queues.',
-      title: 'Queues',
-      kind: 'facts' as const,
-    }
-
-    const first = engine.importEntries([entry], 'kilo')
-    expect(first.imported).toBe(1)
-    expect(first.updated).toBe(0)
-    expect(first.skipped).toBe(0)
-
-    const second = engine.importEntries([entry], 'kilo')
-    expect(second.imported).toBe(0)
-    expect(second.skipped).toBe(1)
-
-    const third = engine.importEntries([{ ...entry, text: 'Changed fact about queues.' }], 'kilo')
-    expect(third.updated).toBe(1)
-
-    const items = engine.list({ status: 'all' }).items
-    expect(items).toHaveLength(1)
-    expect(items[0]?.text).toBe('Changed fact about queues.')
-
-    const invalid = engine.importEntries([{ extKey: '', text: 'x' }], 'kilo')
-    expect(invalid.skipped).toBe(1)
-  })
-
-  it('remaps imported relations to local ids, drops missing targets and stays idempotent', () => {
-    const entries = [
-      { extKey: 'kilo:a', text: 'A supersedes B and relates C.', title: 'A', supersedes: ['b'], related: ['c', 'd'] },
-      { extKey: 'kilo:b', text: 'B body.', title: 'B' },
-      { extKey: 'kilo:c', text: 'C body.', title: 'C' },
-    ]
-
-    const first = engine.importEntries(entries, 'kilo')
-    expect(first.imported).toBe(3)
-    expect(first.droppedRelations).toBe(1)
-
-    const items = engine.list({ status: 'all' }).items
-    const a = items.find((item) => item.extKey === 'kilo:a')
-    const b = items.find((item) => item.extKey === 'kilo:b')
-    const c = items.find((item) => item.extKey === 'kilo:c')
-    expect(a?.supersedes).toEqual([b?.id])
-    expect(a?.related).toEqual([c?.id])
-    expect(engine.lintReport().brokenLinks).toHaveLength(0)
-
-    const idsBefore = items.map((item) => item.id).sort()
-    const second = engine.importEntries(entries, 'kilo')
-    expect(second.imported).toBe(0)
-    expect(second.updated).toBe(0)
-    expect(second.skipped).toBe(3)
-    expect(engine.list({ status: 'all' }).items.map((item) => item.id).sort()).toEqual(idsBefore)
-  })
-
   it('heals broken links and adds missing backlinks without changing statuses', () => {
     const a = engine.save({ text: 'Alpha body.', title: 'Alpha' })
     const b = engine.save({ text: 'Beta body.', title: 'Beta' })

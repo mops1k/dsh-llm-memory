@@ -9,7 +9,7 @@ The plugin gives the agent autonomous, layered memory: memories are markdown pag
 (the source of truth) with a `node:sqlite` FTS5 index. It exposes seven
 model-facing tools, injects memory guidance into the system prompt, ships a WebUI
 panel inside the dsh shell, surfaces all settings as a dedicated Settings section,
-and can import existing memory from other plugins.
+and keeps its own markdown-first store.
 
 ## Features
 
@@ -52,34 +52,13 @@ and can import existing memory from other plugins.
 - **System-prompt guidance** injected as a prompt section; the text is editable in
   settings (English by default).
 - **Dedicated Settings section**: **Settings → LLM Memory** holds the live-editable
-  options, including the system prompt, plus **Save settings**, **Import memory**
-  and **Export rules to dsh AGENTS.md**.
+  options, including the system prompt, plus **Save settings**.
 - **WebUI panel in the dsh shell**: the **LLM Memory** view tab next to the
   conversation renders the WebUI as a React view inside the shell (no iframe) and
   follows the dsh light/dark theme through the `--dsw-*` design tokens. The view
   has Search & Browse, Create/Edit, Graph, Map, Recall, Status, Lint and Health (lint/heal)
   sections. The same page is still served standalone at the plugin HTTP path
   (`<webPath>/ui`), using the same tokens.
-- **Importers** (idempotent, keyed by an external key):
-  - `kilo-memory` — `~/.config/kilo/memory/db/memory.db` (opened read-only),
-  - `dsh-mnemon` — `~/.mnemon/data/*/mnemon.db` (read-only),
-  - `dsh-memory` — the SQLite store of the plugin (`~/.dsh/memory/memory.db`,
-    table `memories(id, text, tags, pinned, created_at, updated_at)`, opened
-    read-only) and, for older layouts, markdown files with a
-    `<!-- dsh-memory: {...} -->` header. The plugin keeps one database per
-    machine, so its rows are imported into the cross-project `user` layer;
-    `pinned` rows become `tier: important` with importance 5.
-  Source roots are auto-detected on Windows, WSL (`/mnt/<drive>/Users/*`) and
-  Linux; extra paths can be listed in `importRoots`. Imported projects are
-  registered as **dsh workspaces** (when their root path exists).
-- **Rules export** into the dsh global `$DSH_HOME/AGENTS.md`:
-  - a **preview** first (target, mode, sources, full block text), then confirm;
-  - an idempotent managed block — all previous blocks are collapsed into one;
-  - the button is **disabled** while the exported block is already in sync;
-  - the default source is the **bundled English canonical rules** (`rules/en/AGENTS.md`),
-    which already carries the unique immutable clauses;
-    `rulesSource: kilo-verbatim` still copies both Kilo files as they are.
-  Kilo files are only ever read.
 
 ## Install
 
@@ -135,8 +114,6 @@ the core shape (`embeddings: { provider, dim, … }`).
 | `autonomous` | `true` | The agent manages memory without asking. |
 | `requireConfirmation` | `false` | Ask before irreversible operations. |
 | `systemPrompt` | built-in (English) | System-prompt guidance injected into the agent. |
-| `importRoots` | `[]` | Extra directories searched for other plugins' memory. |
-| `importAutoDetect` | `true` | Auto-detect source roots on Windows/WSL/Linux. |
 | `lintOverlapMinCommonWords` | `8` | Overlap threshold for the lint report. |
 | `lintMaxPairs` | `200` | Maximum pairs checked by lint (0 = unlimited). |
 | `webPath` | `/llm-memory` | Base HTTP path for the WebUI and the API. |
@@ -203,11 +180,10 @@ Then restart DSH.
 ## Repository layout
 
 ```
-src/core/          storage, engine, ranking, wiki, frontmatter, importers
-src/dsh/           host plugin wiring: tools, context, settings, web, rules export, workspaces
+src/core/          storage, engine, ranking, wiki, frontmatter
+src/dsh/           host plugin wiring: tools, context, settings, web, workspaces
 src/tool-restrict.ts  scoped preset restriction subpath
 client/client.js   browser client (classic script, React.createElement, React view on --dsw-* tokens + settings section)
-ui/web-ui.html     standalone WebUI page (same dsh tokens, light/dark)
 rules/en/          bundled English rules used by the rules export
 cordis.patch.yml   bundle patch
 scripts/           build helpers

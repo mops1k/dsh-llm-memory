@@ -46,12 +46,6 @@ import type { RankProvenance } from './ranking.js'
 import type { SemanticPair } from './ranking.js'
 import { MemoryStore, genMemoryId, newMemoryEntry } from '../infrastructure/store.js'
 import { buildGraph } from './wiki.js'
-import {
-  buildExternalIdMap,
-  remapRelationIds,
-  sameImportedEntry,
-  type ExternalIdResolution,
-} from '../infrastructure/importing.js'
 import type {
   EmbeddingProvider,
   MemoryEntry,
@@ -297,42 +291,6 @@ export interface LintDuplicate {
   duplicateTitle: string
   /** Cosine similarity of the entry vectors. */
   score: number
-}
-
-/** One entry accepted by {@link MemoryEngine.importEntries}. */
-export interface ImportEntry {
-  /** Source-unique key used for idempotency (e.g. `kilo:<id>`). */
-  extKey: string
-  text: string
-  title?: string
-  scope?: MemoryScope
-  project?: string
-  kind?: MemoryKind
-  tier?: MemoryTier
-  status?: MemoryStatus
-  tags?: string[]
-  keywords?: string
-  importance?: MemoryImportance
-  confidence?: number
-  source?: string
-  /** Raw source project root, when the entry came from a foreign store. */
-  projectRoot?: string | null
-  related?: string[]
-  supersedes?: string[]
-  supersededBy?: string[]
-  createdAt?: string
-  updatedAt?: string
-}
-
-/** Outcome of {@link MemoryEngine.importEntries}. */
-export interface ImportReport {
-  source: string
-  imported: number
-  updated: number
-  skipped: number
-  /** Relation references dropped because their target was not imported. */
-  droppedRelations: number
-  ids: string[]
 }
 
 /** Result of {@link MemoryEngine.heal}. */
@@ -1037,7 +995,7 @@ export class MemoryEngine {
 
   /**
    * The derived SQLite store backing this engine. Exposed for orchestration
-   * code that must hand the store to the importers (a second owner of the same
+   * code that must hand the store to another owner (a second owner of the same
    * database file would break the single-writer contract).
    */
   getStore(): MemoryStore {
@@ -1463,86 +1421,6 @@ export class MemoryEngine {
     return lines.join('\n')
   }
 
-  /**
-   * Import entries idempotently by `extKey`.
-   *
-   * Two passes are required for cross-entry relations: the first resolves every
-   * entry to a stable local id (existing ids are reused through `extKey`), the
-   * second rewrites `supersedes`/`supersededBy`/`related` through that map and
-   * drops references to entries that were not imported, so no broken link is
-   * ever stored.
-   */
-  importEntries(entries: ImportEntry[], source: string): ImportReport {
-    const report: ImportReport = { source, imported: 0, updated: 0, skipped: 0, droppedRelations: 0, ids: [] }
-
-    const resolutions: ExternalIdResolution[] = []
-    const prepared: Array<{
-      input: ImportEntry
-      extKey: string
-      text: string
-      existing: MemoryEntry | null
-      localId: string
-    }> = []
-    for (const input of entries) {
-      const extKey = (input.extKey ?? '').trim()
-      const text = (input.text ?? '').trim()
-      if (extKey.length === 0 || text.length === 0) {
-        report.skipped++
-        continue
-      }
-      const existing = this.store.getByExtKey(extKey)
-      const localId = existing?.id ?? genMemoryId()
-      resolutions.push({ extKey, localId })
-      prepared.push({ input, extKey, text, existing, localId })
-    }
-
-    const idMap = buildExternalIdMap(source, resolutions)
-    for (const { input, extKey, text, existing, localId } of prepared) {
-      const scope: MemoryScope = input.scope ?? 'project'
-      const project = scope === 'user' ? '' : sanitizeProjectKey(input.project ?? this.project)
-      if (scope === 'project') this.ensureProjectRoot(project)
-      const supersedes = remapRelationIds(input.supersedes ?? [], source, idMap)
-      const supersededBy = remapRelationIds(input.supersededBy ?? [], source, idMap)
-      const related = remapRelationIds(input.related ?? [], source, idMap)
-      report.droppedRelations += supersedes.dropped + supersededBy.dropped + related.dropped
-
-      const candidate = newMemoryEntry({
-        id: localId,
-        scope,
-        project,
-        kind: input.kind ?? 'facts',
-        tier: input.tier ?? 'normal',
-        status: input.status ?? 'active',
-        title: input.title ?? '',
-        text,
-        tags: input.tags ?? [],
-        keywords: input.keywords ?? '',
-        importance: input.importance ?? 3,
-        supersedes: supersedes.ids,
-        supersededBy: supersededBy.ids,
-        related: related.ids,
-        ...(input.confidence !== undefined ? { confidence: input.confidence } : {}),
-        source: input.source ?? source,
-        extKey,
-        createdAt: input.createdAt ?? existing?.createdAt,
-        updatedAt: input.updatedAt ?? new Date().toISOString(),
-      })
-
-      report.ids.push(localId)
-      if (!existing) {
-        this.store.upsert(candidate)
-        report.imported++
-        continue
-      }
-      if (sameImportedEntry(existing, candidate)) {
-        report.skipped++
-        continue
-      }
-      this.store.upsert({ ...candidate, createdAt: existing.createdAt || candidate.createdAt })
-      report.updated++
-    }
-    return report
-  }
 
   /**
    * Safe health repair: drop broken relation references, add missing reverse

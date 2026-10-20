@@ -14,7 +14,6 @@ import {
   settingsSnapshot as buildSettingsSnapshot,
   type UISettingsSnapshot,
 } from '@llm-memory/core/domain/ui-contract'
-import { runImport, type ImportReport } from '@llm-memory/core/infrastructure/import/index'
 import { createBackup, deleteBackup, listBackups, resolveBackupDir, restoreBackup, verifyBackup, type BackupRecord, type BackupReport, type RestoreReport, type VerifyReport } from '@llm-memory/core/infrastructure/backup'
 import { createEmbeddingProvider } from '@llm-memory/core/infrastructure/embeddings'
 import { MemoryStore, newMemoryEntry } from '@llm-memory/core/infrastructure/store'
@@ -47,8 +46,6 @@ const SETTINGS_UNSUPPORTED_IN_KILO: string[] = [
   'lintMaxPairs',
   'autonomous',
   'requireConfirmation',
-  'importAutoDetect',
-  'importRoots',
   'embeddings.backend',
   'embeddings.quantization',
   'embeddings.batchSize',
@@ -367,14 +364,6 @@ export class KiloService {
     }
   }
 
-  /** Import foreign memory stores (Kilo/mnemon/dsh-memory) into this store. */
-  importMemory(): ImportReport[] {
-    return runImport({
-      store: this.store,
-      config: { importRoots: [], importAutoDetect: true },
-    })
-  }
-
   /** Backups of this store (pages + db), the same .llmmem format as DSH. */
   backupCreate(): BackupReport {
     return createBackup({ harness: 'kilo', ...this.backupTarget() })
@@ -426,7 +415,7 @@ export class KiloService {
     this.store.close()
   }
 
-  /** Compatibility helper for importers/migrations: canonical rows of this store. */
+  /** Compatibility helper for migrations: canonical rows of this store. */
   rows(): Record<string, unknown>[] {
     return this.store.list({ limit: 1_000_000 }).items.map(entryToKiloRow)
   }

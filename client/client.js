@@ -138,9 +138,6 @@ window.__ModuleLoader__.load({
         autonomous: v.autonomous !== false,
         requireConfirmation: v.requireConfirmation === true,
         systemPrompt: typeof v.systemPrompt === "string" ? v.systemPrompt : "",
-        importRoots: Array.isArray(v.importRoots) ? v.importRoots.join("\n") : "",
-        importAutoDetect: v.importAutoDetect !== false,
-        rulesSource: v.rulesSource === "kilo-verbatim" ? "kilo-verbatim" : "bundled-en",
         lintOverlapMinCommonWords: String(
           typeof v.lintOverlapMinCommonWords === "number" ? v.lintOverlapMinCommonWords : 8,
         ),
@@ -2222,26 +2219,6 @@ window.__ModuleLoader__.load({
                 " backend reads memory_vectors directly.";
         });
 
-      const syncWorkspaces = () =>
-        run("Syncing workspaces\u2026", async () => {
-          const data = await apiPost(props.base, "/api/workspaces/sync", {});
-          setWorkspaces({ workspaces: data.workspaces, projects: data.projects });
-          const summary = data.workspaces;
-          if (!summary) return "Workspaces: no data.";
-          if (summary.unavailable) return "Workspaces: registry unavailable.";
-          return (
-            "Workspaces: created " +
-            summary.created.length +
-            ", existing " +
-            summary.existing.length +
-            ", skipped " +
-            summary.skipped.length +
-            ", errors " +
-            summary.errors.length +
-            "."
-          );
-        });
-
       const listBlock = (title, items) =>
         h("div", { key: title }, [
           h("h4", { key: "t", style: S.sectionTitle }, title + " (" + items.length + ")"),
@@ -2268,7 +2245,6 @@ window.__ModuleLoader__.load({
             actionById["vectors.rebuild"] ? h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildVectors }, actionById["vectors.rebuild"].label) : null,
             h("button", { type: "button", style: S.button, disabled: busy, onClick: repairVectors }, "Repair vectors"),
             h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildAnn }, "Rebuild ANN index"),
-            h("button", { type: "button", style: S.button, disabled: busy, onClick: syncWorkspaces }, "Sync workspaces"),
             h(
               "button",
               { type: "button", style: S.button, disabled: busy, onClick: () => setVersion((v) => v + 1) },
@@ -2541,48 +2517,6 @@ window.__ModuleLoader__.load({
           });
         };
 
-        const importMemory = async () => {
-          setBusy(true);
-          setActionStatus({ text: "Importing\u2026", error: false });
-          try {
-            const data = await apiPost(base, "/api/import", {});
-            const lines = [
-              "Imported " +
-                data.totals.imported +
-                ", updated " +
-                data.totals.updated +
-                ", skipped " +
-                data.totals.skipped +
-                ".",
-            ];
-            if (data.totals.droppedRelations) {
-              lines.push("Dropped unresolved relation links: " + data.totals.droppedRelations + ".");
-            }
-            (data.reports || []).forEach((report) => {
-              lines.push(
-                "- " +
-                  report.source +
-                  ": imported=" +
-                  report.imported +
-                  " updated=" +
-                  report.updated +
-                  " skipped=" +
-                  report.skipped +
-                  (report.droppedRelations ? " dropped=" + report.droppedRelations : "") +
-                  (report.errors && report.errors.length ? " errors=" + report.errors.length : ""),
-              );
-            });
-            setOverlay({ kind: "report", title: "Import report", text: lines.join("\n") });
-            setActionStatus({ text: "Import finished.", error: false });
-            await refreshProjects();
-            refreshBrowse();
-          } catch (error) {
-            setActionStatus({ text: errorText(error), error: true });
-          } finally {
-            setBusy(false);
-          }
-        };
-
 
         const handlers = {
           onOpen: openItem,
@@ -2617,9 +2551,6 @@ window.__ModuleLoader__.load({
           h(
             "div",
             { style: S.toolbar },
-            (panelActions.find((action) => action.id === "import.run") || null)
-              ? h("button", { type: "button", style: S.button, disabled: busy, onClick: importMemory }, panelActions.find((action) => action.id === "import.run").label)
-              : null,
             h("span", { style: S.toolbarSpacer }),
             h(Notice, { text: actionStatus.text, error: actionStatus.error }),
             h(
@@ -2856,18 +2787,6 @@ window.__ModuleLoader__.load({
             await scope.set("requireConfirmation", !!form.requireConfirmation);
             await scope.set("systemPrompt", String(form.systemPrompt || ""));
             await scope.set(
-              "importRoots",
-              String(form.importRoots || "")
-                .split(/\r?\n/)
-                .map((line) => line.trim())
-                .filter((line) => line.length > 0),
-            );
-            await scope.set("importAutoDetect", !!form.importAutoDetect);
-            await scope.set(
-              "rulesSource",
-              form.rulesSource === "kilo-verbatim" ? "kilo-verbatim" : "bundled-en",
-            );
-            await scope.set(
               "lintOverlapMinCommonWords",
               intValue(form.lintOverlapMinCommonWords, 8, 1, 1000),
             );
@@ -2909,39 +2828,6 @@ window.__ModuleLoader__.load({
             setNotice("Settings saved.");
           } catch (error) {
             setNotice("Save failed: " + errorText(error));
-          } finally {
-            setBusy(false);
-          }
-        };
-
-        const importMemory = async () => {
-          setBusy(true);
-          setReport("Importing\u2026");
-          try {
-            const data = await apiPost(webBase(scope), "/api/import", {});
-            const lines = [
-              "Imported " + data.totals.imported + ", updated " + data.totals.updated + ", skipped " + data.totals.skipped + ".",
-            ];
-            if (data.totals.droppedRelations) {
-              lines.push("Dropped unresolved relation links: " + data.totals.droppedRelations + ".");
-            }
-            (data.reports || []).forEach((item) => {
-              lines.push(
-                "- " +
-                  item.source +
-                  ": imported=" +
-                  item.imported +
-                  " updated=" +
-                  item.updated +
-                  " skipped=" +
-                  item.skipped +
-                  (item.droppedRelations ? " dropped=" + item.droppedRelations : "") +
-                  (item.errors && item.errors.length ? " errors=" + item.errors.length : ""),
-              );
-            });
-            setReport(lines.join("\n"));
-          } catch (error) {
-            setReport("Import failed: " + errorText(error));
           } finally {
             setBusy(false);
           }
@@ -2989,9 +2875,6 @@ window.__ModuleLoader__.load({
             "div",
             { style: S.actions },
             h("button", { type: "button", style: S.primary, disabled: busy, onClick: save }, "Save settings"),
-            (panelActions.find((action) => action.id === "import.run") || null)
-              ? h("button", { type: "button", style: S.button, disabled: busy, onClick: importMemory }, panelActions.find((action) => action.id === "import.run").label)
-              : null,
           ),
           notice ? h("p", { style: S.status }, notice) : null,
           report ? h("pre", { style: S.pre }, report) : null,

@@ -22,14 +22,6 @@ import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import type { MemoryConfig } from '@llm-memory/core/domain/config.js'
 import type { MemoryEngine, RecallFormat, SaveInput, UpdatePatch } from '@llm-memory/core/application/engine.js'
 import { RECALL_FORMAT_VALUES } from '@llm-memory/core/application/engine.js'
-import {
-  detectImportProjects,
-  IMPORT_SOURCES,
-  mergeImportedProjects,
-  runImport,
-  type ImportedProject,
-  type ImportSourceName,
-} from '@llm-memory/core/infrastructure/import/index.js'
 import type { MemoryFilter, MemoryKind, MemoryTier } from '@llm-memory/core/domain/types.js'
 import {
   clampImportance,
@@ -38,14 +30,7 @@ import {
   isMemoryStatus,
   isMemoryTier,
 } from '@llm-memory/core/domain/types.js'
-import {
-  findWorkspacePathByKey,
-  registerImportedWorkspaces,
-  registerProjectRoots,
-  type ProjectRootRegistrationReport,
-  type WorkspaceRegistryLike,
-  type WorkspaceSyncReport,
-} from './workspaces.js'
+import { findWorkspacePathByKey, type WorkspaceRegistryLike } from './workspaces.js'
 import { settingsUiSchema } from './settings.js'
 import { panelSnapshot } from '@llm-memory/core/domain/ui-contract.js'
 
@@ -298,20 +283,10 @@ function updatePatchFrom(body: Record<string, unknown>): UpdatePatch {
   return patch
 }
 
-/** Narrow a body value to a supported import source name. */
-function isImportSourceName(value: unknown): value is ImportSourceName {
-  return typeof value === 'string' && (IMPORT_SOURCES as readonly string[]).includes(value)
-}
-
-/** Workspace sync payload sent back to the UI. */
-export type WorkspaceSyncPayload = WorkspaceSyncReport | { unavailable: true }
-
 /** Host wiring that lets the pure handler reach `ctx.workspaceRegistry`. */
 export interface WebHandlerOptions {
   /** Store root used by the backup screen (defaults to the process cwd). */
   storageRoot?: string;
-  /** Resolve the workspace registry lazily; may return undefined when absent. */
-  getWorkspaceRegistry?: () => unknown
 }
 
 /**
@@ -355,33 +330,6 @@ function asWorkspaceRegistry(value: unknown): WorkspaceRegistryLike | undefined 
   return candidate as WorkspaceRegistryLike
 }
 
-/** Parse an explicit `projects` array from a request body. */
-function asProjectArray(value: unknown): ImportedProject[] {
-  if (!Array.isArray(value)) return []
-  const out: ImportedProject[] = []
-  for (const item of value) {
-    if (item === null || typeof item !== 'object') continue
-    const record = item as Record<string, unknown>
-    const key = asString(record['key'])?.trim() ?? ''
-    if (key.length === 0) continue
-    const root = asString(record['root'])?.trim()
-    out.push({ key, root: root !== undefined && root.length > 0 ? root : null })
-  }
-  return out
-}
-
-/** Format the import reports for the JSON response. */
-function importResponse(reports: ReturnType<typeof runImport>): Record<string, unknown> {
-  const totals = { imported: 0, updated: 0, skipped: 0, droppedRelations: 0 }
-  for (const report of reports) {
-    totals.imported += report.imported
-    totals.updated += report.updated
-    totals.skipped += report.skipped
-    totals.droppedRelations += report.droppedRelations
-  }
-  return { reports, totals, projects: mergeImportedProjects(reports.map((report) => report.projects)) }
-}
-
 /**
  * Build the pure HTTP handler for the plugin's prefix route.
  *
@@ -389,7 +337,7 @@ function importResponse(reports: ReturnType<typeof runImport>): Record<string, u
  * `GET /ui`, `GET /api/status`, `GET /api/lint`, `GET /api/graph`,
  * `GET /api/items?query=&kind=&scope=&project=&status=&limit=&offset=`,
  * `GET /api/item?id=`, `POST /api/save`, `POST /api/forget`,
- * `POST /api/delete`, `POST /api/import`, `POST /api/workspaces/sync`,
+ * `POST /api/delete`,
  * `POST /api/heal`, `POST /api/vectors/rebuild`, `GET /api/model/status`,
  * `POST /api/model/download`, `POST /api/model/remove`,
  */
@@ -399,17 +347,6 @@ export function createWebHandler(
   options: WebHandlerOptions = {},
 ): WebHandler {
   const base = normalizeWebPath(config.webPath)
-  /** Projects from the most recent import, reused by the sync endpoint. */
-  let lastProjects: ImportedProject[] = []
-
-  const syncWorkspaces = async (projects: ImportedProject[]): Promise<WorkspaceSyncPayload> => {
-    const registry = options.getWorkspaceRegistry
-      ? asWorkspaceRegistry(options.getWorkspaceRegistry())
-      : undefined
-    if (!registry) return { unavailable: true }
-    return registerImportedWorkspaces(registry, projects)
-  }
-
   const handleGet = (rel: string, url: URL, res: ServerResponse): void => {
     if (rel === '/ui') {
       sendHtml(res, HEADLESS_UI_HTML)
@@ -577,47 +514,6 @@ export function createWebHandler(
       sendJson(res, 200, { id, deleted: true })
       return
     }
-    if (rel === '/api/import') {
-      const body = await readJsonBody(req, MAX_BODY_BYTES)
-      const requested = Array.isArray(body.sources) ? body.sources.filter(isImportSourceName) : []
-      const importConfig = {
-        importRoots: config.importRoots,
-        importAutoDetect: config.importAutoDetect,
-      }
-      // Register project roots before importing so project pages land inside
-      // each repository rather than in the global fallback directory.
-      const discovered = detectImportProjects({ config: importConfig })
-      const projectRegistration = registerProjectRoots(engine, discovered)
-      const reports = runImport({
-        store: engine.getStore(),
-        config: importConfig,
-        ...(requested.length > 0 ? { sources: requested } : {}),
-      })
-      lastProjects = mergeImportedProjects(reports.map((report) => report.projects))
-      registerProjectRoots(engine, lastProjects)
-      const workspaces = await syncWorkspaces(lastProjects)
-      sendJson(res, 200, { ...importResponse(reports), workspaces, projectRegistration })
-      return
-    }
-    if (rel === '/api/workspaces/sync') {
-      const body = await readJsonBody(req, MAX_BODY_BYTES)
-      const explicit = asProjectArray(body.projects)
-      const projects =
-        explicit.length > 0
-          ? explicit
-          : lastProjects.length > 0
-            ? lastProjects
-            : detectImportProjects({
-                config: {
-                  importRoots: config.importRoots,
-                  importAutoDetect: config.importAutoDetect,
-                },
-              })
-      const projectRegistration: ProjectRootRegistrationReport = registerProjectRoots(engine, projects)
-      const workspaces = await syncWorkspaces(projects)
-      sendJson(res, 200, { projects, workspaces, projectRegistration })
-      return
-    }
     if (rel === '/api/heal') {
       await readJsonBody(req, MAX_BODY_BYTES)
       sendJson(res, 200, engine.heal())
@@ -778,9 +674,7 @@ function mapUnavailableReason(engine: MemoryEngine): 'not-configured' | 'model-m
  */
 export function registerMemoryWeb(ctx: Context, engine: MemoryEngine, config: MemoryConfig): void {
   const base = normalizeWebPath(config.webPath)
-  const handler = createWebHandler(engine, config, {
-    getWorkspaceRegistry: () => resolveWorkspaceRegistry(ctx),
-  })
+  const handler = createWebHandler(engine, config)
   const route: WebRoute = { kind: 'prefix', path: base, handler }
   try {
     ctx.effect(() => ctx.webServer.register(route))

@@ -91,7 +91,6 @@ describe('core settings actions', () => {
       'heal.apply',
       'vectors.rebuild',
       'vectors.health',
-      'import.run',
     ]) {
       expect(ids.has(required)).toBe(true)
     }

@@ -431,7 +431,7 @@ export function buildGraph(entries: MemoryEntry[], options: BuildGraphOptions = 
   return { entities, edges }
 }
 
-/** Decode a page on disk; exported for importers that walk foreign stores. */
+/** Decode a page on disk (shared by maintenance and migration helpers). */
 export function decodePage(page: PageOnDisk): MemoryEntry | null {
   const entry = entryFromPage(page.text, { scope: page.scope, project: page.project })
   if (!entry) return null

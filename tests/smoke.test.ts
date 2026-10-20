@@ -17,9 +17,7 @@ describe('dsh-llm-memory plugin', () => {
     expect(config.recallLimit).toBe(10)
     expect(config.autonomous).toBe(true)
     expect(config.requireConfirmation).toBe(false)
-    expect(config.importAutoDetect).toBe(true)
     expect(config.webPath).toBe('/llm-memory')
-    expect(config.importRoots).toEqual([])
     expect(config.systemPrompt).toBe(DEFAULT_SYSTEM_PROMPT)
     expect(config.sessionStartGuide).toBe(true)
   })
@@ -34,9 +32,8 @@ describe('dsh-llm-memory plugin', () => {
 
   it('keeps a custom system prompt and import roots', () => {
     const config = unwrapSettings(
-      Config({ systemPrompt: 'custom guidance', importRoots: ['/srv/kilo'] }),
+      Config({ systemPrompt: 'custom guidance' }),
     )
     expect(config.systemPrompt).toBe('custom guidance')
-    expect(config.importRoots).toEqual(['/srv/kilo'])
   })
 })

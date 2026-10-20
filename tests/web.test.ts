@@ -242,7 +242,7 @@ describe('ui snapshot route', () => {
       expect(ids).toContain(required)
     }
     const actions = (body.actions as Array<{ id: string; label: string }>).map(action => action.id)
-    for (const required of ['backup.create', 'backup.restore', 'model.download', 'model.remove', 'lint.run', 'heal.apply', 'vectors.rebuild', 'import.run']) {
+    for (const required of ['backup.create', 'backup.restore', 'model.download', 'model.remove', 'lint.run', 'heal.apply', 'vectors.rebuild']) {
       expect(actions).toContain(required)
     }
   })

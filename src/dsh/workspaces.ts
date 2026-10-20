@@ -1,18 +1,15 @@
 /**
- * Workspace registration for imported projects.
+ * Workspace helpers: path translation and project lookup.
  *
- * The importers keep the raw project root as spelled by the foreign store
- * (a Windows drive path, a WSL UNC path or a native Unix path). Before such a
- * root can be handed to `ctx.workspaceRegistry` it must be translated into a
- * path of the current host, because the registry canonicalizes it with
- * `fs.realpath` and rejects anything that does not exist.
+ * Paths coming from another host (a Windows drive path, a WSL UNC path or a
+ * native Unix path) are translated before they are handed to the dsh workspace
+ * registry, because the registry canonicalizes them with `fs.realpath`.
  *
  * @module dsh-llm-memory/dsh/workspaces
  */
 import { existsSync } from 'node:fs'
 import { basename } from 'node:path'
 
-import type { ImportedProject } from '@llm-memory/core/infrastructure/importing.js'
 import { NO_CWD_KEY, sanitizeProjectKey } from '@llm-memory/core/layout/paths.js'
 
 /** Minimal structural view of a `@deepseek-ai/dsh-workspace` record. */
@@ -26,24 +23,6 @@ export interface WorkspaceRegistryLike {
   create(path: string, title?: string): Promise<WorkspaceLike>
   list(): WorkspaceLike[]
   resolveByPath(path: string): Promise<WorkspaceLike | undefined>
-}
-
-/** Outcome of one workspace sync. */
-export interface WorkspaceSyncReport {
-  /** Paths that were newly registered. */
-  created: string[]
-  /** Paths already owned by a workspace. */
-  existing: string[]
-  /** Paths skipped because the root is unknown, missing or duplicated. */
-  skipped: string[]
-  /** Human-readable failures that did not abort the run. */
-  errors: string[]
-}
-
-/** Options for {@link registerImportedWorkspaces}. */
-export interface RegisterWorkspacesOptions {
-  /** Existence probe override (tests inject a deterministic check). */
-  exists?: (path: string) => boolean
 }
 
 const WSL_UNC_RE = /^[\\/]{2}(?:wsl\.localhost|wsl\$)[\\/]([^\\/]+)[\\/](.*)$/iu
@@ -110,106 +89,4 @@ export function findWorkspacePathByKey(registry: WorkspaceRegistryLike, key: str
   return null
 }
 
-/** Minimal registrar shape accepted by {@link registerProjectRoots}. */
-export interface ProjectRegistrar {
-  registerProject(key: string, root: string): void
-}
 
-/** Outcome of registering imported project roots in `projects.json`. */
-export interface ProjectRootRegistrationReport {
-  /** `key` values registered with their host-local root. */
-  registered: string[]
-  /** Roots skipped: unknown, missing or duplicated. */
-  skipped: string[]
-}
-
-/**
- * Persist imported project roots (`key -> local path`) into the memory store's
- * `projects.json`, so project pages are written inside each repository.
- *
- * A project is skipped when its root cannot be translated to a host path, does
- * not exist on this host, or was already handled in this run.
- */
-export function registerProjectRoots(
-  registrar: ProjectRegistrar,
-  projects: readonly ImportedProject[],
-  options: RegisterWorkspacesOptions = {},
-): ProjectRootRegistrationReport {
-  const report: ProjectRootRegistrationReport = { registered: [], skipped: [] }
-  const exists = options.exists ?? existsSync
-  const seen = new Set<string>()
-
-  for (const project of projects) {
-    const key = (project?.key ?? '').trim()
-    const local = toLocalPath(project?.root)
-    if (key.length === 0 || local === null) {
-      report.skipped.push(key.length > 0 ? key : '(unknown root)')
-      continue
-    }
-    if (seen.has(local)) {
-      report.skipped.push(local)
-      continue
-    }
-    seen.add(local)
-    if (!exists(local)) {
-      report.skipped.push(local)
-      continue
-    }
-    try {
-      registrar.registerProject(key, local)
-      report.registered.push(key)
-    } catch {
-      report.skipped.push(local)
-    }
-  }
-
-  return report
-}
-
-/**
- * Register every imported project as a dsh workspace.
- *
- * A project is skipped when its root cannot be translated, does not exist on
- * this host, or was already handled in this run. Failures from the registry are
- * collected into `errors` instead of aborting the whole sync.
- */
-export async function registerImportedWorkspaces(
-  registry: WorkspaceRegistryLike,
-  projects: readonly ImportedProject[],
-  options: RegisterWorkspacesOptions = {},
-): Promise<WorkspaceSyncReport> {
-  const report: WorkspaceSyncReport = { created: [], existing: [], skipped: [], errors: [] }
-  const exists = options.exists ?? existsSync
-  const seen = new Set<string>()
-
-  for (const project of projects) {
-    const key = (project?.key ?? '').trim()
-    const local = toLocalPath(project?.root)
-    if (local === null) {
-      report.skipped.push(key.length > 0 ? key : '(unknown root)')
-      continue
-    }
-    if (seen.has(local)) {
-      report.skipped.push(local)
-      continue
-    }
-    seen.add(local)
-    if (!exists(local)) {
-      report.skipped.push(local)
-      continue
-    }
-    try {
-      const existing = await registry.resolveByPath(local)
-      if (existing) {
-        report.existing.push(local)
-        continue
-      }
-      await registry.create(local, key.length > 0 ? key : undefined)
-      report.created.push(local)
-    } catch (error) {
-      report.errors.push(`${local}: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  return report
-}

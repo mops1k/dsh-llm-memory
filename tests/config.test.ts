@@ -12,9 +12,7 @@ describe('mergeConfig', () => {
     expect(config.lintMaxPairs).toBe(200)
     expect(config.autonomous).toBe(true)
     expect(config.requireConfirmation).toBe(false)
-    expect(config.importAutoDetect).toBe(true)
     expect(config.webPath).toBe('/llm-memory')
-    expect(config.importRoots).toEqual([])
     expect(config.systemPrompt).toBe(DEFAULT_SYSTEM_PROMPT)
     expect(config.sessionStartGuide).toBe(true)
     expect(config.projectScanBudgetMs).toBe(0)
@@ -29,7 +27,6 @@ describe('mergeConfig', () => {
       recallScope: 'user',
       lintMaxPairs: -5,
       webPath: 'memory',
-      importRoots: [' /a ', '/a', '', '/b'],
       systemPrompt: '   ',
       sessionStartGuide: false,
       projectScanBudgetMs: 250,
@@ -41,7 +38,6 @@ describe('mergeConfig', () => {
     expect(config.recallScope).toBe('user')
     expect(config.lintMaxPairs).toBe(0)
     expect(config.webPath).toBe('/memory')
-    expect(config.importRoots).toEqual(['/a', '/b'])
     expect(config.systemPrompt).toBe(DEFAULT_SYSTEM_PROMPT)
     expect(config.sessionStartGuide).toBe(false)
     expect(config.projectScanBudgetMs).toBe(250)

@@ -106,11 +106,6 @@ export const MemorySettingsSchema = z.object({
     .default(DEFAULT_SYSTEM_PROMPT)
     .volatile()
     .description('System-prompt guidance injected for the agent. Editable in settings.'),
-  importRoots: z
-    .array(z.string())
-    .default([])
-    .volatile()
-    .description('Extra directories searched for memory of other plugins (kilo-memory, dsh-mnemon, dsh-memory).'),
   projectScanBudgetMs: z
     .number()
     .min(0)
@@ -120,11 +115,6 @@ export const MemorySettingsSchema = z.object({
     .description(
       'Time budget per storage directory for an index pass, in milliseconds (0 = no budget). A slow root (for example WSL /mnt/c) that exceeds it keeps its previous index rows until the next pass instead of blocking the host.',
     ),
-  importAutoDetect: z
-    .boolean()
-    .default(DEFAULT_CONFIG.importAutoDetect)
-    .volatile()
-    .description('Auto-detect source roots on Windows, WSL and Linux filesystems.'),
   lintOverlapMinCommonWords: z
     .number()
     .min(1)
@@ -411,9 +401,7 @@ export const SETTING_KEY_FOR_PATH: Record<string, string> = {
   autonomous: 'autonomous',
   requireConfirmation: 'requireConfirmation',
   systemPrompt: 'systemPrompt',
-  importRoots: 'importRoots',
   projectScanBudgetMs: 'projectScanBudgetMs',
-  importAutoDetect: 'importAutoDetect',
   lintOverlapMinCommonWords: 'lintOverlapMinCommonWords',
   lintMaxPairs: 'lintMaxPairs',
   webPath: 'webPath',

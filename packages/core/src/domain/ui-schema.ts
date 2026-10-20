@@ -146,7 +146,6 @@ export const UI_VIEWS: readonly UIView[] = [
         columns: ENTRY_COLUMNS,
         pagination: { pageSizes: [12, 24, 48, 96], defaultPageSize: 24 },
       },
-      { kind: 'actions', actions: ['import.run'] },
     ],
   },
   {

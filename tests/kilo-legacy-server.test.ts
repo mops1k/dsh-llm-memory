@@ -111,15 +111,4 @@ describe('kilo legacy panel API', () => {
     expect(deleted.deleted).toBe(true)
   })
 
-  it('runs the import action and reports per-source numbers', async () => {
-    const base = await start()
-    const imported = await (await fetch(`${base}api/legacy/import`, { method: 'POST' })).json()
-    expect(imported.ok).toBe(true)
-    expect(Array.isArray(imported.reports)).toBe(true)
-    for (const report of imported.reports) {
-      expect(report).toHaveProperty('source')
-      expect(report).toHaveProperty('imported')
-      expect(report).toHaveProperty('skipped')
-    }
-  })
 })

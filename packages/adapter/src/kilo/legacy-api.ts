@@ -119,15 +119,6 @@ export async function handleLegacyApi(
   const method = (req.method ?? 'GET').toUpperCase()
   const { service, config } = ctx
 
-  if (path === '/import' && method === 'POST') {
-    try {
-      const reports = service.importMemory()
-      json(200, { ok: true, reports })
-    } catch (error) {
-      json(400, { ok: false, error: error instanceof Error ? error.message : String(error) })
-    }
-    return true
-  }
   if (path === '/backups' && method === 'GET') {
     json(200, { ok: true, backups: service.backupList(), backupsDir: service.backupTarget().backupsDir })
     return true

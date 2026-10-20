@@ -164,8 +164,6 @@ export interface MemoryConfig {
   systemPrompt: string
   /** Explicit project key -> absolute root map (highest-priority root override). */
   projectRoots: Record<string, string>
-  /** Explicit import root directories (Kilo / mnemon / dsh-memory stores). */
-  importRoots: string[]
   /**
    * Per-base-directory time budget of an index pass, in milliseconds
    * (0 = no budget).
@@ -176,8 +174,6 @@ export interface MemoryConfig {
    * seconds per pass, which would otherwise block the host thread.
    */
   projectScanBudgetMs: number
-  /** Whether import roots are auto-detected (Windows / WSL / Linux). */
-  importAutoDetect: boolean
   /** Source of the rules exported to `$DSH_HOME/AGENTS.md`. */
   /** Vector (semantic) retrieval settings. */
   embeddings: EmbeddingConfig
@@ -238,8 +234,6 @@ export const DEFAULT_CONFIG: MemoryConfig = {
   requireConfirmation: false,
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   projectRoots: {},
-  importRoots: [],
-  importAutoDetect: true,
   projectScanBudgetMs: 0,
   embeddings: { ...DEFAULT_EMBEDDINGS },
   webPath: '/llm-memory',
@@ -391,10 +385,6 @@ export function mergeConfig(partial?: Partial<MemoryConfig> | null): MemoryConfi
         ? src.systemPrompt
         : DEFAULT_CONFIG.systemPrompt,
     projectRoots: src.projectRoots === undefined ? { ...DEFAULT_CONFIG.projectRoots } : asProjectRoots(src.projectRoots),
-    importRoots:
-      src.importRoots === undefined ? [...DEFAULT_CONFIG.importRoots] : asStringArray(src.importRoots),
-    importAutoDetect:
-      typeof src.importAutoDetect === 'boolean' ? src.importAutoDetect : DEFAULT_CONFIG.importAutoDetect,
     projectScanBudgetMs: asNumber(
       src.projectScanBudgetMs,
       DEFAULT_CONFIG.projectScanBudgetMs,

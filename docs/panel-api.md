@@ -115,18 +115,7 @@ DSH: `GET /api/model/status`, `POST /api/model/download`, `POST /api/model/remov
 возвращает 400 с причиной
 («switch embeddings provider to local…»); статус при этом доступен всегда. Логика общая — core `ModelManager`.
 
-## 5. Импорт
-
-Kilo: `POST /api/legacy/import` → `{ ok, reports: ImportReport[] }`.
-
-```ts
-ImportReport { source: 'kilo'|'mnemon'|'dsh-memory'; imported; updated; skipped; droppedRelations; errors; rootsFound; projects }
-```
-
-Импорт идемпотентен по `extKey` (`kilo:<id>`, `mnemon:<id>`, `dsh-memory:<scope>:<name>`): повторный прогон
-обновляет изменённое и пропускает совпадающее. Модуль — `packages/core/src/infrastructure/import` (общий для DSH и Kilo).
-
-## 6. Именование и пути
+## 5. Именование и пути
 
 - Продукт: **LLM Memory** (оба харнесса); инструменты — `llm_memory_*`.
 - Kilo-плагин: `~/.config/kilo/plugin/llm-memory.js` (старый `kilo-memory.js` не создаётся).
@@ -135,7 +124,7 @@ ImportReport { source: 'kilo'|'mnemon'|'dsh-memory'; imported; updated; skipped;
   `<repo>/.kilo/memory`, бэкапы `<store>/backups`.
 - Store DSH: `$DSH_HOME/llm-memory` (по умолчанию `~/.dsh/llm-memory`).
 
-## 7. Что исправлено (журнал)
+## 6. Что исправлено (журнал)
 
 | Симптом | Причина | Исправление |
 |---|---|---|
@@ -149,3 +138,4 @@ ImportReport { source: 'kilo'|'mnemon'|'dsh-memory'; imported; updated; skipped;
 | Бэкап отдельным пунктом меню DSH | решение без согласования | перенесён в карточку настроек над кнопками сохранения |
 | Модель: нет кнопок в Kilo | не был подключён `ModelManager` | общий `ModelManager` + `/model/*` + карточка |
 | Пагинация не по схеме | размеры были захардкожены | `pagination` в схеме, обе панели из неё |
+| Импорт памяти | фича признана ненужной | удалён полностью: core-модуль, API, UI, команда `/memory import`, настройки |

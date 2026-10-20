@@ -371,28 +371,10 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
       },
     ],
   },
-  {
-    id: 'import',
-    title: 'Import',
-    fields: [
-      {
-        path: 'importAutoDetect',
-        label: 'Auto-detect import roots',
-        hint: 'Detect source roots on Windows, WSL and Linux filesystems.',
-        type: 'boolean',
-      },
-      {
-        path: 'importRoots',
-        label: 'Import roots',
-        hint: 'Explicit directories of Kilo / mnemon / dsh-memory stores, one per line.',
-        type: 'list',
-      },
-    ],
-  },
 ]
 
 /** Groups of actions every panel must expose, with their semantics. */
-export type SettingsActionGroup = 'backup' | 'model' | 'maintenance' | 'index' | 'import'
+export type SettingsActionGroup = 'backup' | 'model' | 'maintenance' | 'index'
 
 export interface SettingsAction {
   /** Stable id: panels map it to their transport, not to their own semantics. */
@@ -435,7 +417,6 @@ export const SETTINGS_ACTIONS: readonly SettingsAction[] = [
   { id: 'heal.apply', group: 'maintenance', label: 'Heal apply', mode: 'write' },
   { id: 'vectors.rebuild', group: 'index', label: 'Rebuild vectors', mode: 'write' },
   { id: 'vectors.health', group: 'index', label: 'Vector health', mode: 'read' },
-  { id: 'import.run', group: 'import', label: 'Import memory', mode: 'write' },
 ]
 
 /** Read a dotted value out of a config-like object. */
@@ -472,7 +453,6 @@ const RU_GROUP_TITLES: Record<string, string> = {
   recall: 'Recall и контекст',
   embeddings: 'RAG (векторный поиск)',
   maintenance: 'Lint и жизненный цикл',
-  import: 'Импорт',
 }
 
 const RU_FIELD_LABELS: Record<string, string> = {
@@ -511,8 +491,6 @@ const RU_FIELD_LABELS: Record<string, string> = {
   lintMaxPairs: 'Пересечение: лимит пар',
   autonomous: 'Автономная память',
   requireConfirmation: 'Подтверждать разрушительные операции',
-  importAutoDetect: 'Автоопределение корней импорта',
-  importRoots: 'Корни импорта',
 }
 
 /** Groups with the labels of the requested locale (English is the base). */

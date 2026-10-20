@@ -23,7 +23,6 @@
 | `recall` | `recallLimit`, `recallTextChars`, `recallTotalChars`, `recallFormat`, `recallAllowFormatOverride`, `recallLiteralLookup`, `recallScope`, `promptRulesLimit`, `rulesPromptScope`, `sessionStartGuide`, `systemPrompt` |
 | `embeddings` | `embeddings.provider`, `.backend`, `.quantization`, `.model`, `.dim`, `.topK`, `.minScore`, `.batchSize`, `.chunkChars`, `.chunkOverlap`, `.queryPrefix`, `.passagePrefix`, `.semanticEdgesPerEntry`, `.semanticMaxEdges`, `.prewarm` |
 | `maintenance` | `lintOverlapMinCommonWords`, `lintMaxPairs`, `autonomous`, `requireConfirmation` |
-| `import` | `importAutoDetect`, `importRoots` |
 
 Поле (`SettingsField`) принимает:
 
@@ -68,7 +67,6 @@
 | `heal.apply` | maintenance | write | — |
 | `vectors.rebuild` | index | write | — |
 | `vectors.health` | index | read | — |
-| `import.run` | import | write | — |
 
 `UI_ACTION_NAMES` и `isUIAction(name)` — guard: панель вызывает только действия реестра.
 
@@ -79,7 +77,7 @@
 | id | Назначение | Виджеты |
 |---|---|---|
 | `overview` | сводка | `stats` (total/active/byKind/projects), `actions` (lint/heal report) |
-| `items` | записи | `table` (колонки + пагинация), `actions` (import) |
+| `items` | записи | `table` (колонки + пагинация) |
 | `editor` | создание/правка | `editor` (поля записи) |
 | `recall` | поиск | `search` (запрос + результаты, пагинация) |
 | `graph` | граф знаний | `graph` |
