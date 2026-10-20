@@ -84,6 +84,7 @@ export type UIWidget =
       params?: readonly { name: string; label: string; min?: number; max?: number; step?: number }[]
     }
   | { kind: 'editor'; fields: readonly UIEditorField[] }
+  | { kind: 'search'; source: UISourceRef; columns: readonly UITableColumn[] }
 
 export interface UIView {
   id: string
@@ -175,6 +176,18 @@ export const UI_VIEWS: readonly UIView[] = [
           { path: 'tags', label: 'Tags', labelRu: 'Теги', type: 'list' },
           { path: 'keywords', label: 'Keywords', labelRu: 'Ключевые слова', type: 'text' },
         ],
+      },
+    ],
+  },
+  {
+    id: 'recall',
+    title: 'Recall',
+    titleRu: 'Поиск',
+    widgets: [
+      {
+        kind: 'search',
+        source: { operation: 'items.list', params: { limit: '20' } },
+        columns: ENTRY_COLUMNS,
       },
     ],
   },

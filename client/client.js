@@ -31,16 +31,8 @@ window.__ModuleLoader__.load({
     const inject = ["slots", "configForms"];
 
     const KINDS = ["rules", "preferences", "decisions", "facts", "architecture", "concepts"];
-    const TABS = [
-      ["browse", "Search & Browse"],
-      ["edit", "Create / Edit"],
-      ["graph", "Graph"],
-      ["map", "Map"],
-      ["recall", "Recall"],
-      ["status", "Status"],
-      ["lint", "Lint"],
-      ["health", "Health"],
-    ];
+    /** Screens of the universal schema this view renders (settings has its own slot). */
+    const DSH_VIEW_IDS = ["overview", "items", "editor", "graph", "map", "recall", "health"];
 
     /* ------------------------------------------------------------------ *
      * helpers
@@ -2366,7 +2358,8 @@ window.__ModuleLoader__.load({
     function createMemoryView(scope) {
       return function MemoryView() {
         const [base, setBase] = React.useState(() => webBase(scope));
-        const [tab, setTab] = React.useState("browse");
+        const [tab, setTab] = React.useState("items");
+        const [views, setViews] = React.useState([]);
         const [overlay, setOverlay] = React.useState(null);
         const [editDraft, setEditDraft] = React.useState(null);
         const [editKey, setEditKey] = React.useState(0);
@@ -2398,17 +2391,22 @@ window.__ModuleLoader__.load({
           }
         }, [base]);
 
-        const refreshRulesExportState = React.useCallback(async () => {
-          try {
-            const data = await apiPost(base, "/api/rules/preview", {});
-          } catch (error) {
-          }
-        }, [base]);
-
         React.useEffect(() => {
           refreshProjects();
-          refreshRulesExportState();
-        }, [refreshProjects, refreshRulesExportState]);
+          let alive = true;
+          apiGet(base, "/api/ui/snapshot")
+            .then((snapshot) => {
+              if (!alive) return;
+              const known = Array.isArray(snapshot.views) ? snapshot.views : [];
+              setViews(known.filter((view) => DSH_VIEW_IDS.includes(view.id)));
+            })
+            .catch(() => {
+              /* keep the built-in order when the snapshot is unavailable */
+            });
+          return () => {
+            alive = false;
+          };
+        }, [refreshProjects, base]);
 
         const refreshBrowse = () => setBrowseVersion((previous) => previous + 1);
 
@@ -2507,25 +2505,6 @@ window.__ModuleLoader__.load({
         };
 
 
-        const exportRules = async () => {
-          setOverlay(null);
-          setBusy(true);
-          setActionStatus({ text: "Exporting rules\u2026", error: false });
-          try {
-            const data = await apiPost(base, "/api/rules/export", {});
-            const lines = [data.message || "changed=" + data.changed + ", bytes=" + data.bytes];
-            lines.push("target: " + data.target);
-            (data.sources || []).forEach((source) => lines.push("- " + source));
-            setOverlay({ kind: "report", title: "Rules export report", text: lines.join("\n") });
-            setActionStatus({ text: data.changed ? "Rules exported." : "Nothing to export.", error: false });
-            await refreshRulesExportState();
-          } catch (error) {
-            setActionStatus({ text: errorText(error), error: true });
-          } finally {
-            setBusy(false);
-          }
-        };
-
         const handlers = {
           onOpen: openItem,
           onEdit: editEntry,
@@ -2534,30 +2513,18 @@ window.__ModuleLoader__.load({
         };
 
         let content = null;
-        if (tab === "browse") {
-          content = h(BrowseTab, {
-            base,
-            version: browseVersion,
-            projects,
-            handlers,
-          });
-        } else if (tab === "edit") {
-          content = h(EditTab, {
-            key: editKey,
-            base,
-            draft: editDraft,
-            onSaved: refreshBrowse,
-          });
+        if (tab === "overview") {
+          content = h("div", { style: S.panel }, h(StatusPanel, { base, version: browseVersion }));
+        } else if (tab === "items") {
+          content = h(BrowseTab, { base, version: browseVersion, projects, handlers });
+        } else if (tab === "editor") {
+          content = h(EditTab, { key: editKey, base, draft: editDraft, onSaved: refreshBrowse });
         } else if (tab === "graph") {
           content = h(GraphTab, { base, onOpen: openItem });
         } else if (tab === "map") {
           content = h(MapTab, { base, onOpen: openItem });
         } else if (tab === "recall") {
           content = h(RecallTab, { base, onOpen: openItem });
-        } else if (tab === "status") {
-          content = h("div", { style: S.panel }, h(StatusPanel, { base, version: browseVersion }));
-        } else if (tab === "lint") {
-          content = h("div", { style: S.panel }, h(LintPanel, { base, version: browseVersion }));
         } else {
           content = h(HealthTab, { base, onSaved: refreshBrowse });
         }
@@ -2580,18 +2547,18 @@ window.__ModuleLoader__.load({
           h(
             "nav",
             { style: S.tabs, role: "tablist" },
-            TABS.map(([id, label]) =>
+            views.map((view) =>
               h(
                 "button",
                 {
-                  key: id,
+                  key: view.id,
                   type: "button",
                   role: "tab",
-                  "aria-selected": tab === id ? "true" : "false",
-                  style: tab === id ? S.tabActive : S.tab,
-                  onClick: () => setTab(id),
+                  "aria-selected": tab === view.id ? "true" : "false",
+                  style: tab === view.id ? S.tabActive : S.tab,
+                  onClick: () => setTab(view.id),
                 },
-                label,
+                view.title,
               ),
             ),
           ),
@@ -2603,7 +2570,6 @@ window.__ModuleLoader__.load({
             onEdit: editEntry,
             onForget: forgetEntry,
             onDelete: deleteEntry,
-            onExportRules: exportRules,
           }),
         );
       };

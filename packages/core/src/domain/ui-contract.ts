@@ -88,6 +88,19 @@ export interface UISnapshot {
   operations: readonly string[]
 }
 
+/** Screens half of the contract, for panels whose settings come from the host. */
+export interface UIPanelSnapshot {
+  version: number
+  views: typeof UI_VIEWS
+  actions: typeof SETTINGS_ACTIONS
+  operations: readonly string[]
+}
+
+/** Screens/actions without settings values (dsh keeps settings in its own service). */
+export function panelSnapshot(): UIPanelSnapshot {
+  return { version: UI_SCHEMA_VERSION, views: UI_VIEWS, actions: SETTINGS_ACTIONS, operations: UI_OPERATIONS }
+}
+
 /** One payload every panel renders; design and embedding stay host-specific. */
 export function uiSnapshot(config: MemoryConfig, locale: 'en' | 'ru' = 'en'): UISnapshot {
   return {

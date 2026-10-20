@@ -47,6 +47,7 @@ import {
   type WorkspaceSyncReport,
 } from './workspaces.js'
 import { settingsUiSchema } from './settings.js'
+import { panelSnapshot } from '@llm-memory/core/domain/ui-contract.js'
 
 /** Maximum accepted request body size in bytes. */
 export const MAX_BODY_BYTES = 1024 * 1024
@@ -430,6 +431,10 @@ export function createWebHandler(
       sendJson(res, 200, engine.statusReport())
       return
     }
+    if (rel === '/api/ui/snapshot') {
+      sendJson(res, 200, panelSnapshot())
+      return
+    }
     if (rel === '/api/settings/schema') {
       sendJson(res, 200, settingsUiSchema())
       return
@@ -702,7 +707,7 @@ export function createWebHandler(
       return
     }
     if (rel.startsWith('/api/')) {
-      const getOnly = ['/api/status', '/api/settings/schema', '/api/lint', '/api/graph', '/api/vectors/map', '/api/vectors/health', '/api/items', '/api/item']
+      const getOnly = ['/api/status', '/api/ui/snapshot', '/api/settings/schema', '/api/lint', '/api/graph', '/api/vectors/map', '/api/vectors/health', '/api/items', '/api/item']
       if (getOnly.includes(rel)) {
         res.setHeader('Allow', 'GET')
       }

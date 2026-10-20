@@ -26,6 +26,7 @@ describe('universal UI schema', () => {
       'editor',
       'graph',
       'map',
+      'recall',
       'health',
       'settings',
       'backup',
