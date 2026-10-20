@@ -49,8 +49,10 @@ export interface EmbeddingRuntimeInstallerOptions {
  * Whether the plugin can resolve the embedding runtime from `dir`.
  *
  * Resolution starts at the plugin file rather than at this module: the published
- * bundle lives in `~/.config/kilo/plugin/llm-memory.js`, so a package installed
- * into `~/.config/kilo/node_modules` is the one the bundle would import.
+ * bundle lives in `~/.config/kilo/plugin/llm-memory.js`, so the nearest
+ * `node_modules` on the way up is `~/.config/kilo/node_modules` — that is where
+ * the package goes. npm runs with `--no-save/--no-package-lock`, so Kilo's own
+ * manifest and lockfile stay untouched (dry-run: only additions).
  */
 export function embeddingRuntimeStatus(dir: string): EmbeddingRuntimeStatus {
   const requireFromPlugin = createRequire(join(dir, 'plugin', 'llm-memory.js'))
@@ -134,18 +136,19 @@ export class EmbeddingRuntimeInstaller {
     if (this.installing) return this.status()
     this.installing = true
     this.error = null
+    const target = this.dir
     try {
-      this.debug(`embeddings: installing ${this.spec} into ${this.dir}`)
+      this.debug(`embeddings: installing ${this.spec} into ${target}`)
       await this.run(
         ['install', '--no-save', '--no-package-lock', '--no-audit', '--no-fund', '--loglevel=error', this.spec],
-        this.dir,
+        target,
       )
       this.presence = embeddingRuntimeStatus(this.dir).present
       if (!this.presence) {
-        this.error = `npm reported success but ${EMBEDDING_RUNTIME_PACKAGE} is still not resolvable from ${this.dir}`
+        this.error = `npm reported success but ${EMBEDDING_RUNTIME_PACKAGE} is still not resolvable from ${target}`
       }
     } catch (error) {
-      this.error = `${error instanceof Error ? error.message : String(error)}; run \`${this.status().command}\` in ${this.dir} and retry`
+      this.error = `${error instanceof Error ? error.message : String(error)}; run \`${this.status().command}\` in ${target} and retry`
     } finally {
       this.installing = false
     }

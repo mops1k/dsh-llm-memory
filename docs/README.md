@@ -17,7 +17,15 @@
 - [kilo-cutover.md](kilo-cutover.md) — production cutover Kilo.
 - [backup.md](backup.md) — формат `.llmmem`, создание/проверка/восстановление, CLI.
 
+## Кроссплатформенность и RAG
+
+- [cross-platform.md](cross-platform.md) — пути и IO на Windows/Linux, нормализация storageRoot, UNC/9p,
+  MAX_PATH, SQLite/WAL, установка и обновление плагина, CI-матрица.
+- [adr/rag-kilo-audit.md](adr/rag-kilo-audit.md) — аудит P1: схема векторов и рантайм Kilo на Windows.
+- [adr/ADR-010-embedding-runtime-delivery.md](adr/ADR-010-embedding-runtime-delivery.md) — доставка
+  рантайма эмбеддингов в Kilo (npm в `~/.config/kilo`, офлайн-модель из стора).
+
 ## Решения
 
-- [adr/](adr/) — ADR-001…ADR-009 (раздельные store, имена инструментов, UI-хосты, бэкапы,
-  sync-заготовка, изоляция, решения 19.10.2026, плоское дерево src/).
+- [adr/](adr/) — ADR-001…ADR-010 (раздельные store, имена инструментов, UI-хосты, бэкапы,
+  sync-заготовка, изоляция, решения 19.10.2026, плоское дерево src/, доставка рантайма эмбеддингов).

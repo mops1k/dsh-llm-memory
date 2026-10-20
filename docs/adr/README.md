@@ -17,6 +17,8 @@
 | [ADR-006](ADR-006-sync-groundwork.md) | Sync только groundwork (git, write + review) | принято |
 | [ADR-007](ADR-007-coexistence-isolation.md) | Coexistence isolation | принято |
 | [ADR-008](ADR-008-decisions-2026-10-19.md) | Канон ТЗ §8, правило импортов по слоям, поправки | принято |
+| [ADR-009](ADR-009-flat-src-tree.md) | Плоское дерево `src/`, один пакет и слои | принято |
+| [ADR-010](ADR-010-embedding-runtime-delivery.md) | Доставка рантайма эмбеддингов в Kilo (вариант A) | принято |
 
 Не создано на этом шаге: sanitized fixtures. Копия Kilo-БД требует Windows-хоста, а
 DSH-layout fixture собирается на этапе 1 вместе с `packages/testkit`, чтобы фикстура

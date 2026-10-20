@@ -63,6 +63,26 @@ Kilo: `GET /api/legacy/graph`, `GET /api/legacy/lint`, `POST /api/legacy/heal` (
 Отчёты `lint`/`heal` в Kilo — **markdown-строки** (как в прежнем дашборде), в DSH — структурированные объекты.
 Фильтр `?project=` применяется к `/items`, `/status`, `/graph`, `/lint`, `/heal`.
 
+### Векторы и RAG (Kilo)
+
+Векторная нога общая (`VectorLeg` ядра); эндпоинты отдают её состояние, карту и очередь:
+
+- `GET /api/legacy/vectors/status` → `{ ok, status: EmbeddingQueueStatus | null }` — индекс, очередь,
+  последний сбой; `null` — нога выключена (provider `off`, нет рантайма или модели).
+- `GET /api/legacy/vectors/health` → `{ ok, health: VectorHealth | null }` — сверка `memory_vectors` со
+  страницами: `orphans`, `missing`, `partial`, `stale`-метаданные, `foreign`, `badDim`, `broken`.
+- `GET /api/legacy/vectors/map?refresh=1&q=<текст>&limit=5` → `{ ok, map: VectorMap | null, query }` —
+  PCA-проекция векторов записей (кэшируется по счётчикам индекса) и позиция запроса с ближайшими id.
+- `POST /api/legacy/vectors/rebuild` → `{ ok, status }` — очистить кэш векторов и поставить полный
+  backfill в фоновую очередь.
+- `POST /api/legacy/vectors/embed` → `{ ok, status }` — довести очередь до конца (maintenance/тесты).
+- `GET /api/legacy/recall?q=<текст>&limit=20` → `{ ok, items, text, sources }` — гибридный поиск:
+  лексическая нога (FTS5) + семантическая (RRF), `sources[id] = ["bm25","vector","metadata"]`.
+  Панель «Поиск» ходит сюда, а не в `/items?q=` — иначе семантика не видна.
+
+Карта в панели рисуется из `vectors/map` (SVG-проекция, маркер запроса), кнопка «Перестроить векторы»
+активна, когда нога жива. При выключенной ноге эндпоинты отвечают `200` с `null` и текстовой причиной.
+
 ### Проекты
 
 Kilo: `GET /api/legacy/projects` → `{ ok: true, projects: string[] }` — ключи проектов, извлечённые из store
@@ -100,17 +120,25 @@ DSH: `GET /api/model/status`, `POST /api/model/download`, `POST /api/model/remov
 Ответ — `ModelStatus`:
 
 ```ts
-{ provider, model, configured, enabled, dir, cached, files, bytes, downloading, progress, error }
+{ provider, model, configured, enabled, dir, cached, files, bytes, downloading, progress, error,
+  missing?: string[],                       // каких файлов не хватает (config.json, токенизатор, веса)
+  runtime?: { present, installing, error, dir, command } }  // только Kilo: рантайм эмбеддингов
 ```
 
-Кэш: `<store>/_models/<model>/` (голое имя вида `multilingual-e5-small` нормализуется в `Xenova/...`).
+Кэш: `<store>/_models/<model>/` (голое имя вида `multilingual-e5-small` нормализуется в `Xenova/...`);
+на обеих платформах путь один и тот же, модель переносится вместе со стором (ADR-010).
 
-Если рантайм эмбеддингов в хосте недоступен (однофайловый Kilo-плагин), `model.download` переключается на
-**скачивание файлов по HTTP** с Hugging Face прямо в кэш (выбирается квантованная ONNX-модель, прогресс и
-резюмирование по `content-length`): файлы появляются на диске, статус `cached: true`, но `enabled` остаётся
-`false` — загрузка модели и RAG требуют решения по упаковке (P4 плана). При `provider: "off"` скачивание
-возвращает 400 с причиной
-(«switch embeddings provider to local…»); статус при этом доступен всегда. Логика общая — core `ModelManager`.
+Готовность считается по **целостности**, а не по наличию одного файла: `inspectModelCache` требует веса
+`.onnx`, `config.json` и токенизатор; неполный кэш отдаётся в `missing`, а `enabled` остаётся `false`.
+
+Kilo: однофайловый плагин без общего `node_modules`. При явном `model.download` сначала (если пакета нет)
+ставится рантайм `@huggingface/transformers` в `~/.config/kilo/node_modules` через npm, затем качаются веса
+(или используются уже лежащие в сторе) — `runtime.installing/progress` видны в панели, при неудаче приходит
+команда для ручной установки. На старте плагина установка не запускается. Если рантайма нет и поставить его
+нельзя, остаётся **скачивание только файлов** по HTTP (квантованная ONNX-модель, прогресс и резюмирование по
+`content-length`): `cached: true`, `enabled: false`. При `provider: "off"` скачивание возвращает 400
+(«switch embeddings provider to local…»); статус доступен всегда. DSH использует общий optional-пакет
+`@huggingface/transformers` и воркер, поэтому `runtime` не отдаёт.
 
 ## 5. Именование и пути
 
