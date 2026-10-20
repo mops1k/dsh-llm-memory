@@ -417,6 +417,8 @@ export const SETTINGS_ACTIONS: readonly SettingsAction[] = [
   { id: 'heal.apply', group: 'maintenance', label: 'Heal apply', mode: 'write' },
   { id: 'vectors.rebuild', group: 'index', label: 'Rebuild vectors', mode: 'write' },
   { id: 'vectors.health', group: 'index', label: 'Vector health', mode: 'read' },
+  { id: 'vectors.repair', group: 'index', label: 'Repair vectors', mode: 'write' },
+  { id: 'vectors.embed', group: 'index', label: 'Embed pending entries', mode: 'write' },
 ]
 
 /** Russian labels of the action registry, keyed by the same ids. */
@@ -434,6 +436,8 @@ const RU_ACTION_LABELS: Record<string, string> = {
   'heal.apply': 'Оздоровление (применить)',
   'vectors.rebuild': 'Перестроить векторы',
   'vectors.health': 'Здоровье векторов',
+  'vectors.repair': 'Оздоровление векторов',
+  'vectors.embed': 'Доиндексировать',
 }
 
 /** Actions with the labels of the requested locale (English is the base). */

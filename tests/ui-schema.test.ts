@@ -48,6 +48,15 @@ describe('universal UI schema', () => {
     expect(map?.widgets.some(widget => widget.kind === 'actions' && widget.actions.includes('vectors.rebuild'))).toBe(true)
   })
 
+  it('offers RAG healing actions on the health view', () => {
+    const health = UI_VIEWS.find(view => view.id === 'health')
+    const actions = health?.widgets.find(widget => widget.kind === 'actions')
+    if (actions?.kind !== 'actions') throw new Error('health actions are missing')
+    for (const id of ['heal.report', 'heal.apply', 'vectors.health', 'vectors.repair', 'vectors.embed', 'vectors.rebuild']) {
+      expect(actions.actions).toContain(id)
+    }
+  })
+
   it('declares pagination for entry lists', () => {
     const items = UI_VIEWS.find(view => view.id === 'items')
     const table = items?.widgets.find(widget => widget.kind === 'table')

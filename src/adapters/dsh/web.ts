@@ -171,8 +171,21 @@ function param(url: URL, name: string): string | undefined {
 
 /** The UI page is read relative to the compiled module so it ships in `ui/`. */
 const HEADLESS_UI_HTML = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>LLM Memory</title>
-<style>body{margin:0;font-family:system-ui,sans-serif}</style></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="color-scheme" content="light dark"><title>LLM Memory</title>
+<style>body{margin:0;font-family:system-ui,sans-serif}</style>
+<script>
+  // Resolve the shared panel theme before the first paint: no light flash.
+  (function () {
+    try {
+      var pref = localStorage.getItem('llm-memory:dsh:theme') || 'system';
+      var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.theme = pref === 'system' ? (dark ? 'dark' : 'light') : pref;
+      document.documentElement.dataset.themePref = pref;
+    } catch (error) {
+      document.documentElement.dataset.theme = 'light';
+    }
+  })();
+</script></head>
 <body><div id="root"></div>
 <script type="module">
   const base = location.pathname.endsWith('/ui') ? location.pathname.slice(0, -3) : location.pathname

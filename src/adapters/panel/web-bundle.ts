@@ -1,0 +1,13 @@
+/**
+ * The shared design page is embedded into a single-file plugin at build time
+ * (`scripts/build-kilo.mjs`, `scripts/build-opencode.mjs`), so the panel works
+ * without shipping sibling files next to the plugin.
+ */
+declare const __LLM_MEMORY_LEGACY_HTML__: string | undefined
+
+/** Original kilo-memory dashboard, embedded for the familiar panel design. */
+export function embeddedLegacyHtml(): string | null {
+  return typeof __LLM_MEMORY_LEGACY_HTML__ === 'string' && __LLM_MEMORY_LEGACY_HTML__.length > 0
+    ? __LLM_MEMORY_LEGACY_HTML__
+    : null
+}

@@ -44,6 +44,30 @@ describe('DSH UI bridge', () => {
     }
   })
 
+  it('serves the shared panel vocabulary (snapshot, items, settings, heal, vectors)', async () => {
+    const { runtime, bridge } = setup()
+    try {
+      await bridge.request('save', { text: 'panel vocabulary fact', scope: 'user', title: 'Vocabulary' })
+      const snapshot = (await bridge.request('ui.snapshot')) as { views: Array<{ id: string }> }
+      expect(snapshot.views.map(view => view.id)).toContain('overview')
+      const listed = (await bridge.request('items.list', { limit: 10, offset: 0 })) as { items: unknown[]; total: number }
+      expect(listed.total).toBe(1)
+      expect(listed.items).toHaveLength(1)
+      const searched = (await bridge.request('items.list', { query: 'vocabulary' })) as { items: unknown[] }
+      expect(searched.items).toHaveLength(1)
+      const settings = (await bridge.request('settings.snapshot')) as { snapshot: { groups: unknown[]; values: Record<string, unknown> } }
+      expect(settings.snapshot.groups.length).toBeGreaterThan(0)
+      expect(settings.snapshot.values).toHaveProperty('recallLimit')
+      const heal = (await bridge.request('heal.report')) as { reindexed: number }
+      expect(typeof heal.reindexed).toBe('number')
+      const model = (await bridge.request('model.status')) as { model: string }
+      expect(typeof model.model).toBe('string')
+      expect(await bridge.request('vectors.map')).toEqual({ map: null })
+    } finally {
+      runtime.close()
+    }
+  })
+
   it('creates, verifies and restores DSH backups through the bridge', async () => {
     const { runtime, bridge } = setup()
     try {

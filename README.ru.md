@@ -57,9 +57,9 @@
 - **WebUI-панель в оболочке dsh**: вкладка **LLM Memory** рядом с разговором
   рендерит WebUI как React-представление прямо в оболочке (без iframe) и следует
   светлой/тёмной теме dsh через дизайн-токены `--dsw-*`. На странице — разделы
-  Search & Browse, Create/Edit, Graph, Map, Recall, Status, Lint и Health (lint/heal).
-  Та же страница по-прежнему доступна отдельно по HTTP-пути плагина
-  (`<webPath>/ui`) и использует те же токены.
+  Search & Browse, Create/Edit, Graph, Map, Recall, Status, Lint и Health (lint/heal)
+  в том же дизайне, что и панель Kilo/OpenCode. Та же страница по-прежнему доступна
+  отдельно по HTTP-пути плагина (`<webPath>/ui`) и использует те же токены.
 
 ## Установка
 
@@ -182,7 +182,7 @@ pnpm test
 ```
 src/index.ts, tool-restrict.ts   точка входа DSH-плагина и subpath scoped-пресета
 src/core/          хранилище, движок, ranking, wiki, frontmatter (domain/application/infrastructure/port/layout/isolation/sync)
-src/ui/            headless-контракты, design/panel.html (общий дизайн панелей), темы
+src/ui/            headless-контракты; design/panel/ (исходники общего дизайна), design/panel.html (сборка), web React-панель, темы
 src/adapters/dsh/  обвязка DSH: tools, context, settings, web, workspaces
 src/adapters/kilo/ плагин Kilo: service, compat-API, сервер панели, миграция/cutover
 src/adapters/mcp/  MCP-инструменты (backup)

@@ -233,6 +233,10 @@ window.__ModuleLoader__.load({
       mask: "var(--dsw-alias-bg-mask-1, rgba(0,0,0,0.45))",
       code: "var(--dsw-alias-markdown-code-block, rgba(127,127,127,0.12))",
       mono: "var(--dsw-font-family, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)",
+      surface: "var(--dsw-alias-bg-layer-1, rgba(127,127,127,0.06))",
+      accent: "var(--dsw-alias-state-business-primary, #4176e6)",
+      radius: "12px",
+      radiusSm: "8px",
     };
 
     const KIND_COLORS = {
@@ -265,19 +269,20 @@ window.__ModuleLoader__.load({
       toolbar: {
         display: "flex",
         flexWrap: "wrap",
-        gap: "8px",
+        gap: "10px",
         alignItems: "center",
-        padding: "10px 12px",
-        borderBottom: "1px solid " + T.border1,
+        padding: "14px 18px 4px",
         flex: "0 0 auto",
       },
       toolbarSpacer: { flex: "1 1 auto" },
-      status: { fontSize: "12px", color: T.secondary, whiteSpace: "pre-wrap" },
+      status: { fontSize: "12.5px", color: T.secondary, whiteSpace: "pre-wrap" },
+      viewTitle: { fontSize: "15px", fontWeight: 650, letterSpacing: "-0.01em", color: T.text, lineHeight: 1.2 },
+      viewSub: { fontSize: "11.5px", color: T.caption, marginTop: "2px" },
       tabs: {
         display: "flex",
         flexWrap: "wrap",
-        gap: "2px",
-        padding: "6px 8px 0",
+        gap: "4px",
+        padding: "0 18px 12px",
         borderBottom: "1px solid " + T.border1,
         flex: "0 0 auto",
       },
@@ -285,53 +290,65 @@ window.__ModuleLoader__.load({
         background: "transparent",
         color: T.secondary,
         border: "1px solid transparent",
-        borderBottom: "none",
-        borderRadius: "8px 8px 0 0",
+        borderRadius: T.radiusSm,
         padding: "6px 12px",
-        fontSize: "12px",
+        fontSize: "12.5px",
         cursor: "pointer",
         font: "inherit",
       },
       tabActive: {
         background: T.bg2,
-        color: T.text,
+        color: T.accent,
         border: "1px solid " + T.border1,
-        borderBottom: "none",
-        borderRadius: "8px 8px 0 0",
+        borderRadius: T.radiusSm,
         padding: "6px 12px",
-        fontSize: "12px",
+        fontSize: "12.5px",
+        fontWeight: 600,
         cursor: "pointer",
         font: "inherit",
       },
-      content: { flex: "1 1 auto", overflow: "auto", padding: "12px" },
+      content: {
+        flex: "1 1 auto",
+        overflow: "auto",
+        padding: "16px 18px 24px",
+        width: "100%",
+        maxWidth: "1240px",
+        margin: "0 auto",
+        boxSizing: "border-box",
+      },
       input: {
         background: T.bg1,
         color: T.text,
-        border: "1px solid " + T.border2,
-        borderRadius: "6px",
-        padding: "5px 8px",
-        fontSize: "12px",
+        border: "1px solid " + T.border1,
+        borderRadius: T.radiusSm,
+        padding: "0 10px",
+        height: "32px",
+        fontSize: "12.5px",
         minWidth: "120px",
         font: "inherit",
+        boxSizing: "border-box",
       },
       option: { background: T.menu, color: T.text },
       button: {
-        background: "transparent",
+        background: T.bg1,
         color: T.text,
-        border: "1px solid " + T.border2,
-        borderRadius: "6px",
-        padding: "5px 10px",
-        fontSize: "12px",
+        border: "1px solid " + T.border1,
+        borderRadius: T.radiusSm,
+        padding: "0 11px",
+        height: "30px",
+        fontSize: "12.5px",
         cursor: "pointer",
         font: "inherit",
       },
       primary: {
-        background: T.bg3,
-        color: T.text,
-        border: "1px solid " + T.business,
-        borderRadius: "6px",
-        padding: "5px 10px",
-        fontSize: "12px",
+        background: T.business,
+        color: "#ffffff",
+        border: "1px solid transparent",
+        borderRadius: T.radiusSm,
+        padding: "0 11px",
+        height: "30px",
+        fontSize: "12.5px",
+        fontWeight: 550,
         cursor: "pointer",
         font: "inherit",
       },
@@ -339,38 +356,39 @@ window.__ModuleLoader__.load({
         background: "transparent",
         color: T.danger,
         border: "1px solid " + T.danger,
-        borderRadius: "6px",
-        padding: "5px 10px",
-        fontSize: "12px",
+        borderRadius: T.radiusSm,
+        padding: "0 11px",
+        height: "30px",
+        fontSize: "12.5px",
         cursor: "pointer",
         font: "inherit",
       },
       disabled: { opacity: 0.5, cursor: "not-allowed" },
-      field: { display: "flex", flexDirection: "column", gap: "4px", marginBottom: "10px" },
-      label: { fontSize: "12px", color: T.secondary },
-      hint: { fontSize: "11px", color: T.caption, lineHeight: 1.45 },
-      row: { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "flex-end" },
-      actions: { display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center", marginTop: "8px" },
+      field: { display: "flex", flexDirection: "column", gap: "5px", marginBottom: "12px" },
+      label: { fontSize: "12.5px", fontWeight: 550, color: T.secondary },
+      hint: { fontSize: "11.5px", color: T.caption, lineHeight: 1.45 },
+      row: { display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-end" },
+      actions: { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", marginTop: "10px" },
       panel: {
         background: T.bg1,
         border: "1px solid " + T.border1,
-        borderRadius: "8px",
-        padding: "12px",
-        marginBottom: "12px",
+        borderRadius: T.radius,
+        padding: "16px",
+        marginBottom: "14px",
       },
       card: {
         background: T.bg1,
         border: "1px solid " + T.border1,
-        borderRadius: "8px",
-        padding: "12px",
+        borderRadius: T.radius,
+        padding: "14px",
       },
       grid: {
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-        gap: "10px",
+        gridTemplateColumns: "1fr",
+        gap: "8px",
       },
-      cardTitle: { margin: "0 0 4px", fontSize: "13px", fontWeight: 600, color: T.text },
-      meta: { fontSize: "11px", color: T.caption, wordBreak: "break-all", marginBottom: "6px" },
+      cardTitle: { margin: "0 0 3px", fontSize: "13.5px", fontWeight: 600, color: T.text },
+      meta: { fontSize: "11.5px", color: T.caption, wordBreak: "break-all", marginBottom: "6px" },
       pills: { display: "flex", gap: "5px", flexWrap: "wrap", margin: "6px 0" },
       pill: {
         fontSize: "11px",
@@ -382,30 +400,31 @@ window.__ModuleLoader__.load({
       },
       text: {
         whiteSpace: "pre-wrap",
-        maxHeight: "160px",
+        maxHeight: "120px",
         overflow: "auto",
-        fontSize: "12px",
+        fontSize: "12.5px",
+        lineHeight: 1.55,
         color: T.secondary,
-        margin: "0 0 4px",
+        margin: "8px 0 0",
       },
       kpis: {
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-        gap: "10px",
-        marginBottom: "12px",
+        gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+        gap: "12px",
+        marginBottom: "14px",
       },
-      kpi: { background: T.bg2, border: "1px solid " + T.border1, borderRadius: "8px", padding: "10px" },
-      kpiNum: { fontSize: "20px", fontWeight: 600, color: T.text },
-      kpiLabel: { fontSize: "11px", color: T.caption },
-      sectionTitle: { margin: "14px 0 6px", fontSize: "13px", fontWeight: 600, color: T.text },
+      kpi: { background: T.bg1, border: "1px solid " + T.border1, borderRadius: T.radius, padding: "14px" },
+      kpiNum: { fontSize: "26px", fontWeight: 650, letterSpacing: "-0.03em", color: T.text, marginTop: "4px" },
+      kpiLabel: { fontSize: "12px", color: T.secondary },
+      sectionTitle: { margin: "16px 0 8px", fontSize: "13.5px", fontWeight: 600, color: T.text },
       bars: { display: "grid", gap: "5px" },
       bar: { display: "grid", gridTemplateColumns: "120px 1fr 40px", gap: "8px", alignItems: "center", fontSize: "12px" },
-      barTrack: { background: T.bg2, border: "1px solid " + T.border1, borderRadius: "6px", height: "12px", overflow: "hidden", display: "block" },
+      barTrack: { background: T.bg2, border: "1px solid " + T.border1, borderRadius: "999px", height: "8px", overflow: "hidden", display: "block" },
       barFill: { display: "block", minWidth: "2px", height: "100%", borderRadius: "5px", background: T.business },
       pre: {
         background: T.code,
         border: "1px solid " + T.border1,
-        borderRadius: "6px",
+        borderRadius: T.radiusSm,
         padding: "10px",
         overflow: "auto",
         maxHeight: "320px",
@@ -430,7 +449,7 @@ window.__ModuleLoader__.load({
         background: T.bg3,
         color: T.text,
         border: "1px solid " + T.border1,
-        borderRadius: "12px",
+        borderRadius: "14px",
         boxShadow: T.elevation,
         maxWidth: "760px",
         width: "100%",
@@ -447,7 +466,7 @@ window.__ModuleLoader__.load({
         height: GRAPH_HEIGHT + "px",
         background: T.bg1,
         border: "1px solid " + T.border1,
-        borderRadius: "8px",
+        borderRadius: T.radius,
         cursor: "grab",
         display: "block",
       },
@@ -471,6 +490,310 @@ window.__ModuleLoader__.load({
         color: T.text,
         font: "inherit",
       },
+    };
+
+    /* ------------------------------------------------------------------ *
+     * shared design: prototype CSS is scoped to .lm-panel (build step)
+     * ------------------------------------------------------------------ */
+
+    const PANEL_CSS = typeof __LM_PANEL_CSS__ === "string" ? __LM_PANEL_CSS__ : "";
+    const PANEL_EXTRA_CSS = [
+      ".lm-panel{height:auto!important;min-height:100%;box-sizing:border-box;background:var(--bg);color:var(--text);font-family:var(--font);}",
+      ".lm-panel .lm-top{display:flex;align-items:center;gap:8px;padding:12px 28px 0;}",
+      ".lm-panel .lm-tabs{position:sticky;top:0;z-index:12;display:flex;flex-wrap:wrap;gap:2px;padding:8px 28px 0;border-bottom:1px solid var(--border);background:var(--bg);}",
+      ".lm-panel .table th{position:static;}",
+      ".lm-panel .lm-tab{height:34px;padding:0 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;background:transparent;color:var(--text-2);font:inherit;font-size:12.5px;cursor:pointer;}",
+      ".lm-panel .lm-tab:hover{background:var(--surface-2);color:var(--text);}",
+      ".lm-panel .lm-tab.active{background:var(--surface);border-color:var(--border);color:var(--accent);font-weight:600;margin-bottom:-1px;}",
+      ".lm-panel .lm-top .btn{margin-left:auto;}",
+      ".lm-panel .content{padding:22px 28px 56px;}",
+      ".lm-panel .page-head{margin-bottom:18px;}",
+      ".lm-panel .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;min-width:0;}",
+      ".lm-panel .field > .label{font-size:12px;font-weight:550;color:var(--text-2);}",
+      ".lm-panel .field .hint{font-size:11.5px;color:var(--text-3);}",
+      ".lm-panel .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px;}",
+      ".lm-panel .form-grid .wide{grid-column:1/-1;}",
+      ".lm-panel .actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;}",
+      ".lm-panel .notice{font-size:12.5px;color:var(--text-2);white-space:pre-wrap;}",
+      ".lm-panel .notice.error{color:var(--danger);}",
+      ".lm-panel .graph-box{position:relative;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);overflow:hidden;}",
+      ".lm-panel .graph-svg{display:block;width:100%;height:520px;background:var(--surface);cursor:grab;}",
+      ".lm-panel .graph-hint{position:absolute;right:10px;bottom:10px;font-size:11px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:3px 7px;}",
+      ".lm-panel .chips{display:flex;flex-wrap:wrap;gap:6px;}",
+      ".lm-panel .tag{display:inline-flex;align-items:center;font-size:11.5px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:2px 8px;}",
+      ".lm-panel .issue-list{display:flex;flex-direction:column;gap:8px;margin-top:8px;}",
+      ".lm-panel .issue{border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 11px;background:var(--surface-2);}",
+      ".lm-panel .issue-title{font-size:12.5px;font-weight:550;}",
+      ".lm-panel .issue-meta{font-size:11.5px;color:var(--text-3);margin-top:2px;}",
+      ".lm-panel .report-section-label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin:14px 0 6px;}",
+      ".lm-panel .metric-line{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px dashed var(--border);font-size:12.5px;}",
+      ".lm-panel .metric-line:first-child{border-top:0;}",
+      ".lm-panel .metric-line .v{font-variant-numeric:tabular-nums;font-weight:550;}",
+      ".lm-panel .modal-backdrop{position:fixed;inset:0;background:var(--overlay);display:grid;place-items:center;padding:20px;z-index:80;}",
+      ".lm-panel .modal{width:min(720px,100%);max-height:86vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-3);}",
+      ".lm-panel .modal-head{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border);}",
+      ".lm-panel .modal-title{margin:0;font-size:15px;font-weight:600;}",
+      ".lm-panel .modal-body{padding:18px;}",
+      ".lm-panel .modal-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border);}",
+      ".lm-panel .empty{padding:36px 18px;text-align:center;color:var(--text-3);}",
+      ".lm-panel .empty-title{font-size:13px;font-weight:550;color:var(--text-2);}",
+      ".lm-panel .empty-text{font-size:12px;margin-top:4px;}",
+      ".lm-panel .loading{padding:24px 18px;font-size:12.5px;color:var(--text-3);}",
+    ].join("\n");
+
+    function injectPanelStyles() {
+      if (typeof document === "undefined" || !document.head) return;
+      if (document.getElementById("llm-memory-panel-styles")) return;
+      const style = document.createElement("style");
+      style.id = "llm-memory-panel-styles";
+      style.textContent = PANEL_CSS + "\n" + PANEL_EXTRA_CSS;
+      document.head.appendChild(style);
+    }
+    injectPanelStyles();
+
+    function colorLuminance(value) {
+      const text = String(value || "").trim();
+      if (!text) return null;
+      let rgb = null;
+      const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text);
+      if (hex) {
+        const raw = hex[1].length === 3 ? hex[1].split("").map((part) => part + part).join("") : hex[1];
+        rgb = [parseInt(raw.slice(0, 2), 16), parseInt(raw.slice(2, 4), 16), parseInt(raw.slice(4, 6), 16)];
+      } else {
+        const match = /rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(text);
+        if (match) rgb = [Number(match[1]), Number(match[2]), Number(match[3])];
+      }
+      if (!rgb) return null;
+      return (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+    }
+
+    function readShellTheme() {
+      if (typeof document === "undefined") return "light";
+      try {
+        const html = document.documentElement;
+        const declared = html.getAttribute("data-theme") || (document.body && document.body.getAttribute("data-theme"));
+        if (declared === "dark" || declared === "light") return declared;
+        const style = getComputedStyle(html);
+        const scheme = style.colorScheme;
+        if (scheme === "dark" || scheme === "light") return scheme;
+        // The shell themes itself through --dsw-* tokens; layer-1 is the card
+        // surface every panel sits on, so its luminance is the honest signal.
+        for (const token of ["--dsw-alias-bg-layer-1", "--dsw-alias-bg-base", "--dsw-alias-label-primary"]) {
+          const value = style.getPropertyValue(token).trim();
+          const luminance = colorLuminance(value);
+          if (luminance !== null) return luminance < 128 ? "dark" : "light";
+        }
+        const background = getComputedStyle(document.body || html).backgroundColor;
+        const luminance = colorLuminance(background);
+        if (luminance !== null) return luminance < 128 ? "dark" : "light";
+      } catch (error) {
+        /* fall through to the media query */
+      }
+      return typeof matchMedia !== "undefined" && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+
+    function useShellTheme() {
+      const [theme, setTheme] = React.useState(readShellTheme);
+      React.useEffect(() => {
+        if (typeof document === "undefined") return undefined;
+        const update = () => setTheme(readShellTheme());
+        const observer = new MutationObserver(update);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
+        if (document.body) observer.observe(document.body, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
+        const media = typeof matchMedia !== "undefined" ? matchMedia("(prefers-color-scheme: dark)") : null;
+        if (media && media.addEventListener) media.addEventListener("change", update);
+        update();
+        return () => {
+          observer.disconnect();
+          if (media && media.removeEventListener) media.removeEventListener("change", update);
+        };
+      }, []);
+      return theme;
+    }
+
+    function Btn(props) {
+      const classes = ["btn"];
+      if (props.variant) classes.push("btn-" + props.variant);
+      if (props.size) classes.push("btn-" + props.size);
+      return h(
+        "button",
+        {
+          type: props.type || "button",
+          className: classes.join(" "),
+          title: props.title || undefined,
+          disabled: props.disabled || false,
+          onClick: props.onClick,
+        },
+        props.children,
+      );
+    }
+
+    function PageHead({ title, sub, actions }) {
+      return h(
+        "div",
+        { className: "page-head" },
+        h("div", { className: "grow" }, h("h1", { className: "page-title" }, title), sub ? h("p", { className: "page-sub" }, sub) : null),
+        actions ? h("div", { className: "page-actions" }, actions) : null,
+      );
+    }
+
+    function Card({ title, sub, actions, body, foot, flush, className }) {
+      const classes = ["card"];
+      if (className) classes.push(className);
+      return h(
+        "section",
+        { className: classes.join(" ") },
+        title || actions
+          ? h(
+              "div",
+              { className: "card-head" },
+              h("div", { className: "grow" }, title ? h("h2", { className: "card-title" }, title) : null, sub ? h("p", { className: "card-sub" }, sub) : null),
+              actions ? h("div", { className: "flex items-center gap-8" }, actions) : null,
+            )
+          : null,
+        body ? h("div", { className: flush ? "card-body flush" : "card-body" }, body) : null,
+        foot ? h("div", { className: "card-foot" }, foot) : null,
+      );
+    }
+
+    function Stat({ label, value, hint }) {
+      return h(
+        "div",
+        { className: "stat" },
+        h("div", { className: "stat-top" }, h("span", { className: "stat-label" }, label)),
+        h("div", { className: "stat-value" }, value === undefined || value === null ? "\u2014" : String(value)),
+        hint ? h("div", { className: "stat-hint" }, hint) : null,
+      );
+    }
+
+    function Badge({ tone, children }) {
+      return h("span", { className: "badge" + (tone ? " badge-" + tone : "") }, children);
+    }
+
+    function Chip({ tone, children, onClick }) {
+      if (onClick) return h("button", { type: "button", className: "chip" + (tone ? " " + tone : ""), onClick }, children);
+      return h("span", { className: "chip" + (tone ? " " + tone : "") }, children);
+    }
+
+    function Empty({ title, text, action }) {
+      return h(
+        "div",
+        { className: "empty" },
+        h("div", { className: "empty-title" }, title || "Nothing here"),
+        text ? h("p", { className: "empty-text" }, text) : null,
+        action ? h("div", { className: "mt-12" }, action) : null,
+      );
+    }
+
+    function Loading({ text }) {
+      return h("div", { className: "loading" }, text || "Loading\u2026");
+    }
+
+    function Pager({ page, pageSize, total, pageSizes, onPage, onPageSize }) {
+      const pages = Math.max(1, Math.ceil((total || 0) / (pageSize || 1)));
+      const current = Math.min(Math.max(1, page), pages);
+      const from = total === 0 ? 0 : (current - 1) * pageSize + 1;
+      const to = Math.min(current * pageSize, total);
+      return h(
+        "div",
+        { className: "table-foot" },
+        h("div", { className: "table-info" }, "Showing " + from + "\u2013" + to + " / " + (total || 0)),
+        h(
+          "div",
+          { className: "flex items-center gap-12" },
+          pageSizes && pageSizes.length && onPageSize
+            ? h(
+                "label",
+                { className: "page-size" },
+                "Per page",
+                h(
+                  "select",
+                  { className: "select", value: String(pageSize), onChange: (event) => onPageSize(Number(event.target.value)) },
+                  pageSizes.map((size) => h("option", { key: size, value: String(size) }, String(size))),
+                ),
+              )
+            : null,
+          h(
+            "div",
+            { className: "pager" },
+            h(Btn, { size: "sm", variant: "ghost", disabled: current <= 1, onClick: () => onPage && onPage(current - 1) }, "\u2039"),
+            h("span", { className: "table-info" }, current + " / " + pages),
+            h(Btn, { size: "sm", variant: "ghost", disabled: current >= pages, onClick: () => onPage && onPage(current + 1) }, "\u203a"),
+          ),
+        ),
+      );
+    }
+
+    function DataTable({ columns, rows, onRow, renderCell, empty }) {
+      if (!rows || rows.length === 0) return h(Empty, empty || { title: "No entries" });
+      return h(
+        "div",
+        { className: "table-wrap" },
+        h(
+          "table",
+          { className: "table" },
+          h("thead", null, h("tr", null, columns.map((column) => h("th", { key: column.path, scope: "col" }, column.label || column.path)))),
+          h(
+            "tbody",
+            null,
+            rows.map((row) =>
+              h(
+                "tr",
+                {
+                  key: row.id,
+                  className: onRow ? "clickable" : "",
+                  tabIndex: onRow ? 0 : undefined,
+                  onClick: onRow ? () => onRow(row) : undefined,
+                  onKeyDown: onRow
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onRow(row);
+                        }
+                      }
+                    : undefined,
+                },
+                columns.map((column) =>
+                  h("td", { key: column.path, className: column.path === "title" ? "cell-title" : "" }, renderCell ? renderCell(row, column) : defaultCell(column, row)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    function defaultCell(column, row) {
+      const value = row[column.path];
+      if (column.path === "title") {
+        return h("div", null, h("div", { className: "t" }, value || "(untitled)"), h("div", { className: "s" }, row.id || ""));
+      }
+      if (column.path === "kind" && value) return h(Badge, { tone: KIND_TONES[value] || "" }, value);
+      if (column.path === "tier" && value) return h(Badge, { tone: value === "immutable" ? "danger" : value === "important" ? "warn" : "" }, value);
+      if (column.path === "status" && value) return h(Badge, { tone: value === "active" ? "ok" : value === "deleted" ? "danger" : "" }, value);
+      if (column.path === "tags") return (value || []).join(", ") || "\u2014";
+      if (column.path === "updatedAt" || column.path === "createdAt") return datePart(value);
+      if (value === undefined || value === null || value === "") return "\u2014";
+      return String(value);
+    }
+
+    const KIND_TONES = {
+      rules: "danger",
+      preferences: "warn",
+      decisions: "accent",
+      facts: "info",
+      architecture: "ok",
+      concepts: "",
+    };
+
+    const VIEW_SUBTITLES = {
+      overview: "Memory at a glance: volume, categories and index state.",
+      items: "Every entry with filters, sorting and paging.",
+      editor: "Create or update one memory entry.",
+      graph: "Links between entries and tags.",
+      map: "Embedding space projected onto two axes.",
+      recall: "What the agent would actually receive.",
+      health: "Lint, self-healing and the semantic index.",
     };
 
     /* ------------------------------------------------------------------ *
@@ -512,10 +835,10 @@ window.__ModuleLoader__.load({
     function Field(props) {
       return h(
         "div",
-        { style: S.field },
-        h("span", { style: S.label }, props.label),
+        { className: "field" + (props.wide ? " wide" : "") },
+        props.label ? h("span", { className: "label" }, props.label) : null,
         props.children,
-        props.hint ? h("small", { style: S.hint }, props.hint) : null,
+        props.hint ? h("small", { className: "hint" }, props.hint) : null,
       );
     }
 
@@ -549,8 +872,8 @@ window.__ModuleLoader__.load({
       return h(
         "div",
         { style: S.kpi },
-        h("div", { style: S.kpiNum }, String(props.value)),
         h("div", { style: S.kpiLabel }, props.label),
+        h("div", { style: S.kpiNum }, String(props.value)),
       );
     }
 
@@ -596,40 +919,20 @@ window.__ModuleLoader__.load({
      * conversation.view — Search & Browse
      * ------------------------------------------------------------------ */
 
-    function entryCard(entry, handlers) {
-      return h(
-        "div",
-        { key: entry.id, style: S.card },
-        h("h3", { style: S.cardTitle }, entry.title || "(untitled)"),
-        h("div", { style: S.meta }, entry.id + " \u00b7 updated " + datePart(entry.updatedAt)),
-        h(
-          "div",
-          { style: S.pills },
-          h(Pill, { tone: KIND_COLORS[entry.kind] }, entry.kind),
-          h(Pill, null, entry.scope + (entry.project ? "/" + entry.project : "")),
-          h(Pill, null, entry.status),
-          h(Pill, null, entry.tier),
-          h(Pill, null, "imp " + entry.importance),
-        ),
-        entry.tags && entry.tags.length ? h("div", { style: S.meta }, "tags: " + entry.tags.join(", ")) : null,
-        h("div", { style: S.text }, entry.text),
-        h(
-          "div",
-          { style: S.actions },
-          h("button", { type: "button", style: S.button, onClick: () => handlers.onOpen(entry.id) }, "View"),
-          h("button", { type: "button", style: S.button, onClick: () => handlers.onEdit(entry) }, "Edit"),
-          h("button", { type: "button", style: S.button, onClick: () => handlers.onForget(entry.id) }, "Forget"),
-          h("button", { type: "button", style: S.danger, onClick: () => handlers.onDelete(entry.id) }, "Delete"),
-        ),
-      );
+    function projectName(value) {
+      const text = String(value || "").replace(/[\\/]+$/, "");
+      const parts = text.split(/[\\/]/);
+      return parts[parts.length - 1] || text;
     }
 
     function BrowseTab(props) {
       const [query, setQuery] = React.useState("");
       const [kind, setKind] = React.useState("");
+      const [tier, setTier] = React.useState("");
       const [scope, setScope] = React.useState("");
       const [status, setStatus] = React.useState("");
       const [project, setProject] = React.useState("");
+      const [sort, setSort] = React.useState("updated");
       const pagination = props.pagination || { pageSizes: [12, 24, 48, 96], defaultPageSize: 24 };
       const [pageSize, setPageSize] = React.useState(String(pagination.defaultPageSize));
       const [page, setPage] = React.useState(0);
@@ -638,13 +941,26 @@ window.__ModuleLoader__.load({
       const [total, setTotal] = React.useState(0);
       const [error, setError] = React.useState("");
 
+      const resetFilters = () => {
+        setQuery("");
+        setKind("");
+        setTier("");
+        setScope("");
+        setStatus("");
+        setProject("");
+        setSort("updated");
+        setPage(0);
+      };
+
       const load = React.useCallback(async () => {
         const params = new URLSearchParams();
         if (query.trim()) params.set("query", query.trim());
         if (kind) params.set("kind", kind);
+        if (tier) params.set("tier", tier);
         if (scope) params.set("scope", scope);
         if (status) params.set("status", status);
         if (project.trim()) params.set("project", project.trim());
+        params.set("sort", sort);
         params.set("limit", pageSize);
         params.set("offset", String(page * Number(pageSize)));
         setError("");
@@ -656,125 +972,119 @@ window.__ModuleLoader__.load({
           setItems(null);
           setError(errorText(err));
         }
-      }, [props.base, query, kind, scope, status, project, pageSize, page]);
+      }, [props.base, query, kind, tier, scope, status, project, sort, pageSize, page]);
 
       React.useEffect(() => {
         load();
-      }, [props.version, page, pageSize, reload]);
+      }, [props.version, page, pageSize, reload, query, kind, tier, scope, status, project, sort]);
 
-      const select = (value, setter, options, label) =>
+      const select = (value, setter, options, label, width) =>
         h(
-          Field,
-          { label },
-          h(
-            "select",
-            { style: S.input, value, onChange: (event) => setter(event.target.value) },
-            h("option", { style: S.option, value: "" }, "any"),
-            options.map((option) => h("option", { key: option, style: S.option, value: option }, option)),
-          ),
+          "select",
+          {
+            className: "select",
+            style: width ? { width } : { width: "auto", minWidth: "120px" },
+            value,
+            "aria-label": label,
+            onChange: (event) => {
+              setter(event.target.value);
+              setPage(0);
+            },
+          },
+          options.map((option) => h("option", { key: option.value, value: option.value }, option.label)),
         );
+
+      const columns = [
+        { path: "title", label: "Title" },
+        { path: "kind", label: "Kind" },
+        { path: "tier", label: "Tier" },
+        { path: "scope", label: "Scope" },
+        { path: "status", label: "Status" },
+        { path: "updatedAt", label: "Updated" },
+      ];
+
+      const activeFilters = query || kind || tier || scope || status || project || sort !== "updated";
 
       return h(
         "div",
-        null,
+        { className: "page" },
+        h(PageHead, {
+          title: "Entries",
+          sub: VIEW_SUBTITLES.items,
+          actions: h(Btn, { variant: "primary", onClick: props.onNew }, "New entry"),
+        }),
         h(
           "div",
-          { style: S.panel },
+          { className: "toolbar" },
           h(
             "div",
-            { style: S.row },
-            h(
-              Field,
-              { label: "Query" },
-              h("input", {
-                type: "text",
-                style: S.input,
-                placeholder: "search title, text, tags",
-                value: query,
-                onChange: (event) => setQuery(event.target.value),
-                onKeyDown: (event) => {
-                  if (event.key === "Enter") load();
-                },
-              }),
-            ),
-            select(kind, setKind, KINDS, "Kind"),
-            select(scope, setScope, ["project", "user"], "Scope"),
-            select(status, setStatus, ["active", "superseded", "archived"], "Status"),
-            h(
-              Field,
-              { label: "Project" },
-              h(
-                "select",
-                { style: S.input, value: project, onChange: (event) => setProject(event.target.value) },
-                h("option", { style: S.option, value: "" }, "any"),
-                (props.projects || []).map((key) => h("option", { key, style: S.option, value: key }, key)),
-              ),
-            ),
-            h(
-              Field,
-              { label: "Per page" },
-              h(
-                "select",
-                {
-                  style: S.input,
-                  value: pageSize,
-                  onChange: (event) => {
-                    setPage(0);
-                    setPageSize(event.target.value);
-                  },
-                },
-                pagination.pageSizes.map((size) =>
-                  h("option", { key: size, style: S.option, value: String(size) }, String(size)),
-                ),
-              ),
-            ),
-            h(
-              "button",
-              {
-                type: "button",
-                style: S.primary,
-                onClick: () => {
-                  setPage(0);
-                  setReload((value) => value + 1);
-                },
+            { className: "input-wrap", style: { flex: "1 1 260px" } },
+            h("input", {
+              className: "input",
+              type: "search",
+              placeholder: "Search title, text, tags",
+              value: query,
+              onChange: (event) => {
+                setQuery(event.target.value);
+                setPage(0);
               },
-              "Search",
-            ),
+              onKeyDown: (event) => {
+                if (event.key === "Enter") load();
+              },
+            }),
           ),
+          select(kind, setKind, [{ value: "", label: "All kinds" }].concat(KINDS.map((value) => ({ value, label: value }))), "Kind"),
+          select(tier, setTier, [{ value: "", label: "All tiers" }, { value: "normal", label: "normal" }, { value: "important", label: "important" }, { value: "immutable", label: "immutable" }], "Tier"),
+          select(scope, setScope, [{ value: "", label: "All scopes" }, { value: "project", label: "project" }, { value: "user", label: "user" }], "Scope"),
+          select(status, setStatus, [{ value: "", label: "All statuses" }, { value: "active", label: "active" }, { value: "superseded", label: "superseded" }, { value: "archived", label: "archived" }], "Status"),
+          select(
+            project,
+            setProject,
+            [{ value: "", label: "All projects" }].concat((props.projects || []).map((value) => ({ value, label: projectName(value) }))),
+            "Project",
+            "auto",
+          ),
+          select(
+            sort,
+            setSort,
+            [{ value: "updated", label: "Recently updated" }, { value: "created", label: "Recently created" }, { value: "importance", label: "Importance" }],
+            "Sort",
+            "auto",
+          ),
+          activeFilters ? h(Btn, { variant: "ghost", size: "sm", onClick: resetFilters }, "Reset") : null,
         ),
-        h(
-          "div",
-          { style: S.meta },
-          error
-            ? error
-            : items === null
-              ? "Loading\u2026"
-              : total + " entr" + (total === 1 ? "y" : "ies") + (query.trim() ? ' matching "' + query.trim() + '"' : ""),
-        ),
-        error ? null : h("div", { style: S.grid }, (items || []).map((entry) => entryCard(entry, props.handlers))),
         error
-          ? null
-          : h(
-              "div",
-              { style: S.meta },
-              h("button", {
-                type: "button",
-                style: S.button,
-                disabled: page === 0,
-                onClick: () => setPage((value) => Math.max(0, value - 1)),
-              }, "Previous"),
-              h(
-                "span",
-                { style: { margin: "0 10px" } },
-                "Page " + (page + 1) + " of " + Math.max(1, Math.ceil(total / Number(pageSize))),
-              ),
-              h("button", {
-                type: "button",
-                style: S.button,
-                disabled: (page + 1) * Number(pageSize) >= total,
-                onClick: () => setPage((value) => value + 1),
-              }, "Next"),
-            ),
+          ? h(Card, { body: h("div", { className: "notice error" }, error) })
+          : h(Card, {
+              flush: true,
+              body:
+                items === null
+                  ? h(Loading, { text: "Loading entries\u2026" })
+                  : h(DataTable, {
+                      columns,
+                      rows: items,
+                      onRow: (entry) => props.handlers.onOpen(entry.id),
+                      empty: {
+                        title: "No entries match these filters",
+                        text: "Change the filters or create a new memory entry.",
+                        action: h(Btn, { onClick: props.onNew }, "New entry"),
+                      },
+                    }),
+              foot:
+                items && items.length
+                  ? h(Pager, {
+                      page: page + 1,
+                      pageSize: Number(pageSize),
+                      total,
+                      pageSizes: pagination.pageSizes,
+                      onPage: (next) => setPage(Math.max(0, next - 1)),
+                      onPageSize: (size) => {
+                        setPage(0);
+                        setPageSize(String(size));
+                      },
+                    })
+                  : null,
+            }),
       );
     }
 
@@ -859,110 +1169,123 @@ window.__ModuleLoader__.load({
           { label },
           h(
             "select",
-            { style: S.input, value, onChange: (event) => setter(event.target.value) },
-            options.map((option) => h("option", { key: option, style: S.option, value: option }, option)),
+            { className: "select", value, onChange: (event) => setter(event.target.value) },
+            options.map((option) => h("option", { key: option, value: option }, option)),
           ),
         );
 
       return h(
         "div",
-        { style: S.panel },
-        h("h3", { style: S.cardTitle }, form.id ? "Edit memory entry " + form.id : "Create a memory entry"),
-        h(
-          "div",
-          { style: S.grid },
-          h(
-            Field,
-            { label: "Title" },
-            h("input", {
-              type: "text",
-              style: S.input,
-              value: form.title,
-              onChange: (event) => update("title", event.target.value),
-            }),
+        { className: "page" },
+        h(PageHead, {
+          title: form.id ? "Edit entry" : "New entry",
+          sub: VIEW_SUBTITLES.editor,
+          actions: h(Btn, { variant: "ghost", size: "sm", onClick: reset }, "Reset"),
+        }),
+        h(Card, {
+          title: form.id ? form.id : "Memory entry",
+          sub: "Fields map one-to-one onto the memory schema; nothing is added on the panel side.",
+          body: h(
+            "div",
+            null,
+            h(
+              "div",
+              { className: "form-grid" },
+              h(
+                Field,
+                { label: "Title", wide: true },
+                h("input", {
+                  className: "input",
+                  type: "text",
+                  value: form.title,
+                  onChange: (event) => update("title", event.target.value),
+                }),
+              ),
+              selectField("Kind", form.kind, (value) => update("kind", value), KINDS),
+              selectField("Scope", form.scope, (value) => update("scope", value), ["project", "user"]),
+              h(
+                Field,
+                { label: "Project", hint: "project key (project scope only)" },
+                h("input", {
+                  className: "input",
+                  type: "text",
+                  value: form.project,
+                  onChange: (event) => update("project", event.target.value),
+                }),
+              ),
+              selectField("Tier", form.tier, (value) => update("tier", value), ["normal", "important", "immutable"]),
+              h(
+                Field,
+                { label: "Importance (1-5)" },
+                h("input", {
+                  className: "input",
+                  type: "number",
+                  min: 1,
+                  max: 5,
+                  value: form.importance,
+                  onChange: (event) => update("importance", event.target.value),
+                }),
+              ),
+              h(
+                Field,
+                { label: "Tags (comma separated)" },
+                h("input", {
+                  className: "input",
+                  type: "text",
+                  value: form.tags,
+                  onChange: (event) => update("tags", event.target.value),
+                }),
+              ),
+              h(
+                Field,
+                { label: "Keywords" },
+                h("input", {
+                  className: "input",
+                  type: "text",
+                  value: form.keywords,
+                  onChange: (event) => update("keywords", event.target.value),
+                }),
+              ),
+              h(
+                Field,
+                { label: "Text", wide: true },
+                h("textarea", {
+                  className: "textarea",
+                  rows: 8,
+                  value: form.text,
+                  onChange: (event) => update("text", event.target.value),
+                }),
+              ),
+              h(
+                Field,
+                { label: "Supersedes (comma separated ids)" },
+                h("input", {
+                  className: "input",
+                  type: "text",
+                  value: form.supersedes,
+                  onChange: (event) => update("supersedes", event.target.value),
+                }),
+              ),
+              h(
+                Field,
+                { label: "Related (comma separated ids)" },
+                h("input", {
+                  className: "input",
+                  type: "text",
+                  value: form.related,
+                  onChange: (event) => update("related", event.target.value),
+                }),
+              ),
+            ),
+            h(
+              "div",
+              { className: "actions" },
+              h(Btn, { variant: "primary", disabled: busy, onClick: save }, busy ? "Saving\u2026" : "Save entry"),
+              h(Btn, { disabled: busy, onClick: reset }, "Reset"),
+              h(Notice, { text: status.text, error: status.error }),
+            ),
           ),
-          selectField("Kind", form.kind, (value) => update("kind", value), KINDS),
-          selectField("Scope", form.scope, (value) => update("scope", value), ["project", "user"]),
-          h(
-            Field,
-            { label: "Project", hint: "project key (project scope only)" },
-            h("input", {
-              type: "text",
-              style: S.input,
-              value: form.project,
-              onChange: (event) => update("project", event.target.value),
-            }),
-          ),
-          selectField("Tier", form.tier, (value) => update("tier", value), ["normal", "important", "immutable"]),
-          h(
-            Field,
-            { label: "Importance (1-5)" },
-            h("input", {
-              type: "number",
-              min: 1,
-              max: 5,
-              style: S.input,
-              value: form.importance,
-              onChange: (event) => update("importance", event.target.value),
-            }),
-          ),
-          h(
-            Field,
-            { label: "Tags (comma separated)" },
-            h("input", {
-              type: "text",
-              style: S.input,
-              value: form.tags,
-              onChange: (event) => update("tags", event.target.value),
-            }),
-          ),
-          h(
-            Field,
-            { label: "Keywords" },
-            h("input", {
-              type: "text",
-              style: S.input,
-              value: form.keywords,
-              onChange: (event) => update("keywords", event.target.value),
-            }),
-          ),
-        ),
-        h(
-          Field,
-          { label: "Text" },
-          h("textarea", {
-            style: Object.assign({}, S.input, { minHeight: "96px", width: "100%", resize: "vertical" }),
-            value: form.text,
-            onChange: (event) => update("text", event.target.value),
-          }),
-        ),
-        h(
-          Field,
-          { label: "Supersedes (comma separated ids)" },
-          h("input", {
-            type: "text",
-            style: S.input,
-            value: form.supersedes,
-            onChange: (event) => update("supersedes", event.target.value),
-          }),
-        ),
-        h(
-          Field,
-          { label: "Related (comma separated ids)" },
-          h("input", {
-            type: "text",
-            style: S.input,
-            value: form.related,
-            onChange: (event) => update("related", event.target.value),
-          }),
-        ),
-        h(
-          "div",
-          { style: S.actions },
-          h("button", { type: "button", style: S.primary, disabled: busy, onClick: save }, "Save"),
-          h("button", { type: "button", style: S.button, disabled: busy, onClick: reset }, "Reset"),
-          h(Notice, { text: status.text, error: status.error }),
-        ),
+        }),
       );
     }
 
@@ -1192,40 +1515,40 @@ window.__ModuleLoader__.load({
 
       return h(
         "div",
-        null,
-        h(
-          "div",
-          { style: S.panel },
-          h(
+        { className: "page" },
+        h(PageHead, {
+          title: "Knowledge graph",
+          sub: VIEW_SUBTITLES.graph,
+          actions: h(Btn, { variant: "ghost", size: "sm", onClick: () => setView({ scale: 1, tx: 0, ty: 0 }) }, "Reset view"),
+        }),
+        h(Card, {
+          title: "Links between entries",
+          sub: "Wheel to zoom, drag to pan, click a node for details.",
+          body: h(
             "div",
-            { style: S.legend },
-            KINDS.map((kind) =>
-              h(
-                "span",
-                { key: kind },
-                h("i", { style: Object.assign({}, S.legendDot, { background: KIND_COLORS[kind] }) }),
-                kind,
+            null,
+            h(
+              "div",
+              { className: "chips mb-8" },
+              KINDS.map((kind) =>
+                h(
+                  "span",
+                  { key: kind, className: "chip", style: { cursor: "default" } },
+                  h("i", { className: "kind-dot", style: { background: KIND_COLORS[kind], "--kc": KIND_COLORS[kind] } }),
+                  kind,
+                ),
               ),
             ),
-          ),
-          error
-            ? h("p", { style: Object.assign({}, S.hint, { color: T.danger }) }, error)
-            : h(
-                "div",
-                { style: S.graphBox },
-                h(
-                  "svg",
-                  {
-                    ref: svgRef,
-                    style: S.graphSvg,
-                    onMouseDown,
-                    onClick,
-                  },
-                  children,
+            error
+              ? h("div", { className: "notice error" }, error)
+              : h(
+                  "div",
+                  { className: "graph-box" },
+                  h("svg", { ref: svgRef, className: "graph-svg", onMouseDown, onClick }, children),
+                  h("div", { className: "graph-hint" }, "Wheel to zoom \u00b7 drag to pan \u00b7 click a node for details"),
                 ),
-                h("div", { style: S.graphHint }, "Wheel to zoom \u00b7 drag to pan \u00b7 click a node for details"),
-              ),
-        ),
+          ),
+        }),
       );
     }
 
@@ -1622,200 +1945,152 @@ window.__ModuleLoader__.load({
         empty: "No entry has been embedded yet, so there is nothing to place.",
       };
       const legendValues = colorBy === "kind" ? KINDS : projects;
+      const select = (value, setter, options, label) =>
+        h(
+          "select",
+          { className: "select", style: { width: "auto", minWidth: "120px" }, value, "aria-label": label, onChange: (event) => setter(event.target.value) },
+          options.map(([optionValue, text]) => h("option", { key: optionValue, value: optionValue }, text)),
+        );
 
       return h(
         "div",
-        null,
-        h(
-          "p",
-          { style: S.hint },
-          map
-            ? "Entries placed by the two leading principal components of their embeddings: close points mean similar " +
-              "meaning. The axes carry " +
-              Math.round((map.explained[0] + map.explained[1]) * 100) +
-              "% of the variance; " +
-              map.entries +
-              " points from " +
-              map.chunks +
-              " chunks."
-            : "The semantic map projects every entry embedding onto two axes, so related memories land next to each other.",
-        ),
-        h(
-          "div",
-          { style: S.toolbar },
-          h("label", { style: S.label }, "Colour"),
-          h(
-            "select",
-            { style: S.input, value: colorBy, onChange: (event) => setColorBy(event.target.value) },
-            [
-              ["project", "by project"],
-              ["kind", "by kind"],
-            ].map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
-          ),
-          h("label", { style: S.label }, "Status"),
-          h(
-            "select",
-            { style: S.input, value: statusFilter, onChange: (event) => setStatusFilter(event.target.value) },
-            [
-              ["active", "active"],
-              ["superseded", "superseded"],
-              ["archived", "archived"],
-              ["all", "all"],
-            ].map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
-          ),
-          h("label", { style: S.label }, "Kind"),
-          h(
-            "select",
-            { style: S.input, value: kindFilter, onChange: (event) => setKindFilter(event.target.value) },
-            [["", "any"]]
-              .concat(KINDS.map((kind) => [kind, kind]))
-              .map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
-          ),
-          h("label", { style: S.label }, "Project"),
-          h(
-            "select",
-            { style: S.input, value: projectFilter, onChange: (event) => setProjectFilter(event.target.value) },
-            [["", "any"]]
-              .concat(projects.map((project) => [project, project]))
-              .map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
-          ),
-          h("label", { style: S.label }, "Scope"),
-          h(
-            "select",
-            { style: S.input, value: scopeFilter, onChange: (event) => setScopeFilter(event.target.value) },
-            [
-              ["", "any"],
-              ["project", "project"],
-              ["user", "user"],
-            ].map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
-          ),
-          h("span", { style: S.toolbarSpacer }),
-          h(
-            "button",
-            { type: "button", style: S.button, disabled: busy, onClick: () => load(true) },
-            busy ? "Rebuilding\u2026" : "Refresh",
-          ),
-          h("button", { type: "button", style: S.button, onClick: () => zoomBy(1.25) }, "Zoom +"),
-          h("button", { type: "button", style: S.button, onClick: () => zoomBy(0.8) }, "Zoom \u2212"),
-          h("button", { type: "button", style: S.button, onClick: resetView }, "Reset view"),
-        ),
-        map
-          ? h(
+        { className: "page" },
+        h(PageHead, {
+          title: "RAG map",
+          sub: VIEW_SUBTITLES.map,
+          actions: h(Btn, { size: "sm", variant: "ghost", onClick: resetView }, "Reset view"),
+        }),
+        h(Card, {
+          body: h(
+            "div",
+            null,
+            h(
+              "p",
+              { className: "page-sub", style: { marginTop: 0 } },
+              map
+                ? "Entries placed by the two leading principal components of their embeddings: close points mean similar meaning. The axes carry " +
+                  Math.round((map.explained[0] + map.explained[1]) * 100) +
+                  "% of the variance; " +
+                  map.entries +
+                  " points from " +
+                  map.chunks +
+                  " chunks."
+                : "The semantic map projects every entry embedding onto two axes, so related memories land next to each other.",
+            ),
+            h(
               "div",
-              { style: S.toolbar },
-              h("label", { style: S.label }, "Place a query"),
-              h("input", {
-                style: Object.assign({}, S.input, { minWidth: "280px", flex: "1 1 280px" }),
-                type: "text",
-                value: queryText,
-                placeholder: "Free text: where does recall look?",
-                onChange: (event) => setQueryText(event.target.value),
-                onKeyDown: (event) => {
-                  if (event.key === "Enter") placeQuery();
-                },
-              }),
-              h("button", { type: "button", style: S.button, onClick: placeQuery }, "Show on map"),
-              placed
-                ? h(
-                    "button",
-                    {
-                      type: "button",
-                      style: S.button,
-                      onClick: () => {
-                        setPlaced(null);
-                        setQueryNote("");
-                      },
-                    },
-                    "Clear",
-                  )
-                : null,
-            )
-          : null,
-        queryNote ? h("p", { style: S.hint }, queryNote) : null,
-        error ? h("p", { style: Object.assign({}, S.hint, { color: T.danger }) }, error) : null,
-        map
-          ? h(
-              "div",
-              null,
-              h(
-                "div",
-                { style: S.legend },
-                legendValues.map((value) =>
-                  h(
-                    "span",
-                    { key: value },
-                    h("i", {
-                      style: Object.assign({}, S.legendDot, {
-                        background: colorBy === "kind" ? KIND_COLORS[value] || T.tertiary : mapProjectColor(value),
-                      }),
-                    }),
-                    value,
-                  ),
-                ),
-                h("span", null, visible.length + " of " + points.length + " points shown"),
-              ),
-              h(
-                "div",
-                { style: S.graphBox, ref: wrapRef },
-                h("canvas", {
-                  ref: canvasRef,
-                  style: {
-                    width: "100%",
-                    height: MAP_HEIGHT + "px",
-                    background: T.bg1,
-                    border: "1px solid " + T.border1,
-                    borderRadius: "8px",
-                    cursor: "grab",
-                    display: "block",
-                  },
-                  onPointerDown,
-                  onPointerMove,
-                  onPointerUp,
-                  onPointerLeave: () => {
-                    dragRef.current = null;
-                    setCursor("grab");
-                    setHover(null);
-                  },
-                  onDoubleClick: resetView,
-                }),
-                hover
-                  ? h(
-                      "div",
-                      {
-                        style: {
-                          position: "absolute",
-                          left: Math.min(hover.left + 12, Math.max(0, width - 270)) + "px",
-                          top: Math.max(6, hover.top - 10) + "px",
-                          maxWidth: "260px",
-                          padding: "6px 8px",
-                          fontSize: "11px",
-                          lineHeight: "1.35",
-                          color: T.text,
-                          background: T.bg2,
-                          border: "1px solid " + T.border1,
-                          borderRadius: "6px",
-                          pointerEvents: "none",
-                        },
-                      },
-                      hover.point.title || hover.point.id,
-                      h("div", { style: { color: T.secondary } }, hover.point.kind + " \u00b7 " + hover.point.project),
-                      h(
-                        "div",
-                        { style: { color: T.caption } },
-                        hover.point.chunks +
-                          (hover.point.chunks === 1 ? " chunk" : " chunks") +
-                          (hover.point.status === "active" ? "" : " \u00b7 " + hover.point.status),
-                      ),
-                    )
-                  : null,
-                h(
+              { className: "toolbar" },
+              select(colorBy, setColorBy, [["project", "by project"], ["kind", "by kind"]], "Colour"),
+              select(statusFilter, setStatusFilter, [["active", "active"], ["superseded", "superseded"], ["archived", "archived"], ["all", "all"]], "Status"),
+              select(kindFilter, setKindFilter, [["", "any kind"]].concat(KINDS.map((kind) => [kind, kind])), "Kind"),
+              select(projectFilter, setProjectFilter, [["", "any project"]].concat(projects.map((project) => [project, projectName(project)])), "Project"),
+              select(scopeFilter, setScopeFilter, [["", "any scope"], ["project", "project"], ["user", "user"]], "Scope"),
+              h("span", { className: "grow" }),
+              h(Btn, { size: "sm", onClick: () => zoomBy(1.25) }, "Zoom +"),
+              h(Btn, { size: "sm", onClick: () => zoomBy(0.8) }, "Zoom \u2212"),
+            ),
+            map
+              ? h(
                   "div",
-                  { style: S.graphHint },
-                  "Wheel to zoom \u00b7 drag to pan \u00b7 click a point for details \u00b7 double click to reset",
-                ),
-              ),
-            )
-          : h("p", { style: S.hint }, reason ? reasonText[reason] || reason : "Loading the map\u2026"),
+                  { className: "toolbar" },
+                  h("input", {
+                    className: "input",
+                    style: { flex: "1 1 280px" },
+                    type: "search",
+                    value: queryText,
+                    placeholder: "Free text: where does recall look?",
+                    onChange: (event) => setQueryText(event.target.value),
+                    onKeyDown: (event) => {
+                      if (event.key === "Enter") placeQuery();
+                    },
+                  }),
+                  h(Btn, { onClick: placeQuery }, "Show on map"),
+                  placed ? h(Btn, { variant: "ghost", onClick: () => { setPlaced(null); setQueryNote(""); } }, "Clear") : null,
+                )
+              : null,
+            queryNote ? h("p", { className: "page-sub", style: { fontSize: "12px" } }, queryNote) : null,
+            error ? h("div", { className: "notice error" }, error) : null,
+            map
+              ? h(
+                  "div",
+                  null,
+                  h(
+                    "div",
+                    { className: "chips mb-8" },
+                    legendValues.map((value) =>
+                      h(
+                        "span",
+                        { key: value, className: "chip", style: { cursor: "default" } },
+                        h("i", {
+                          className: "kind-dot",
+                          style: { background: colorBy === "kind" ? KIND_COLORS[value] || "var(--text-3)" : mapProjectColor(value) },
+                        }),
+                        projectName(value),
+                      ),
+                    ),
+                    h("span", { className: "faint", style: { fontSize: "11.5px" } }, visible.length + " of " + points.length + " points shown"),
+                  ),
+                  h(
+                    "div",
+                    { className: "graph-box", ref: wrapRef },
+                    h("canvas", {
+                      ref: canvasRef,
+                      style: {
+                        width: "100%",
+                        height: MAP_HEIGHT + "px",
+                        background: "var(--surface)",
+                        cursor: "grab",
+                        display: "block",
+                      },
+                      onPointerDown,
+                      onPointerMove,
+                      onPointerUp,
+                      onPointerLeave: () => {
+                        dragRef.current = null;
+                        setCursor("grab");
+                        setHover(null);
+                      },
+                      onDoubleClick: resetView,
+                    }),
+                    hover
+                      ? h(
+                          "div",
+                          {
+                            style: {
+                              position: "absolute",
+                              left: Math.min(hover.left + 12, Math.max(0, width - 270)) + "px",
+                              top: Math.max(6, hover.top - 10) + "px",
+                              maxWidth: "260px",
+                              padding: "8px 10px",
+                              fontSize: "11.5px",
+                              lineHeight: "1.35",
+                              color: "var(--text)",
+                              background: "var(--surface)",
+                              border: "1px solid var(--border)",
+                              borderRadius: "var(--radius-sm)",
+                              boxShadow: "var(--shadow-2)",
+                              pointerEvents: "none",
+                            },
+                          },
+                          hover.point.title || hover.point.id,
+                          h("div", { style: { color: "var(--text-2)" } }, hover.point.kind + " \u00b7 " + projectName(hover.point.project)),
+                          h(
+                            "div",
+                            { style: { color: "var(--text-3)" } },
+                            hover.point.chunks + (hover.point.chunks === 1 ? " chunk" : " chunks") + (hover.point.status === "active" ? "" : " \u00b7 " + hover.point.status),
+                          ),
+                        )
+                      : null,
+                    h("div", { className: "graph-hint" }, "Wheel to zoom \u00b7 drag to pan \u00b7 click a point for details"),
+                  ),
+                )
+              : h(Empty, {
+                  title: "The map is not ready",
+                  text: reason ? reasonText[reason] || reason : "Loading the map\u2026",
+                  action: h(Btn, { onClick: () => load(true) }, "Try again"),
+                }),
+          ),
+        }),
       );
     }
 
@@ -1848,76 +2123,90 @@ window.__ModuleLoader__.load({
           .then(() => setBusy(false));
       };
 
-      const legs = (item) => (item.sources || []).map((leg) => h("span", { key: leg, style: S.pill }, leg));
+      const legs = (item) => (item.sources || []).map((leg) => h(Chip, { key: leg }, leg));
+      const suggestions = ["TDD", "panel design", "Kilo projects", "memory rules"];
 
       return h(
         "div",
-        null,
-        h(
-          "p",
-          { style: S.hint },
-          "Runs llm_memory_recall the way the agent calls it and shows both sides: which legs brought each entry in, " +
-            "and the exact text the agent received. The format is the settings default unless you pick one here.",
-        ),
-        h(
-          "div",
-          { style: S.toolbar },
-          h("label", { style: S.label }, "Query"),
-          h("input", {
-            style: Object.assign({}, S.input, { minWidth: "280px", flex: "1 1 280px" }),
-            type: "text",
-            value: query,
-            placeholder: "Free text, as the agent would ask",
-            onChange: (event) => setQuery(event.target.value),
-            onKeyDown: (event) => {
-              if (event.key === "Enter") run();
-            },
-          }),
-          h("label", { style: S.label }, "Format"),
-          h(
-            "select",
-            { style: S.input, value: format, onChange: (event) => setFormat(event.target.value) },
-            [["", "settings default"]]
-              .concat(RECALL_FORMATS.map((item) => [item, item]))
-              .map(([value, text]) => h("option", { key: value, style: S.option, value }, text)),
+        { className: "page" },
+        h(PageHead, { title: "Recall", sub: VIEW_SUBTITLES.recall }),
+        h(Card, {
+          body: h(
+            "div",
+            null,
+            h(
+              "div",
+              { className: "flex gap-8", style: { flexWrap: "wrap", alignItems: "center" } },
+              h("input", {
+                className: "input",
+                style: { flex: "1 1 280px" },
+                type: "search",
+                value: query,
+                placeholder: "Free text, as the agent would ask",
+                onChange: (event) => setQuery(event.target.value),
+                onKeyDown: (event) => {
+                  if (event.key === "Enter") run();
+                },
+              }),
+              h(
+                "select",
+                { className: "select", style: { width: "auto", minWidth: "150px" }, value: format, onChange: (event) => setFormat(event.target.value) },
+                [["", "settings default"]]
+                  .concat(RECALL_FORMATS.map((item) => [item, item]))
+                  .map(([value, text]) => h("option", { key: value, value }, text)),
+              ),
+              h(Btn, { variant: "primary", disabled: busy, onClick: run }, busy ? "Recalling\u2026" : "Run recall"),
+            ),
+            h(
+              "div",
+              { className: "chips mt-8" },
+              h("span", { className: "faint", style: { fontSize: "12px" } }, "Try:"),
+              suggestions.map((text) => h(Chip, { key: text, onClick: () => setQuery(text) }, text)),
+            ),
           ),
-          h(
-            "button",
-            { type: "button", style: S.button, disabled: busy, onClick: run },
-            busy ? "Recalling\u2026" : "Run recall",
-          ),
-        ),
-        error ? h("p", { style: Object.assign({}, S.hint, { color: T.danger }) }, error) : null,
+        }),
+        error ? h(Card, { className: "mt-16", body: h("div", { className: "notice error" }, error) }) : null,
         result
           ? h(
               "div",
-              null,
-              h("h3", { style: S.sectionTitle }, "Hits (" + result.items.length + ")"),
-              result.items.length === 0
-                ? h("p", { style: S.hint }, "Nothing matched this query.")
-                : h(
-                    "div",
-                    { style: S.list },
-                    result.items.map((item) =>
-                      h(
+              { className: "mt-16" },
+              h(Card, {
+                title: "Hits (" + result.items.length + ")",
+                sub: "Lexical and semantic legs that brought each entry in.",
+                body:
+                  result.items.length === 0
+                    ? h(Empty, { title: "Nothing matched", text: "Try a broader phrase or a different format." })
+                    : h(
                         "div",
-                        {
-                          key: item.id,
-                          style: S.card,
-                          onClick: () => props.onOpen(item.id),
-                        },
-                        h("div", { style: S.cardTitle }, item.title),
-                        h(
-                          "div",
-                          { style: S.meta },
-                          item.kind + " \u00b7 " + item.scope + " \u00b7 " + item.project + " \u00b7 " + item.status,
+                        { className: "stack", style: { gap: "10px" } },
+                        result.items.map((item) =>
+                          h(
+                            "div",
+                            { key: item.id, className: "result card", onClick: () => props.onOpen(item.id) },
+                            h(
+                              "div",
+                              { className: "result-head" },
+                              h("div", { className: "result-title" }, item.title || item.id),
+                              item.score !== undefined ? h(Badge, { tone: "accent" }, Math.round(item.score * 100) + "%") : null,
+                            ),
+                            h(
+                              "div",
+                              { className: "result-meta" },
+                              h(Badge, { tone: KIND_TONES[item.kind] || "" }, item.kind),
+                              h("span", { className: "faint" }, item.scope + (item.project ? " / " + projectName(item.project) : "")),
+                              h("span", { className: "faint" }, item.status),
+                            ),
+                            h("div", { className: "chips mt-8" }, legs(item)),
+                          ),
                         ),
-                        h("div", { style: S.pills }, legs(item)),
                       ),
-                    ),
-                  ),
-              h("h3", { style: S.sectionTitle }, "Rendered text (" + result.format + ")"),
-              h("pre", { style: S.pre }, result.text),
+              }),
+              h(Card, {
+                className: "mt-16",
+                title: "Rendered text (" + result.format + ")",
+                sub: "Exactly what the agent receives from the recall tool.",
+                body: h("pre", { className: "report", style: { whiteSpace: "pre-wrap", margin: 0 } }, result.text),
+              }),
             )
           : null,
       );
@@ -2029,16 +2318,20 @@ window.__ModuleLoader__.load({
 
     function StatusPanel(props) {
       const [report, setReport] = React.useState(null);
+      const [recent, setRecent] = React.useState(null);
       const [error, setError] = React.useState("");
 
       React.useEffect(() => {
         let alive = true;
-        apiGet(props.base, "/api/status")
-          .then((data) => {
-            if (alive) {
-              setReport(data);
-              setError("");
-            }
+        Promise.all([
+          apiGet(props.base, "/api/status"),
+          apiGet(props.base, "/api/items?limit=6&sort=updated").catch(() => ({ items: [] })),
+        ])
+          .then(([data, items]) => {
+            if (!alive) return;
+            setReport(data);
+            setRecent(items.items || []);
+            setError("");
           })
           .catch((err) => {
             if (alive) setError(errorText(err));
@@ -2048,25 +2341,78 @@ window.__ModuleLoader__.load({
         };
       }, [props.base, props.version]);
 
-      if (error) return h("p", { style: Object.assign({}, S.hint, { color: T.danger }) }, error);
-      if (!report) return h("p", { style: S.hint }, "Loading\u2026");
+      if (error) return h(Card, { body: h("div", { className: "notice error" }, error) });
+      if (!report) return h(Loading, { text: "Loading memory state\u2026" });
+
+      const vectors = report.vectors;
+      const vectorBadge = !vectors || vectors.disabled
+        ? h(Badge, null, "off")
+        : vectors.running
+          ? h(Badge, { tone: "warn" }, "running")
+          : vectors.pending > 0
+            ? h(Badge, { tone: "warn" }, String(vectors.pending))
+            : h(Badge, { tone: "ok" }, "ok");
+      const projects = (props.projects || []).length || report.projects || Object.keys(report.byProject || {}).length;
+
+      const metric = (label, value, extra) =>
+        h(
+          "div",
+          { className: "metric-line" },
+          h("span", { className: "muted" }, label),
+          h("span", { className: "flex items-center gap-8", style: { minWidth: 0, justifyContent: "flex-end" } }, value, extra || null),
+        );
+
+      const recentTable = h(DataTable, {
+        columns: [
+          { path: "title", label: "Title" },
+          { path: "kind", label: "Kind" },
+          { path: "updatedAt", label: "Updated" },
+        ],
+        rows: recent || [],
+        onRow: (entry) => props.onOpen(entry.id),
+        empty: { title: "No memory entries yet", text: "Create the first entry to see it here." },
+      });
 
       return h(
         "div",
-        null,
+        { className: "page" },
+        h(PageHead, {
+          title: "Overview",
+          sub: VIEW_SUBTITLES.overview,
+          actions: h(Btn, { onClick: props.onGoEntries }, "All entries"),
+        }),
         h(
           "div",
-          { style: S.kpis },
-          h(Kpi, { value: report.total, label: "Total entries" }),
-          h(Kpi, { value: report.active, label: "Active" }),
-          h(Kpi, { value: report.dbSizeBytes, label: "Index bytes" }),
+          { className: "grid-kpi" },
+          h(Stat, { label: "Entries", value: report.total }),
+          h(Stat, { label: "Active", value: report.active }),
+          h(Stat, { label: "Rules", value: (report.byKind || {}).rules || 0 }),
+          h(Stat, { label: "Preferences", value: (report.byKind || {}).preferences || 0 }),
+          h(Stat, { label: "Projects", value: projects }),
         ),
-        h("div", { style: S.meta }, "root: " + report.root + "\ndatabase: " + report.dbPath),
-        h(Bars, { title: "By kind", counts: report.byKind }),
-        h(Bars, { title: "By scope", counts: report.byScope }),
-        h(Bars, { title: "By status", counts: report.byStatus }),
-        h(Bars, { title: "By project", counts: report.byProject }),
-        h(VectorPanel, { vectors: report.vectors }),
+        h(
+          "div",
+          { className: "grid-2 mt-16" },
+          h(Card, {
+            title: "Recent entries",
+            sub: "The last six entries by update time.",
+            flush: true,
+            body: recentTable,
+          }),
+          h(Card, {
+            title: "Memory state",
+            sub: "Store, database and the semantic index.",
+            body: h(
+              "div",
+              null,
+              metric("Store", h("span", { className: "mono truncate", style: { maxWidth: "170px" }, title: report.root || "" }, report.root || "\u2014")),
+              metric("Database", h("span", null, formatByteSize(report.dbSizeBytes))),
+              metric("Vectors", h("span", { className: "mono" }, (vectors ? vectors.entries || 0 : 0) + " \u00b7 " + (vectors ? vectors.chunks || 0 : 0)), vectorBadge),
+              metric("Model", h("span", { className: "truncate", style: { maxWidth: "170px" } }, vectors ? vectors.model || "\u2014" : "\u2014")),
+              metric("Updated", h("span", { className: "muted" }, datePart(report.updatedAt))),
+            ),
+          }),
+        ),
       );
     }
 
@@ -2147,167 +2493,197 @@ window.__ModuleLoader__.load({
     }
 
     function HealthTab(props) {
-      const [version, setVersion] = React.useState(0);
+      const [status, setStatus] = React.useState(null);
+      const [lint, setLint] = React.useState(null);
+      const [heal, setHeal] = React.useState(null);
       const [busy, setBusy] = React.useState(false);
-      const [status, setStatus] = React.useState({ text: "", error: false });
-      const [healReport, setHealReport] = React.useState(null);
-      const { byId: actionById } = useUIActions(props.base);
-      const [workspaces, setWorkspaces] = React.useState(null);
+      const [notice, setNotice] = React.useState({ text: "", error: false });
 
-      const run = async (text, task) => {
+      const load = React.useCallback(async () => {
+        try {
+          const [nextStatus, nextLint] = await Promise.all([
+            apiGet(props.base, "/api/status"),
+            apiGet(props.base, "/api/lint"),
+          ]);
+          setStatus(nextStatus);
+          setLint(nextLint);
+        } catch (error) {
+          setNotice({ text: errorText(error), error: true });
+        }
+      }, [props.base]);
+
+      React.useEffect(() => {
+        void load();
+      }, [load, props.version]);
+
+      const run = async (label, task) => {
         setBusy(true);
-        setStatus({ text, error: false });
+        setNotice({ text: label, error: false });
         try {
           const message = await task();
-          setStatus({ text: message, error: false });
-          setVersion((previous) => previous + 1);
+          setNotice({ text: message, error: false });
+          await load();
         } catch (error) {
-          setStatus({ text: errorText(error), error: true });
+          setNotice({ text: errorText(error), error: true });
         } finally {
           setBusy(false);
         }
       };
 
-      const heal = () =>
-        run("Healing\u2026", async () => {
-          const report = await apiPost(props.base, "/api/heal", {});
-          setHealReport(report);
-          props.onSaved();
-          return "Heal finished.";
-        });
+      const runLint = () => run("Linting\u2026", async () => {
+        await apiGet(props.base, "/api/lint");
+        return "Lint finished.";
+      });
 
-      const rebuildVectors = () =>
-        run("Rebuilding vectors\u2026", async () => {
-          const data = await apiPost(props.base, "/api/vectors/rebuild", {});
-          const vectors = data && data.vectors ? data.vectors : null;
-          setVersion((value) => value + 1);
-          if (!vectors) return "Vectors are off: enable the embeddings provider in Settings.";
-          return "Vector rebuild queued: " + vectors.pending + " entries waiting.";
-        });
+      const runHeal = () => run("Applying safe heal\u2026", async () => {
+        const report = await apiPost(props.base, "/api/heal", {});
+        setHeal(report);
+        props.onSaved();
+        return "Safe heal applied.";
+      });
 
-      const repairVectors = () =>
-        run("Repairing vectors\u2026", async () => {
-          const data = await apiPost(props.base, "/api/vectors/repair", {});
-          const report = data && data.vectors ? data.vectors : null;
-          setVersion((value) => value + 1);
-          if (!report) return "Vectors are off: enable the embeddings provider in Settings.";
-          return (
-            "Vectors repaired \u2014 leftovers " +
-            report.orphansRemoved +
-            ", metadata " +
-            report.metadataFixed +
-            ", damaged " +
-            report.badRemoved +
-            ", other model " +
-            report.foreignRemoved +
-            ", queued " +
-            report.queued +
-            ", temp files " +
-            report.tempFilesSwept +
-            "."
+      const runVectors = (label, path) => run(label, async () => {
+        const data = await apiPost(props.base, path, {});
+        props.onSaved();
+        return data && data.vectors
+          ? label + " queued: " + (data.vectors.pending || 0) + " entries waiting."
+          : label + " finished.";
+      });
+
+      const vectorAction = (label, path) => h(Btn, { size: "sm", disabled: busy, onClick: () => void runVectors(label, path) }, label);
+
+      const issueList = (title, items, render) =>
+        items && items.length
+          ? h(
+              "div",
+              null,
+              h("div", { className: "report-section-label" }, title + " \u00b7 " + items.length),
+              h("div", { className: "issue-list" }, items.map(render)),
+            )
+          : null;
+
+      const lintBody = !lint
+        ? h(Loading, { text: "Loading lint report\u2026" })
+        : h(
+            "div",
+            null,
+            h(
+              "div",
+              { className: "chips" },
+              h(Chip, null, h("span", { className: "faint" }, "entries"), h("strong", null, String(lint.totalCount))),
+              h(Chip, null, h("span", { className: "faint" }, "active"), h("strong", null, String(lint.activeCount))),
+              h(Chip, { tone: lint.brokenLinks.length ? "warn" : "" }, h("span", { className: "faint" }, "broken"), h("strong", null, String(lint.brokenLinks.length))),
+              h(Chip, { tone: lint.overlaps.length ? "warn" : "" }, h("span", { className: "faint" }, "overlaps"), h("strong", null, String(lint.overlaps.length))),
+              h(Chip, null, h("span", { className: "faint" }, "stale"), h("strong", null, String(lint.stale.length))),
+            ),
+            issueList("Broken links", lint.brokenLinks, (link) =>
+              h("div", { key: link.id + ":" + link.field, className: "issue" },
+                h("div", { className: "issue-title" }, link.title + " (" + link.id + ")"),
+                h("div", { className: "issue-meta" }, link.field + " \u2192 missing " + link.missingId),
+              ),
+            ),
+            issueList("Overlapping active pairs", lint.overlaps, (pair, index) =>
+              h("div", { key: index, className: "issue" },
+                h("div", { className: "issue-title" }, pair.aTitle + " \u2194 " + pair.bTitle),
+                h("div", { className: "issue-meta" }, "common " + pair.common + " \u00b7 score " + pair.score),
+              ),
+            ),
+            lint.overlapsHidden ? h("p", { className: "page-sub", style: { fontSize: "11.5px" } }, lint.overlapsHidden + " more pairs hidden by the cap.") : null,
+            issueList("Stale entries", lint.stale, (entry) =>
+              h("div", { key: entry.id, className: "issue" },
+                h("div", { className: "issue-title" }, entry.title + " (" + entry.id + ")"),
+                h("div", { className: "issue-meta" }, "updated " + datePart(entry.updatedAt)),
+              ),
+            ),
+            !lint.brokenLinks.length && !lint.overlaps.length && !lint.stale.length
+              ? h(Empty, { title: "Memory is clean", text: "No broken links, overlaps or stale entries." })
+              : null,
           );
-        });
 
-      const rebuildAnn = () =>
-        run("Rebuilding the ANN index\u2026", async () => {
-          const data = await apiPost(props.base, "/api/vectors/ann/rebuild", {});
-          setVersion((value) => value + 1);
-          return data && data.rebuilt
-            ? "ANN table rebuilt from memory_vectors."
-            : "Nothing to rebuild: the " +
-                ((data && data.backend) || "in-process") +
-                " backend reads memory_vectors directly.";
-        });
+      const healBody = !heal
+        ? h(Empty, { title: "No heal report yet", text: "Run self-healing to see what it changed." })
+        : h(
+            "div",
+            null,
+            h(
+              "div",
+              { className: "metric-line" },
+              h("span", { className: "muted" }, "Removed broken links"),
+              h("span", { className: "v" }, String(heal.removedLinks || 0)),
+            ),
+            h("div", { className: "metric-line" }, h("span", { className: "muted" }, "Added backlinks"), h("span", { className: "v" }, String(heal.addedBacklinks || 0))),
+            h("div", { className: "metric-line" }, h("span", { className: "muted" }, "Reindexed entries"), h("span", { className: "v" }, String(heal.reindexed || 0))),
+            h("div", { className: "metric-line" }, h("span", { className: "muted" }, "Broken links"), h("span", { className: "v" }, String(heal.brokenBefore || 0) + " \u2192 " + String(heal.brokenAfter || 0))),
+            heal.vectors
+              ? h(
+                  "div",
+                  null,
+                  h("div", { className: "report-section-label" }, "Vectors"),
+                  h("div", { className: "metric-line" }, h("span", { className: "muted" }, "Checked"), h("span", { className: "v" }, String(heal.vectors.checked || 0))),
+                  h("div", { className: "metric-line" }, h("span", { className: "muted" }, "Leftovers removed"), h("span", { className: "v" }, String(heal.vectors.orphansRemoved || 0))),
+                  h("div", { className: "metric-line" }, h("span", { className: "muted" }, "Metadata refreshed"), h("span", { className: "v" }, String(heal.vectors.metadataFixed || 0))),
+                  h("div", { className: "metric-line" }, h("span", { className: "muted" }, "Damaged removed"), h("span", { className: "v" }, String(heal.vectors.badRemoved || 0))),
+                  h("div", { className: "metric-line" }, h("span", { className: "muted" }, "Queued for embedding"), h("span", { className: "v" }, String(heal.vectors.queued || 0))),
+                )
+              : null,
+          );
 
-      const listBlock = (title, items) =>
-        h("div", { key: title }, [
-          h("h4", { key: "t", style: S.sectionTitle }, title + " (" + items.length + ")"),
-          items.length
-            ? h(
-                "ul",
-                { key: "l", style: S.list },
-                items.map((item, index) => h("li", { key: index }, item)),
-              )
-            : h("p", { key: "e", style: S.hint }, "none"),
-        ]);
+      const vectors = status && status.vectors;
+      const vectorsBody = !vectors
+        ? h(Empty, { title: "Vector search is off", text: "Enable the embeddings provider in Settings \u2192 LLM Memory." })
+        : h(
+            "div",
+            null,
+            h(
+              "div",
+              { className: "grid-kpi" },
+              h(Stat, { label: "Embedded entries", value: vectors.entries }),
+              h(Stat, { label: "Vectors", value: vectors.chunks }),
+              h(Stat, { label: "Queue", value: vectors.pending }),
+              h(Stat, { label: "This run", value: vectors.embedded }),
+            ),
+            h("div", { className: "metric-line mt-12" }, h("span", { className: "muted" }, "Model"), h("span", { className: "v" }, vectors.model || "\u2014")),
+            h("div", { className: "metric-line" }, h("span", { className: "muted" }, "Backend"), h("span", { className: "v" }, vectors.backend || "\u2014")),
+            h("div", { className: "metric-line" }, h("span", { className: "muted" }, "Storage"), h("span", { className: "v" }, formatByteSize(vectors.bytes))),
+            vectors.lastError ? h("div", { className: "notice error mt-8" }, vectors.lastError) : null,
+          );
 
       return h(
         "div",
-        null,
+        { className: "page" },
+        h(PageHead, {
+          title: "Health",
+          sub: VIEW_SUBTITLES.health,
+        }),
         h(
           "div",
-          { style: S.panel },
-          h(
-            "div",
-            { style: S.row },
-            actionById["lint.run"] ? h("button", { type: "button", style: S.primary, disabled: busy, onClick: () => setVersion((v) => v + 1) }, actionById["lint.run"].label) : null,
-            actionById["heal.apply"] ? h("button", { type: "button", style: S.button, disabled: busy, onClick: heal }, actionById["heal.apply"].label) : null,
-            actionById["vectors.rebuild"] ? h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildVectors }, actionById["vectors.rebuild"].label) : null,
-            h("button", { type: "button", style: S.button, disabled: busy, onClick: repairVectors }, "Repair vectors"),
-            h("button", { type: "button", style: S.button, disabled: busy, onClick: rebuildAnn }, "Rebuild ANN index"),
-            h(
-              "button",
-              { type: "button", style: S.button, disabled: busy, onClick: () => setVersion((v) => v + 1) },
-              "Refresh status / health",
-            ),
-            h(Notice, { text: status.text, error: status.error }),
-          ),
+          { className: "grid-2" },
+          h(Card, {
+            title: "Lint",
+            sub: "Structural checks across the whole store.",
+            actions: h(Btn, { size: "sm", disabled: busy, onClick: runLint }, "Lint now"),
+            body: lintBody,
+          }),
+          h(Card, {
+            title: "Self-healing",
+            sub: "Safe fixes for links, backlinks and the vector queue.",
+            actions: h(Btn, { size: "sm", disabled: busy, onClick: runHeal }, "Heal now"),
+            body: healBody,
+          }),
         ),
-        h("div", { style: S.panel }, h(StatusPanel, { base: props.base, version })),
-        h("div", { style: S.panel }, h(LintPanel, { base: props.base, version })),
-        healReport
-          ? h(
-              "div",
-              { style: S.panel },
-              h("h3", { style: S.sectionTitle }, "Heal report"),
-              h(
-                "pre",
-                { style: S.pre },
-                "Removed broken links: " +
-                  healReport.removedLinks +
-                  "\nAdded backlinks: " +
-                  healReport.addedBacklinks +
-                  "\nReindexed entries: " +
-                  healReport.reindexed +
-                  "\nBroken links: " +
-                  healReport.brokenBefore +
-                  " -> " +
-                  healReport.brokenAfter +
-                  (healReport.vectors
-                    ? "\nVectors checked: " +
-                      healReport.vectors.checked +
-                      "\n  leftovers removed: " +
-                      healReport.vectors.orphansRemoved +
-                      "\n  metadata refreshed: " +
-                      healReport.vectors.metadataFixed +
-                      "\n  damaged removed: " +
-                      healReport.vectors.badRemoved +
-                      "\n  other model removed: " +
-                      healReport.vectors.foreignRemoved +
-                      "\n  queued for embedding: " +
-                      healReport.vectors.queued +
-                      "\n  temp files swept: " +
-                      healReport.vectors.tempFilesSwept
-                    : ""),
-              ),
-            )
-          : null,
-        workspaces
-          ? h(
-              "div",
-              { style: S.panel },
-              h("h3", { style: S.sectionTitle }, "Workspace sync report"),
-              workspaces.workspaces && workspaces.workspaces.unavailable
-                ? h("p", { style: S.hint }, "Workspace registry is unavailable in this profile.")
-                : h("div", null, [
-                    h("p", { key: "p", style: S.hint }, "Projects seen: " + (workspaces.projects || []).length),
-                    listBlock("Created", (workspaces.workspaces || {}).created || []),
-                    listBlock("Already registered", (workspaces.workspaces || {}).existing || []),
-                    listBlock("Skipped", (workspaces.workspaces || {}).skipped || []),
-                    listBlock("Errors", (workspaces.workspaces || {}).errors || []),
-                  ]),
-            )
-          : null,
+        h(Card, {
+          className: "mt-16",
+          title: "Semantic index",
+          sub: "Embeddings, the queue and the model cache.",
+          actions: h(
+            "div",
+            { className: "flex items-center gap-6" },
+            vectorAction("Repair", "/api/vectors/repair"),
+            vectorAction("Rebuild", "/api/vectors/rebuild"),
+          ),
+          body: vectorsBody,
+        }),
+        notice.text ? h("div", { className: "notice " + (notice.error ? "error" : ""), style: { marginTop: "12px" } }, notice.text) : null,
       );
     }
 
@@ -2318,89 +2694,72 @@ window.__ModuleLoader__.load({
     function Overlay(props) {
       const overlay = props.overlay;
       if (!overlay) return null;
-
       const close = props.onClose;
-      const body = [];
+      let body;
 
       if (overlay.kind === "item") {
         const entry = overlay.entry;
-        body.push(h("h2", { key: "t", style: S.overlayTitle }, entry.title || "(untitled)"));
-        body.push(
+        body = h(
+          "div",
+          null,
           h(
             "div",
-            { key: "m", style: S.meta },
-            entry.id +
-              " \u00b7 " +
-              entry.scope +
-              (entry.project ? "/" + entry.project : "") +
-              " \u00b7 " +
-              entry.kind +
-              " \u00b7 " +
-              entry.status +
-              " \u00b7 " +
-              entry.tier,
+            { className: "chips mb-8" },
+            h(Badge, { tone: KIND_TONES[entry.kind] || "" }, entry.kind),
+            h(Badge, { tone: entry.tier === "immutable" ? "danger" : entry.tier === "important" ? "warn" : "" }, entry.tier),
+            h(Badge, { tone: entry.status === "active" ? "ok" : "" }, entry.status),
+            h(Badge, null, entry.scope + (entry.project ? " / " + projectName(entry.project) : "")),
+            h(Badge, null, "importance " + entry.importance),
           ),
-        );
-        body.push(
-          h(
-            "div",
-            { key: "p", style: S.pills },
-            (entry.tags || []).map((tag) => h(Pill, { key: tag }, tag)),
-          ),
-        );
-        body.push(h("div", { key: "x", style: Object.assign({}, S.text, { maxHeight: "none" }) }, entry.text));
-        body.push(
-          h(
-            "div",
-            { key: "a", style: S.actions },
-            h("button", { type: "button", style: S.button, onClick: () => props.onEdit(entry) }, "Edit"),
-            h("button", { type: "button", style: S.button, onClick: () => props.onForget(entry.id) }, "Forget"),
-            h("button", { type: "button", style: S.danger, onClick: () => props.onDelete(entry.id) }, "Delete"),
-            h("button", { type: "button", style: S.button, onClick: close }, "Close"),
-          ),
+          h("p", { className: "mono faint", style: { margin: "0 0 10px" } }, entry.id + " \u00b7 updated " + datePart(entry.updatedAt)),
+          h("div", { style: { whiteSpace: "pre-wrap", fontSize: "13px", lineHeight: 1.6 } }, entry.text),
+          entry.tags && entry.tags.length ? h("div", { className: "chips mt-12" }, entry.tags.map((tag) => h("span", { key: tag, className: "tag" }, tag))) : null,
         );
       } else if (overlay.kind === "confirm") {
-        body.push(h("h2", { key: "t", style: S.overlayTitle }, overlay.title));
-        body.push(h("p", { key: "m", style: Object.assign({}, S.hint, { fontSize: "12px" }) }, overlay.message));
-        body.push(
-          h(
-            "div",
-            { key: "a", style: S.actions },
-            h(
-              "button",
-              {
-                type: "button",
-                style: overlay.danger ? S.danger : S.primary,
-                onClick: overlay.onConfirm,
-              },
-              overlay.confirmLabel,
-            ),
-            h("button", { type: "button", style: S.button, onClick: close }, "Cancel"),
-          ),
-        );
+        body = h("p", { className: "page-sub", style: { marginTop: 0 } }, overlay.message);
       } else {
-        body.push(h("h2", { key: "t", style: S.overlayTitle }, overlay.title));
-        body.push(h("pre", { key: "b", style: S.pre }, overlay.text));
-        body.push(
-          h(
-            "div",
-            { key: "a", style: S.actions },
-            h("button", { type: "button", style: S.button, onClick: close }, "Close"),
-          ),
-        );
+        body = h("pre", { style: { whiteSpace: "pre-wrap", margin: 0 } }, overlay.text);
       }
 
+      const title = overlay.kind === "item" ? overlay.entry.title || "(untitled)" : overlay.title;
       return h(
         "div",
         {
-          style: S.overlay,
+          className: "modal-backdrop",
           role: "dialog",
-          "aria-label": overlay.title || VIEW_LABEL,
+          "aria-label": title || VIEW_LABEL,
           onClick: (event) => {
             if (event.target === event.currentTarget) close();
           },
         },
-        h("div", { style: S.overlayBox }, body),
+        h(
+          "div",
+          { className: "modal" },
+          h(
+            "div",
+            { className: "modal-head" },
+            h("div", { className: "grow" }, h("h2", { className: "modal-title" }, title)),
+            overlay.kind === "item" ? null : h(Btn, { size: "sm", variant: "ghost", onClick: close }, "Close"),
+          ),
+          h("div", { className: "modal-body" }, body),
+          h(
+            "div",
+            { className: "modal-foot" },
+            overlay.kind === "confirm"
+              ? h(Btn, { variant: overlay.danger ? "danger" : "primary", onClick: overlay.onConfirm }, overlay.confirmLabel)
+              : null,
+            overlay.kind === "item"
+              ? h(Btn, { onClick: () => props.onEdit(overlay.entry) }, "Edit")
+              : null,
+            overlay.kind === "item"
+              ? h(Btn, { onClick: () => props.onForget(overlay.entry.id) }, "Forget")
+              : null,
+            overlay.kind === "item"
+              ? h(Btn, { variant: "danger", onClick: () => props.onDelete(overlay.entry.id) }, "Delete")
+              : null,
+            h(Btn, { variant: overlay.kind === "item" ? "ghost" : "ghost", onClick: close }, overlay.kind === "confirm" ? "Cancel" : "Close"),
+          ),
+        ),
       );
     }
 
@@ -2421,6 +2780,8 @@ window.__ModuleLoader__.load({
         const [projects, setProjects] = React.useState([]);
         const [actionStatus, setActionStatus] = React.useState({ text: "", error: false });
         const [busy, setBusy] = React.useState(false);
+        const theme = useShellTheme();
+        injectPanelStyles();
 
         React.useEffect(() => {
           const update = () => setBase(webBase(scope));
@@ -2530,9 +2891,27 @@ window.__ModuleLoader__.load({
         const itemsPagination = itemsTable && itemsTable.pagination;
         let content = null;
         if (tab === "overview") {
-          content = h("div", { style: S.panel }, h(StatusPanel, { base, version: browseVersion }));
+          content = h(StatusPanel, {
+            base,
+            version: browseVersion,
+            projects,
+            onOpen: openItem,
+            onRefresh: refreshBrowse,
+            onGoEntries: () => setTab("items"),
+          });
         } else if (tab === "items") {
-          content = h(BrowseTab, { base, version: browseVersion, projects, handlers, pagination: itemsPagination });
+          content = h(BrowseTab, {
+            base,
+            version: browseVersion,
+            projects,
+            handlers,
+            pagination: itemsPagination,
+            onNew: () => {
+              setEditDraft(null);
+              setEditKey((previous) => previous + 1);
+              setTab("editor");
+            },
+          });
         } else if (tab === "editor") {
           content = h(EditTab, { key: editKey, base, draft: editDraft, onSaved: refreshBrowse });
         } else if (tab === "graph") {
@@ -2547,21 +2926,20 @@ window.__ModuleLoader__.load({
 
         return h(
           "div",
-          { style: S.root },
+          { className: "lm-panel", "data-theme": theme, style: { height: "100%", overflow: "auto" } },
           h(
             "div",
-            { style: S.toolbar },
-            h("span", { style: S.toolbarSpacer }),
+            { className: "lm-top" },
             h(Notice, { text: actionStatus.text, error: actionStatus.error }),
             h(
-              "button",
-              { type: "button", style: S.button, disabled: busy, onClick: refreshBrowse },
+              Btn,
+              { variant: "ghost", size: "sm", disabled: busy, onClick: refreshBrowse, title: "Refresh" },
               "Refresh",
             ),
           ),
           h(
             "nav",
-            { style: S.tabs, role: "tablist" },
+            { className: "lm-tabs", role: "tablist" },
             views.map((view) =>
               h(
                 "button",
@@ -2570,14 +2948,14 @@ window.__ModuleLoader__.load({
                   type: "button",
                   role: "tab",
                   "aria-selected": tab === view.id ? "true" : "false",
-                  style: tab === view.id ? S.tabActive : S.tab,
+                  className: tab === view.id ? "lm-tab active" : "lm-tab",
                   onClick: () => setTab(view.id),
                 },
                 view.title,
               ),
             ),
           ),
-          h("div", { style: S.content }, content),
+          h("div", { className: "content" }, content),
           h(Overlay, {
             overlay,
             busy,

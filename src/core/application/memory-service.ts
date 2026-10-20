@@ -33,7 +33,7 @@ import { VectorLeg, type HealVectorsReport, type VectorHealth } from './vector-l
 import type { ModelStatus } from './model-manager.js'
 import { EmbeddingRuntimeInstaller, type EmbeddingRuntimeStatus, type RuntimeRunner } from '../infrastructure/runtime-install.js'
 import { DEFAULT_CONFIG, type EmbeddingConfig, type MemoryConfig } from '../domain/config.js'
-import { writeSettingValue } from '../domain/settings-schema.js'
+import { settingsFieldPaths, writeSettingValue } from '../domain/settings-schema.js'
 import {
   settingsSnapshot as buildSettingsSnapshot,
   type UISettingsSnapshot,
@@ -142,6 +142,21 @@ export interface MemoryServiceStatus {
   projects: number
 }
 
+
+/** Leaf paths of a settings patch; panels may send nested objects or dotted keys. */
+function flattenSettingsPatch(input: unknown, prefix = '', out: Record<string, unknown> = {}): Record<string, unknown> {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    if (prefix.length > 0) out[prefix] = input
+    return out
+  }
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    const path = prefix.length > 0 ? `${prefix}.${key}` : key
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) flattenSettingsPatch(value, path, out)
+    else out[path] = value
+  }
+  return out
+}
+
 export class MemoryService {
   readonly harness: 'kilo' | 'opencode' | 'mcp'
   readonly layout: LayoutPort
@@ -207,7 +222,7 @@ export class MemoryService {
    * every harness. Paths the Kilo runtime does not apply yet are reported as
    * unsupported instead of being silently editable.
    */
-  settingsSnapshot(): { snapshot: UISettingsSnapshot; unsupported: string[] } {
+  settingsSnapshot(locale: 'ru' | 'en' = 'ru'): { snapshot: UISettingsSnapshot; unsupported: string[] } {
     const values: Record<string, unknown> = structuredClone(DEFAULT_CONFIG) as unknown as Record<string, unknown>
     const memory = this.config.memory
     const supported: Record<string, unknown> = {
@@ -221,8 +236,19 @@ export class MemoryService {
     for (const key of ['provider', 'model', 'dim', 'topK', 'minScore', 'chunkChars', 'chunkOverlap', 'prewarm'] as const) {
       writeSettingValue(values, `embeddings.${key}`, embeddings[key])
     }
-    const snapshot = buildSettingsSnapshot(values as unknown as MemoryConfig, 'ru')
-    return { snapshot, unsupported: this.unsupportedSettings.filter(path => !Object.hasOwn(supported, path) && !path.startsWith('embeddings.')) }
+    const snapshot = buildSettingsSnapshot(values as unknown as MemoryConfig, locale)
+    const applicable = this.supportedSettingPaths()
+    const unsupported = settingsFieldPaths().filter(
+      path => !applicable.has(path) || this.unsupportedSettings.includes(path),
+    )
+    return { snapshot, unsupported }
+  }
+
+  /** Settings this service actually writes into the harness config. */
+  private supportedSettingPaths(): Set<string> {
+    const paths = new Set<string>(['storageRoot', 'recallLimit', 'recallTextChars', 'backupDir'])
+    for (const key of Object.keys(this.config.embeddings)) paths.add(`embeddings.${key}`)
+    return paths
   }
 
   /**
@@ -232,7 +258,11 @@ export class MemoryService {
   applySettingsPatch(patch: Record<string, unknown>): { applied: string[]; unsupported: string[] } {
     const applied: string[] = []
     const unsupported: string[] = []
-    for (const [path, value] of Object.entries(patch)) {
+    for (const [path, value] of Object.entries(flattenSettingsPatch(patch))) {
+      if (this.unsupportedSettings.includes(path)) {
+        unsupported.push(path)
+        continue
+      }
       const memory = this.config.memory
       switch (path) {
         case 'storageRoot':

@@ -53,6 +53,24 @@ describe('embedding runtime of the Kilo plugin', () => {
     expect(embeddingRuntimeStatus(dir).present).toBe(true)
   })
 
+  it('sees a runtime installed after the installer was created', () => {
+    const dir = temp()
+    const installer = new EmbeddingRuntimeInstaller({ dir })
+    expect(installer.status().present).toBe(false)
+    installFakePackage(dir)
+    expect(installer.status().present).toBe(true)
+  })
+
+  it('skips npm when the package appeared after construction', async () => {
+    const dir = temp()
+    let calls = 0
+    const installer = new EmbeddingRuntimeInstaller({ dir, run: async () => { calls += 1 } })
+    installFakePackage(dir)
+    const done = await installer.install()
+    expect(done.present).toBe(true)
+    expect(calls).toBe(0)
+  })
+
   it('installs through the injected runner and reports the state', async () => {
     const dir = temp()
     const calls: Array<{ args: string[]; cwd: string }> = []

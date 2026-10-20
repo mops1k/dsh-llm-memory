@@ -1,0 +1,1880 @@
+{
+  "version": 1,
+  "operations": [
+    "status",
+    "projects.list",
+    "items.list",
+    "items.get",
+    "graph",
+    "lint.report",
+    "heal.report",
+    "health",
+    "backup.list",
+    "model.status",
+    "settings.snapshot",
+    "vectors.health",
+    "vectors.repair",
+    "vectors.embed",
+    "vectors.map"
+  ],
+  "locales": {
+    "en": {
+      "views": [
+        {
+          "id": "overview",
+          "title": "Overview",
+          "titleRu": "Обзор",
+          "widgets": [
+            {
+              "kind": "stats",
+              "source": {
+                "operation": "status"
+              },
+              "metrics": [
+                {
+                  "path": "total",
+                  "label": "Entries",
+                  "labelRu": "Записей"
+                },
+                {
+                  "path": "active",
+                  "label": "Active",
+                  "labelRu": "Активных"
+                },
+                {
+                  "path": "byKind.rules",
+                  "label": "Rules",
+                  "labelRu": "Правил"
+                },
+                {
+                  "path": "byKind.preferences",
+                  "label": "Preferences",
+                  "labelRu": "Предпочтений"
+                },
+                {
+                  "path": "projects",
+                  "label": "Projects",
+                  "labelRu": "Проектов"
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "actions": [
+                "lint.run",
+                "heal.report"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "items",
+          "title": "Entries",
+          "titleRu": "Записи",
+          "widgets": [
+            {
+              "kind": "table",
+              "source": {
+                "operation": "items.list",
+                "params": {
+                  "sort": "updated"
+                }
+              },
+              "columns": [
+                {
+                  "path": "title",
+                  "label": "Title",
+                  "labelRu": "Заголовок"
+                },
+                {
+                  "path": "kind",
+                  "label": "Kind",
+                  "labelRu": "Категория"
+                },
+                {
+                  "path": "tier",
+                  "label": "Tier",
+                  "labelRu": "Уровень"
+                },
+                {
+                  "path": "scope",
+                  "label": "Scope",
+                  "labelRu": "Область"
+                },
+                {
+                  "path": "project",
+                  "label": "Project",
+                  "labelRu": "Проект"
+                },
+                {
+                  "path": "importance",
+                  "label": "Importance",
+                  "labelRu": "Важность"
+                },
+                {
+                  "path": "updatedAt",
+                  "label": "Updated",
+                  "labelRu": "Обновлено"
+                }
+              ],
+              "pagination": {
+                "pageSizes": [
+                  12,
+                  24,
+                  48,
+                  96
+                ],
+                "defaultPageSize": 24
+              }
+            }
+          ]
+        },
+        {
+          "id": "editor",
+          "title": "Edit entry",
+          "titleRu": "Редактирование",
+          "widgets": [
+            {
+              "kind": "editor",
+              "fields": [
+                {
+                  "path": "title",
+                  "label": "Title",
+                  "labelRu": "Заголовок",
+                  "type": "text"
+                },
+                {
+                  "path": "text",
+                  "label": "Text",
+                  "labelRu": "Текст",
+                  "type": "textarea"
+                },
+                {
+                  "path": "kind",
+                  "label": "Kind",
+                  "labelRu": "Категория",
+                  "type": "select",
+                  "options": [
+                    {
+                      "value": "rules",
+                      "label": "rules"
+                    },
+                    {
+                      "value": "preferences",
+                      "label": "preferences"
+                    },
+                    {
+                      "value": "decisions",
+                      "label": "decisions"
+                    },
+                    {
+                      "value": "facts",
+                      "label": "facts"
+                    },
+                    {
+                      "value": "architecture",
+                      "label": "architecture"
+                    },
+                    {
+                      "value": "concepts",
+                      "label": "concepts"
+                    }
+                  ]
+                },
+                {
+                  "path": "tier",
+                  "label": "Tier",
+                  "labelRu": "Уровень",
+                  "type": "select",
+                  "options": [
+                    {
+                      "value": "normal",
+                      "label": "normal"
+                    },
+                    {
+                      "value": "important",
+                      "label": "important"
+                    },
+                    {
+                      "value": "immutable",
+                      "label": "immutable"
+                    }
+                  ]
+                },
+                {
+                  "path": "importance",
+                  "label": "Importance",
+                  "labelRu": "Важность",
+                  "type": "number"
+                },
+                {
+                  "path": "tags",
+                  "label": "Tags",
+                  "labelRu": "Теги",
+                  "type": "list"
+                },
+                {
+                  "path": "keywords",
+                  "label": "Keywords",
+                  "labelRu": "Ключевые слова",
+                  "type": "text"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "recall",
+          "title": "Recall",
+          "titleRu": "Поиск",
+          "widgets": [
+            {
+              "kind": "search",
+              "source": {
+                "operation": "items.list"
+              },
+              "columns": [
+                {
+                  "path": "title",
+                  "label": "Title",
+                  "labelRu": "Заголовок"
+                },
+                {
+                  "path": "kind",
+                  "label": "Kind",
+                  "labelRu": "Категория"
+                },
+                {
+                  "path": "tier",
+                  "label": "Tier",
+                  "labelRu": "Уровень"
+                },
+                {
+                  "path": "scope",
+                  "label": "Scope",
+                  "labelRu": "Область"
+                },
+                {
+                  "path": "project",
+                  "label": "Project",
+                  "labelRu": "Проект"
+                },
+                {
+                  "path": "importance",
+                  "label": "Importance",
+                  "labelRu": "Важность"
+                },
+                {
+                  "path": "updatedAt",
+                  "label": "Updated",
+                  "labelRu": "Обновлено"
+                }
+              ],
+              "pagination": {
+                "pageSizes": [
+                  10,
+                  20,
+                  50
+                ],
+                "defaultPageSize": 20
+              }
+            }
+          ]
+        },
+        {
+          "id": "graph",
+          "title": "Knowledge graph",
+          "titleRu": "Граф знаний",
+          "widgets": [
+            {
+              "kind": "graph",
+              "source": {
+                "operation": "graph"
+              }
+            }
+          ]
+        },
+        {
+          "id": "map",
+          "title": "RAG map",
+          "titleRu": "Карта RAG",
+          "widgets": [
+            {
+              "kind": "vector-map",
+              "source": {
+                "operation": "vectors.map",
+                "params": {
+                  "refresh": "1"
+                }
+              },
+              "extra": [
+                {
+                  "operation": "vectors.health"
+                },
+                {
+                  "operation": "status"
+                }
+              ],
+              "params": [
+                {
+                  "name": "minScore",
+                  "label": "Minimum similarity",
+                  "min": 0,
+                  "max": 1,
+                  "step": 0.01
+                },
+                {
+                  "name": "topK",
+                  "label": "Neighbours",
+                  "min": 1,
+                  "max": 50,
+                  "step": 1
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "actions": [
+                "vectors.rebuild"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "health",
+          "title": "Health",
+          "titleRu": "Здоровье",
+          "widgets": [
+            {
+              "kind": "report",
+              "source": {
+                "operation": "lint.report"
+              }
+            },
+            {
+              "kind": "report",
+              "source": {
+                "operation": "heal.report"
+              }
+            },
+            {
+              "kind": "actions",
+              "actions": [
+                "lint.run",
+                "heal.report",
+                "heal.apply",
+                "vectors.health",
+                "vectors.repair",
+                "vectors.embed",
+                "vectors.rebuild"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "settings",
+          "title": "Settings",
+          "titleRu": "Настройки",
+          "widgets": [
+            {
+              "kind": "form",
+              "source": {
+                "operation": "settings.snapshot"
+              }
+            }
+          ]
+        },
+        {
+          "id": "backup",
+          "title": "Backups",
+          "titleRu": "Бэкапы",
+          "widgets": [
+            {
+              "kind": "table",
+              "source": {
+                "operation": "backup.list"
+              },
+              "columns": [
+                {
+                  "path": "name",
+                  "label": "Archive",
+                  "labelRu": "Архив"
+                },
+                {
+                  "path": "createdAt",
+                  "label": "Created",
+                  "labelRu": "Создан"
+                },
+                {
+                  "path": "sizeBytes",
+                  "label": "Size",
+                  "labelRu": "Размер"
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "actions": [
+                "backup.create",
+                "backup.verify",
+                "backup.restore",
+                "backup.delete"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "model",
+          "title": "Embedding model",
+          "titleRu": "Модель эмбеддингов",
+          "widgets": [
+            {
+              "kind": "stats",
+              "source": {
+                "operation": "model.status"
+              },
+              "metrics": [
+                {
+                  "path": "model",
+                  "label": "Model",
+                  "labelRu": "Модель"
+                },
+                {
+                  "path": "cached",
+                  "label": "Cached",
+                  "labelRu": "В кэше"
+                },
+                {
+                  "path": "files",
+                  "label": "Files",
+                  "labelRu": "Файлов"
+                },
+                {
+                  "path": "bytes",
+                  "label": "Bytes",
+                  "labelRu": "Байт"
+                },
+                {
+                  "path": "dir",
+                  "label": "Directory",
+                  "labelRu": "Каталог"
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "actions": [
+                "model.download",
+                "model.remove"
+              ]
+            }
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "id": "backup.list",
+          "group": "backup",
+          "label": "List backups",
+          "mode": "read"
+        },
+        {
+          "id": "backup.create",
+          "group": "backup",
+          "label": "Create backup",
+          "mode": "write"
+        },
+        {
+          "id": "backup.verify",
+          "group": "backup",
+          "label": "Verify backup",
+          "mode": "read"
+        },
+        {
+          "id": "backup.restore",
+          "group": "backup",
+          "label": "Restore backup",
+          "hint": "Replaces the live store with the archive contents.",
+          "confirm": "RESTORE",
+          "danger": true,
+          "mode": "write"
+        },
+        {
+          "id": "backup.delete",
+          "group": "backup",
+          "label": "Delete backup",
+          "confirm": "DELETE",
+          "danger": true,
+          "mode": "write"
+        },
+        {
+          "id": "model.status",
+          "group": "model",
+          "label": "Model status",
+          "mode": "read"
+        },
+        {
+          "id": "model.download",
+          "group": "model",
+          "label": "Download model",
+          "mode": "write"
+        },
+        {
+          "id": "model.remove",
+          "group": "model",
+          "label": "Remove model",
+          "confirm": "DELETE",
+          "danger": true,
+          "mode": "write"
+        },
+        {
+          "id": "lint.run",
+          "group": "maintenance",
+          "label": "Lint",
+          "mode": "read"
+        },
+        {
+          "id": "heal.report",
+          "group": "maintenance",
+          "label": "Heal report",
+          "mode": "read"
+        },
+        {
+          "id": "heal.apply",
+          "group": "maintenance",
+          "label": "Heal apply",
+          "mode": "write"
+        },
+        {
+          "id": "vectors.rebuild",
+          "group": "index",
+          "label": "Rebuild vectors",
+          "mode": "write"
+        },
+        {
+          "id": "vectors.health",
+          "group": "index",
+          "label": "Vector health",
+          "mode": "read"
+        }
+      ],
+      "settingsGroups": [
+        {
+          "id": "storage",
+          "title": "Storage & projects",
+          "fields": [
+            {
+              "path": "storageRoot",
+              "label": "Storage root",
+              "hint": "Directory of the store; empty falls back to $DSH_HOME/llm-memory (DSH) or the harness default.",
+              "type": "text",
+              "restartRequired": true
+            },
+            {
+              "path": "projectRoots",
+              "label": "Project roots (key -> absolute path)",
+              "hint": "Registered project roots, read-only here; add projects through the host.",
+              "type": "readonly"
+            },
+            {
+              "path": "projectScanBudgetMs",
+              "label": "Index pass budget (ms)",
+              "hint": "Per-base-directory time budget of one index pass; 0 = unlimited.",
+              "type": "number",
+              "min": 0,
+              "max": 600000,
+              "step": 100
+            },
+            {
+              "path": "webPath",
+              "label": "WebUI base path",
+              "hint": "Base HTTP path of the WebUI and API; takes effect after restart.",
+              "type": "text",
+              "restartRequired": true
+            },
+            {
+              "path": "backupDir",
+              "label": "Backup directory",
+              "hint": "Directory for manual .llmmem backups; empty means <storageRoot>/backups.",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "recall",
+          "title": "Recall & context",
+          "fields": [
+            {
+              "path": "recallLimit",
+              "label": "Recall entries",
+              "hint": "Default number of entries returned by recall.",
+              "type": "number",
+              "min": 1,
+              "max": 100,
+              "step": 1
+            },
+            {
+              "path": "recallTextChars",
+              "label": "Entry budget (chars)",
+              "hint": "Character budget of one entry body in digest rendering.",
+              "type": "number",
+              "min": 200,
+              "max": 10000,
+              "step": 100
+            },
+            {
+              "path": "recallTotalChars",
+              "label": "Total budget (chars)",
+              "hint": "Hard character budget of a whole recall rendering.",
+              "type": "number",
+              "min": 500,
+              "max": 100000,
+              "step": 500
+            },
+            {
+              "path": "recallFormat",
+              "label": "Default format",
+              "hint": "Format recall renders with when the caller does not ask for one.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "markdown",
+                  "label": "markdown"
+                },
+                {
+                  "value": "table",
+                  "label": "table"
+                },
+                {
+                  "value": "timeline",
+                  "label": "timeline"
+                },
+                {
+                  "value": "json",
+                  "label": "json"
+                }
+              ]
+            },
+            {
+              "path": "recallAllowFormatOverride",
+              "label": "Allow per-call format",
+              "hint": "When off, recall is pinned to the default format.",
+              "type": "boolean"
+            },
+            {
+              "path": "recallLiteralLookup",
+              "label": "Literal lookup",
+              "hint": "Let the lexical leg decide the order for error codes, versions, file names and ids.",
+              "type": "boolean"
+            },
+            {
+              "path": "recallScope",
+              "label": "Default scope",
+              "hint": "Scope recall uses when the caller does not pass one.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "project",
+                  "label": "project + user layer"
+                },
+                {
+                  "value": "user",
+                  "label": "user layer only"
+                },
+                {
+                  "value": "all",
+                  "label": "all projects"
+                }
+              ]
+            },
+            {
+              "path": "promptRulesLimit",
+              "label": "Rules in prompt",
+              "hint": "Maximum rules/preferences lines injected into the system prompt.",
+              "type": "number",
+              "min": 0,
+              "max": 200,
+              "step": 1
+            },
+            {
+              "path": "rulesPromptScope",
+              "label": "Rules scope",
+              "hint": "Project reach of the rules digest.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "project",
+                  "label": "project"
+                },
+                {
+                  "value": "all",
+                  "label": "all"
+                }
+              ]
+            },
+            {
+              "path": "sessionStartGuide",
+              "label": "Session start guide",
+              "hint": "Inject the short memory guide once at session start.",
+              "type": "boolean"
+            },
+            {
+              "path": "systemPrompt",
+              "label": "System prompt guidance",
+              "hint": "Guidance injected into the model context.",
+              "type": "textarea"
+            }
+          ]
+        },
+        {
+          "id": "embeddings",
+          "title": "RAG (vector search)",
+          "fields": [
+            {
+              "path": "embeddings.provider",
+              "label": "Embedding provider",
+              "hint": "off keeps lexical search; local loads the on-device model.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "off",
+                  "label": "off — lexical search only"
+                },
+                {
+                  "value": "local",
+                  "label": "local — on-device model"
+                },
+                {
+                  "value": "http",
+                  "label": "http — remote endpoint (reserved)"
+                }
+              ],
+              "restartRequired": true
+            },
+            {
+              "path": "embeddings.backend",
+              "label": "Vector backend",
+              "hint": "Where vectors live; off disables the vector leg.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "off",
+                  "label": "off"
+                },
+                {
+                  "value": "js",
+                  "label": "js — in-process scan"
+                },
+                {
+                  "value": "sqlite-vec",
+                  "label": "sqlite-vec"
+                }
+              ],
+              "restartRequired": true
+            },
+            {
+              "path": "embeddings.quantization",
+              "label": "Quantization",
+              "hint": "Storage precision of the sqlite-vec table.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "float",
+                  "label": "float32"
+                },
+                {
+                  "value": "int8",
+                  "label": "int8"
+                },
+                {
+                  "value": "bit",
+                  "label": "bit"
+                }
+              ]
+            },
+            {
+              "path": "embeddings.model",
+              "label": "Model",
+              "hint": "Model identifier passed to the provider and stored with every vector.",
+              "type": "text",
+              "restartRequired": true
+            },
+            {
+              "path": "embeddings.dim",
+              "label": "Dimensions",
+              "hint": "Vector length of that model.",
+              "type": "number",
+              "min": 1,
+              "max": 8192,
+              "step": 1
+            },
+            {
+              "path": "embeddings.topK",
+              "label": "Vector neighbours",
+              "hint": "Chunk hits requested from the vector leg before rank fusion.",
+              "type": "number",
+              "min": 1,
+              "max": 100,
+              "step": 1
+            },
+            {
+              "path": "embeddings.minScore",
+              "label": "Minimum similarity",
+              "hint": "Minimum cosine similarity for a vector hit to count.",
+              "type": "number",
+              "min": 0,
+              "max": 1,
+              "step": 0.01
+            },
+            {
+              "path": "embeddings.batchSize",
+              "label": "Batch size",
+              "hint": "Texts embedded per provider call.",
+              "type": "number",
+              "min": 1,
+              "max": 256,
+              "step": 1
+            },
+            {
+              "path": "embeddings.chunkChars",
+              "label": "Chunk size (chars)",
+              "hint": "Target characters per indexed chunk.",
+              "type": "number",
+              "min": 100,
+              "max": 8000,
+              "step": 50
+            },
+            {
+              "path": "embeddings.chunkOverlap",
+              "label": "Chunk overlap",
+              "hint": "Characters neighbouring chunks share.",
+              "type": "number",
+              "min": 0,
+              "max": 4000,
+              "step": 10
+            },
+            {
+              "path": "embeddings.queryPrefix",
+              "label": "Query prefix",
+              "hint": "Prefix added to a search query before embedding.",
+              "type": "text"
+            },
+            {
+              "path": "embeddings.passagePrefix",
+              "label": "Passage prefix",
+              "hint": "Prefix added to a stored chunk before embedding.",
+              "type": "text"
+            },
+            {
+              "path": "embeddings.semanticEdgesPerEntry",
+              "label": "Semantic edges per entry",
+              "hint": "Semantic neighbours kept per entry in the knowledge graph.",
+              "type": "number",
+              "min": 0,
+              "max": 50,
+              "step": 1
+            },
+            {
+              "path": "embeddings.semanticMaxEdges",
+              "label": "Semantic edges cap",
+              "hint": "Upper bound of semantic edges stored in the graph.",
+              "type": "number",
+              "min": 0,
+              "max": 10000,
+              "step": 10
+            },
+            {
+              "path": "embeddings.prewarm",
+              "label": "Prewarm model at startup",
+              "hint": "Load the embedding model in the background at startup.",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "id": "maintenance",
+          "title": "Lint & lifecycle",
+          "fields": [
+            {
+              "path": "lintOverlapMinCommonWords",
+              "label": "Overlap minimum words",
+              "hint": "Minimum significant common words for a lint overlap pair.",
+              "type": "number",
+              "min": 1,
+              "max": 20,
+              "step": 1
+            },
+            {
+              "path": "lintMaxPairs",
+              "label": "Overlap pairs limit",
+              "hint": "Maximum overlap pairs reported by lint; 0 = unlimited.",
+              "type": "number",
+              "min": 0,
+              "max": 10000,
+              "step": 1
+            },
+            {
+              "path": "autonomous",
+              "label": "Autonomous memory",
+              "hint": "Whether the assistant may manage memory without asking.",
+              "type": "boolean"
+            },
+            {
+              "path": "requireConfirmation",
+              "label": "Confirm destructive operations",
+              "hint": "Whether destructive memory operations must be confirmed by the user.",
+              "type": "boolean"
+            }
+          ]
+        }
+      ]
+    },
+    "ru": {
+      "views": [
+        {
+          "id": "overview",
+          "title": "Обзор",
+          "titleRu": "Обзор",
+          "widgets": [
+            {
+              "kind": "stats",
+              "source": {
+                "operation": "status"
+              },
+              "metrics": [
+                {
+                  "path": "total",
+                  "label": "Записей",
+                  "labelRu": "Записей"
+                },
+                {
+                  "path": "active",
+                  "label": "Активных",
+                  "labelRu": "Активных"
+                },
+                {
+                  "path": "byKind.rules",
+                  "label": "Правил",
+                  "labelRu": "Правил"
+                },
+                {
+                  "path": "byKind.preferences",
+                  "label": "Предпочтений",
+                  "labelRu": "Предпочтений"
+                },
+                {
+                  "path": "projects",
+                  "label": "Проектов",
+                  "labelRu": "Проектов"
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "actions": [
+                "lint.run",
+                "heal.report"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "items",
+          "title": "Записи",
+          "titleRu": "Записи",
+          "widgets": [
+            {
+              "kind": "table",
+              "source": {
+                "operation": "items.list",
+                "params": {
+                  "sort": "updated"
+                }
+              },
+              "columns": [
+                {
+                  "path": "title",
+                  "label": "Заголовок",
+                  "labelRu": "Заголовок"
+                },
+                {
+                  "path": "kind",
+                  "label": "Категория",
+                  "labelRu": "Категория"
+                },
+                {
+                  "path": "tier",
+                  "label": "Уровень",
+                  "labelRu": "Уровень"
+                },
+                {
+                  "path": "scope",
+                  "label": "Область",
+                  "labelRu": "Область"
+                },
+                {
+                  "path": "project",
+                  "label": "Проект",
+                  "labelRu": "Проект"
+                },
+                {
+                  "path": "importance",
+                  "label": "Важность",
+                  "labelRu": "Важность"
+                },
+                {
+                  "path": "updatedAt",
+                  "label": "Обновлено",
+                  "labelRu": "Обновлено"
+                }
+              ],
+              "pagination": {
+                "pageSizes": [
+                  12,
+                  24,
+                  48,
+                  96
+                ],
+                "defaultPageSize": 24
+              }
+            }
+          ]
+        },
+        {
+          "id": "editor",
+          "title": "Редактирование",
+          "titleRu": "Редактирование",
+          "widgets": [
+            {
+              "kind": "editor",
+              "fields": [
+                {
+                  "path": "title",
+                  "label": "Заголовок",
+                  "labelRu": "Заголовок",
+                  "type": "text"
+                },
+                {
+                  "path": "text",
+                  "label": "Текст",
+                  "labelRu": "Текст",
+                  "type": "textarea"
+                },
+                {
+                  "path": "kind",
+                  "label": "Категория",
+                  "labelRu": "Категория",
+                  "type": "select",
+                  "options": [
+                    {
+                      "value": "rules",
+                      "label": "rules"
+                    },
+                    {
+                      "value": "preferences",
+                      "label": "preferences"
+                    },
+                    {
+                      "value": "decisions",
+                      "label": "decisions"
+                    },
+                    {
+                      "value": "facts",
+                      "label": "facts"
+                    },
+                    {
+                      "value": "architecture",
+                      "label": "architecture"
+                    },
+                    {
+                      "value": "concepts",
+                      "label": "concepts"
+                    }
+                  ]
+                },
+                {
+                  "path": "tier",
+                  "label": "Уровень",
+                  "labelRu": "Уровень",
+                  "type": "select",
+                  "options": [
+                    {
+                      "value": "normal",
+                      "label": "normal"
+                    },
+                    {
+                      "value": "important",
+                      "label": "important"
+                    },
+                    {
+                      "value": "immutable",
+                      "label": "immutable"
+                    }
+                  ]
+                },
+                {
+                  "path": "importance",
+                  "label": "Важность",
+                  "labelRu": "Важность",
+                  "type": "number"
+                },
+                {
+                  "path": "tags",
+                  "label": "Теги",
+                  "labelRu": "Теги",
+                  "type": "list"
+                },
+                {
+                  "path": "keywords",
+                  "label": "Ключевые слова",
+                  "labelRu": "Ключевые слова",
+                  "type": "text"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "recall",
+          "title": "Поиск",
+          "titleRu": "Поиск",
+          "widgets": [
+            {
+              "kind": "search",
+              "source": {
+                "operation": "items.list"
+              },
+              "columns": [
+                {
+                  "path": "title",
+                  "label": "Заголовок",
+                  "labelRu": "Заголовок"
+                },
+                {
+                  "path": "kind",
+                  "label": "Категория",
+                  "labelRu": "Категория"
+                },
+                {
+                  "path": "tier",
+                  "label": "Уровень",
+                  "labelRu": "Уровень"
+                },
+                {
+                  "path": "scope",
+                  "label": "Область",
+                  "labelRu": "Область"
+                },
+                {
+                  "path": "project",
+                  "label": "Проект",
+                  "labelRu": "Проект"
+                },
+                {
+                  "path": "importance",
+                  "label": "Важность",
+                  "labelRu": "Важность"
+                },
+                {
+                  "path": "updatedAt",
+                  "label": "Обновлено",
+                  "labelRu": "Обновлено"
+                }
+              ],
+              "pagination": {
+                "pageSizes": [
+                  10,
+                  20,
+                  50
+                ],
+                "defaultPageSize": 20
+              }
+            }
+          ]
+        },
+        {
+          "id": "graph",
+          "title": "Граф знаний",
+          "titleRu": "Граф знаний",
+          "widgets": [
+            {
+              "kind": "graph",
+              "source": {
+                "operation": "graph"
+              }
+            }
+          ]
+        },
+        {
+          "id": "map",
+          "title": "Карта RAG",
+          "titleRu": "Карта RAG",
+          "widgets": [
+            {
+              "kind": "vector-map",
+              "source": {
+                "operation": "vectors.map",
+                "params": {
+                  "refresh": "1"
+                }
+              },
+              "extra": [
+                {
+                  "operation": "vectors.health"
+                },
+                {
+                  "operation": "status"
+                }
+              ],
+              "params": [
+                {
+                  "name": "minScore",
+                  "label": "Minimum similarity",
+                  "min": 0,
+                  "max": 1,
+                  "step": 0.01
+                },
+                {
+                  "name": "topK",
+                  "label": "Neighbours",
+                  "min": 1,
+                  "max": 50,
+                  "step": 1
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "actions": [
+                "vectors.rebuild"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "health",
+          "title": "Здоровье",
+          "titleRu": "Здоровье",
+          "widgets": [
+            {
+              "kind": "report",
+              "source": {
+                "operation": "lint.report"
+              }
+            },
+            {
+              "kind": "report",
+              "source": {
+                "operation": "heal.report"
+              }
+            },
+            {
+              "kind": "actions",
+              "actions": [
+                "lint.run",
+                "heal.report",
+                "heal.apply",
+                "vectors.health",
+                "vectors.repair",
+                "vectors.embed",
+                "vectors.rebuild"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "settings",
+          "title": "Настройки",
+          "titleRu": "Настройки",
+          "widgets": [
+            {
+              "kind": "form",
+              "source": {
+                "operation": "settings.snapshot"
+              }
+            }
+          ]
+        },
+        {
+          "id": "backup",
+          "title": "Бэкапы",
+          "titleRu": "Бэкапы",
+          "widgets": [
+            {
+              "kind": "table",
+              "source": {
+                "operation": "backup.list"
+              },
+              "columns": [
+                {
+                  "path": "name",
+                  "label": "Архив",
+                  "labelRu": "Архив"
+                },
+                {
+                  "path": "createdAt",
+                  "label": "Создан",
+                  "labelRu": "Создан"
+                },
+                {
+                  "path": "sizeBytes",
+                  "label": "Размер",
+                  "labelRu": "Размер"
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "actions": [
+                "backup.create",
+                "backup.verify",
+                "backup.restore",
+                "backup.delete"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "model",
+          "title": "Модель эмбеддингов",
+          "titleRu": "Модель эмбеддингов",
+          "widgets": [
+            {
+              "kind": "stats",
+              "source": {
+                "operation": "model.status"
+              },
+              "metrics": [
+                {
+                  "path": "model",
+                  "label": "Модель",
+                  "labelRu": "Модель"
+                },
+                {
+                  "path": "cached",
+                  "label": "В кэше",
+                  "labelRu": "В кэше"
+                },
+                {
+                  "path": "files",
+                  "label": "Файлов",
+                  "labelRu": "Файлов"
+                },
+                {
+                  "path": "bytes",
+                  "label": "Байт",
+                  "labelRu": "Байт"
+                },
+                {
+                  "path": "dir",
+                  "label": "Каталог",
+                  "labelRu": "Каталог"
+                }
+              ]
+            },
+            {
+              "kind": "actions",
+              "actions": [
+                "model.download",
+                "model.remove"
+              ]
+            }
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "id": "backup.list",
+          "group": "backup",
+          "label": "Список бэкапов",
+          "mode": "read"
+        },
+        {
+          "id": "backup.create",
+          "group": "backup",
+          "label": "Создать бэкап",
+          "mode": "write"
+        },
+        {
+          "id": "backup.verify",
+          "group": "backup",
+          "label": "Проверить бэкап",
+          "mode": "read"
+        },
+        {
+          "id": "backup.restore",
+          "group": "backup",
+          "label": "Восстановить из бэкапа",
+          "hint": "Replaces the live store with the archive contents.",
+          "confirm": "RESTORE",
+          "danger": true,
+          "mode": "write"
+        },
+        {
+          "id": "backup.delete",
+          "group": "backup",
+          "label": "Удалить бэкап",
+          "confirm": "DELETE",
+          "danger": true,
+          "mode": "write"
+        },
+        {
+          "id": "model.status",
+          "group": "model",
+          "label": "Статус модели",
+          "mode": "read"
+        },
+        {
+          "id": "model.download",
+          "group": "model",
+          "label": "Скачать модель",
+          "mode": "write"
+        },
+        {
+          "id": "model.remove",
+          "group": "model",
+          "label": "Удалить модель",
+          "confirm": "DELETE",
+          "danger": true,
+          "mode": "write"
+        },
+        {
+          "id": "lint.run",
+          "group": "maintenance",
+          "label": "Проверка",
+          "mode": "read"
+        },
+        {
+          "id": "heal.report",
+          "group": "maintenance",
+          "label": "Отчёт оздоровления",
+          "mode": "read"
+        },
+        {
+          "id": "heal.apply",
+          "group": "maintenance",
+          "label": "Оздоровление (применить)",
+          "mode": "write"
+        },
+        {
+          "id": "vectors.rebuild",
+          "group": "index",
+          "label": "Перестроить векторы",
+          "mode": "write"
+        },
+        {
+          "id": "vectors.health",
+          "group": "index",
+          "label": "Здоровье векторов",
+          "mode": "read"
+        }
+      ],
+      "settingsGroups": [
+        {
+          "id": "storage",
+          "title": "Хранилище и проекты",
+          "fields": [
+            {
+              "path": "storageRoot",
+              "label": "Корень хранилища",
+              "hint": "Directory of the store; empty falls back to $DSH_HOME/llm-memory (DSH) or the harness default.",
+              "type": "text",
+              "restartRequired": true
+            },
+            {
+              "path": "projectRoots",
+              "label": "Корни проектов (ключ -> путь)",
+              "hint": "Registered project roots, read-only here; add projects through the host.",
+              "type": "readonly"
+            },
+            {
+              "path": "projectScanBudgetMs",
+              "label": "Бюджет прохода индексации (мс)",
+              "hint": "Per-base-directory time budget of one index pass; 0 = unlimited.",
+              "type": "number",
+              "min": 0,
+              "max": 600000,
+              "step": 100
+            },
+            {
+              "path": "webPath",
+              "label": "Базовый путь WebUI",
+              "hint": "Base HTTP path of the WebUI and API; takes effect after restart.",
+              "type": "text",
+              "restartRequired": true
+            },
+            {
+              "path": "backupDir",
+              "label": "Каталог бэкапов",
+              "hint": "Directory for manual .llmmem backups; empty means <storageRoot>/backups.",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "id": "recall",
+          "title": "Recall и контекст",
+          "fields": [
+            {
+              "path": "recallLimit",
+              "label": "Записей в recall",
+              "hint": "Default number of entries returned by recall.",
+              "type": "number",
+              "min": 1,
+              "max": 100,
+              "step": 1
+            },
+            {
+              "path": "recallTextChars",
+              "label": "Бюджет записи (символов)",
+              "hint": "Character budget of one entry body in digest rendering.",
+              "type": "number",
+              "min": 200,
+              "max": 10000,
+              "step": 100
+            },
+            {
+              "path": "recallTotalChars",
+              "label": "Общий бюджет (символов)",
+              "hint": "Hard character budget of a whole recall rendering.",
+              "type": "number",
+              "min": 500,
+              "max": 100000,
+              "step": 500
+            },
+            {
+              "path": "recallFormat",
+              "label": "Формат по умолчанию",
+              "hint": "Format recall renders with when the caller does not ask for one.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "markdown",
+                  "label": "markdown"
+                },
+                {
+                  "value": "table",
+                  "label": "table"
+                },
+                {
+                  "value": "timeline",
+                  "label": "timeline"
+                },
+                {
+                  "value": "json",
+                  "label": "json"
+                }
+              ]
+            },
+            {
+              "path": "recallAllowFormatOverride",
+              "label": "Разрешать формат в вызове",
+              "hint": "When off, recall is pinned to the default format.",
+              "type": "boolean"
+            },
+            {
+              "path": "recallLiteralLookup",
+              "label": "Литеральный поиск",
+              "hint": "Let the lexical leg decide the order for error codes, versions, file names and ids.",
+              "type": "boolean"
+            },
+            {
+              "path": "recallScope",
+              "label": "Область по умолчанию",
+              "hint": "Scope recall uses when the caller does not pass one.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "project",
+                  "label": "project + user layer"
+                },
+                {
+                  "value": "user",
+                  "label": "user layer only"
+                },
+                {
+                  "value": "all",
+                  "label": "all projects"
+                }
+              ]
+            },
+            {
+              "path": "promptRulesLimit",
+              "label": "Правил в промпте",
+              "hint": "Maximum rules/preferences lines injected into the system prompt.",
+              "type": "number",
+              "min": 0,
+              "max": 200,
+              "step": 1
+            },
+            {
+              "path": "rulesPromptScope",
+              "label": "Область правил",
+              "hint": "Project reach of the rules digest.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "project",
+                  "label": "project"
+                },
+                {
+                  "value": "all",
+                  "label": "all"
+                }
+              ]
+            },
+            {
+              "path": "sessionStartGuide",
+              "label": "Гайд при старте сессии",
+              "hint": "Inject the short memory guide once at session start.",
+              "type": "boolean"
+            },
+            {
+              "path": "systemPrompt",
+              "label": "Текст системного промпта",
+              "hint": "Guidance injected into the model context.",
+              "type": "textarea"
+            }
+          ]
+        },
+        {
+          "id": "embeddings",
+          "title": "RAG (векторный поиск)",
+          "fields": [
+            {
+              "path": "embeddings.provider",
+              "label": "Провайдер эмбеддингов",
+              "hint": "off keeps lexical search; local loads the on-device model.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "off",
+                  "label": "off — lexical search only"
+                },
+                {
+                  "value": "local",
+                  "label": "local — on-device model"
+                },
+                {
+                  "value": "http",
+                  "label": "http — remote endpoint (reserved)"
+                }
+              ],
+              "restartRequired": true
+            },
+            {
+              "path": "embeddings.backend",
+              "label": "Векторный бэкенд",
+              "hint": "Where vectors live; off disables the vector leg.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "off",
+                  "label": "off"
+                },
+                {
+                  "value": "js",
+                  "label": "js — in-process scan"
+                },
+                {
+                  "value": "sqlite-vec",
+                  "label": "sqlite-vec"
+                }
+              ],
+              "restartRequired": true
+            },
+            {
+              "path": "embeddings.quantization",
+              "label": "Квантование",
+              "hint": "Storage precision of the sqlite-vec table.",
+              "type": "select",
+              "options": [
+                {
+                  "value": "float",
+                  "label": "float32"
+                },
+                {
+                  "value": "int8",
+                  "label": "int8"
+                },
+                {
+                  "value": "bit",
+                  "label": "bit"
+                }
+              ]
+            },
+            {
+              "path": "embeddings.model",
+              "label": "Модель",
+              "hint": "Model identifier passed to the provider and stored with every vector.",
+              "type": "text",
+              "restartRequired": true
+            },
+            {
+              "path": "embeddings.dim",
+              "label": "Размерность",
+              "hint": "Vector length of that model.",
+              "type": "number",
+              "min": 1,
+              "max": 8192,
+              "step": 1
+            },
+            {
+              "path": "embeddings.topK",
+              "label": "Соседей в recall",
+              "hint": "Chunk hits requested from the vector leg before rank fusion.",
+              "type": "number",
+              "min": 1,
+              "max": 100,
+              "step": 1
+            },
+            {
+              "path": "embeddings.minScore",
+              "label": "Минимальная близость",
+              "hint": "Minimum cosine similarity for a vector hit to count.",
+              "type": "number",
+              "min": 0,
+              "max": 1,
+              "step": 0.01
+            },
+            {
+              "path": "embeddings.batchSize",
+              "label": "Размер батча",
+              "hint": "Texts embedded per provider call.",
+              "type": "number",
+              "min": 1,
+              "max": 256,
+              "step": 1
+            },
+            {
+              "path": "embeddings.chunkChars",
+              "label": "Размер чанка (символов)",
+              "hint": "Target characters per indexed chunk.",
+              "type": "number",
+              "min": 100,
+              "max": 8000,
+              "step": 50
+            },
+            {
+              "path": "embeddings.chunkOverlap",
+              "label": "Перекрытие чанков",
+              "hint": "Characters neighbouring chunks share.",
+              "type": "number",
+              "min": 0,
+              "max": 4000,
+              "step": 10
+            },
+            {
+              "path": "embeddings.queryPrefix",
+              "label": "Префикс запроса",
+              "hint": "Prefix added to a search query before embedding.",
+              "type": "text"
+            },
+            {
+              "path": "embeddings.passagePrefix",
+              "label": "Префикс пассажа",
+              "hint": "Prefix added to a stored chunk before embedding.",
+              "type": "text"
+            },
+            {
+              "path": "embeddings.semanticEdgesPerEntry",
+              "label": "Семантических связей на запись",
+              "hint": "Semantic neighbours kept per entry in the knowledge graph.",
+              "type": "number",
+              "min": 0,
+              "max": 50,
+              "step": 1
+            },
+            {
+              "path": "embeddings.semanticMaxEdges",
+              "label": "Лимит семантических связей",
+              "hint": "Upper bound of semantic edges stored in the graph.",
+              "type": "number",
+              "min": 0,
+              "max": 10000,
+              "step": 10
+            },
+            {
+              "path": "embeddings.prewarm",
+              "label": "Прогрев модели при старте",
+              "hint": "Load the embedding model in the background at startup.",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "id": "maintenance",
+          "title": "Lint и жизненный цикл",
+          "fields": [
+            {
+              "path": "lintOverlapMinCommonWords",
+              "label": "Пересечение: минимум слов",
+              "hint": "Minimum significant common words for a lint overlap pair.",
+              "type": "number",
+              "min": 1,
+              "max": 20,
+              "step": 1
+            },
+            {
+              "path": "lintMaxPairs",
+              "label": "Пересечение: лимит пар",
+              "hint": "Maximum overlap pairs reported by lint; 0 = unlimited.",
+              "type": "number",
+              "min": 0,
+              "max": 10000,
+              "step": 1
+            },
+            {
+              "path": "autonomous",
+              "label": "Автономная память",
+              "hint": "Whether the assistant may manage memory without asking.",
+              "type": "boolean"
+            },
+            {
+              "path": "requireConfirmation",
+              "label": "Подтверждать разрушительные операции",
+              "hint": "Whether destructive memory operations must be confirmed by the user.",
+              "type": "boolean"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "values": {
+    "projectRoots": {},
+    "projectScanBudgetMs": 0,
+    "webPath": "/llm-memory",
+    "backupDir": "",
+    "recallLimit": 10,
+    "recallTextChars": 400,
+    "recallTotalChars": 12000,
+    "recallFormat": "markdown",
+    "recallAllowFormatOverride": true,
+    "recallLiteralLookup": true,
+    "recallScope": "project",
+    "promptRulesLimit": 6,
+    "rulesPromptScope": "project",
+    "sessionStartGuide": true,
+    "systemPrompt": "You have long-term memory tools. Use them proactively and autonomously.\n\nTool usage:\n- llm_memory_recall: before answering questions about user preferences, past decisions, project facts or earlier work, search memory first.\n- llm_memory_save: save durable knowledge immediately after learning it; do not wait for the user to ask.\n- llm_memory_forget: mark outdated knowledge forgotten so it stops appearing in recall.\n- Use maintenance tools, when exposed, only for an explicit storage health or irreversible-cleanup request.\n- Prefer `llm_memory_forget` for outdated entries; permanent deletion is a last resort.\n\nWhen to save:\n- Save after each milestone: confirmed project facts, chosen decisions with their reasoning, user preferences and rules, architecture details and non-obvious constraints.\n- Prefer concise, self-contained entries with concrete facts over vague summaries.\n- Choose kind, scope, tier (normal, important, immutable) and importance (1-5) yourself.\n- Set tier important for knowledge that must survive, and immutable for rules that must never be weakened.\n\nAutonomy:\n- Never ask the user for confirmation before saving, retiering, forgetting, superseding or deleting memories.\n- Make the change on your own and report what you changed.\n\nForget outdated memories:\n- When the user changes a decision, approach or preference, the previous memory becomes outdated.\n- Save the new entry with `supersedes` referencing the old id, or call llm_memory_forget on the old entry.\n- Never keep contradictory active entries: supersede or forget the old entry in the same turn you record the change.",
+    "embeddings.provider": "off",
+    "embeddings.backend": "js",
+    "embeddings.quantization": "float",
+    "embeddings.model": "Xenova/multilingual-e5-small",
+    "embeddings.dim": 384,
+    "embeddings.topK": 50,
+    "embeddings.minScore": 0,
+    "embeddings.batchSize": 16,
+    "embeddings.chunkChars": 800,
+    "embeddings.chunkOverlap": 120,
+    "embeddings.queryPrefix": "query: ",
+    "embeddings.passagePrefix": "passage: ",
+    "embeddings.semanticEdgesPerEntry": 3,
+    "embeddings.semanticMaxEdges": 300,
+    "embeddings.prewarm": true,
+    "lintOverlapMinCommonWords": 8,
+    "lintMaxPairs": 200,
+    "autonomous": true,
+    "requireConfirmation": false
+  }
+}

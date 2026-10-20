@@ -13,6 +13,7 @@
 ## Миграции и данные
 
 - [dsh-migration.md](dsh-migration.md) — перенос DSH-памяти на единое ядро.
+- [opencode.md](opencode.md) — адаптер OpenCode: одна сборка для 1.x и 2.x, стор, панель 8788, живые проверки.
 - [kilo-migration.md](kilo-migration.md) — миграция Kilo-хранилища (снимки, проверки, fixtures).
 - [kilo-cutover.md](kilo-cutover.md) — production cutover Kilo.
 - [backup.md](backup.md) — формат `.llmmem`, создание/проверка/восстановление, CLI.

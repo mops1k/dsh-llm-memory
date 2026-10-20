@@ -1,0 +1,134 @@
+/*
+ * Design tokens. One neutral palette per theme, one accent, semantic state
+ * colors. Components never hard-code a color: both themes are the same CSS with
+ * a different token set, so nothing can look "half-dark".
+ */
+:root {
+  color-scheme: light;
+
+  --font: "Inter", "Inter var", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --bg: #f7f8fa;
+  --bg-soft: #f1f3f6;
+  --surface: #ffffff;
+  --surface-2: #f5f6f9;
+  --surface-3: #eceff4;
+  --border: #e4e8ee;
+  --border-strong: #d3d9e3;
+  --text: #12161d;
+  --text-2: #556070;
+  --text-3: #8a94a3;
+
+  --accent: #4f46e5;
+  --accent-solid: #4f46e5;
+  --accent-solid-hover: #4338ca;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(79, 70, 229, 0.10);
+  --accent-soft-2: rgba(79, 70, 229, 0.06);
+
+  --ok: #0f8a63;
+  --ok-soft: rgba(15, 138, 99, 0.10);
+  --warn: #a86400;
+  --warn-soft: rgba(168, 100, 0, 0.11);
+  --danger: #cf2f2a;
+  --danger-soft: rgba(207, 47, 42, 0.10);
+  --info: #1668b3;
+  --info-soft: rgba(22, 104, 179, 0.10);
+
+  --k-rules: #be123c;
+  --k-rules-soft: rgba(190, 18, 60, 0.09);
+  --k-preferences: #b45309;
+  --k-preferences-soft: rgba(180, 83, 9, 0.10);
+  --k-decisions: #6d28d9;
+  --k-decisions-soft: rgba(109, 40, 217, 0.09);
+  --k-facts: #1d4ed8;
+  --k-facts-soft: rgba(29, 78, 216, 0.09);
+  --k-architecture: #0f766e;
+  --k-architecture-soft: rgba(15, 118, 110, 0.10);
+  --k-concepts: #475569;
+  --k-concepts-soft: rgba(71, 85, 105, 0.10);
+
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-2: 0 16px 40px rgba(16, 24, 40, 0.14);
+  --shadow-3: 0 24px 64px rgba(16, 24, 40, 0.22);
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --brand-from: #4f46e5;
+  --brand-to: #7c3aed;
+  --nav-active-bg: rgba(79, 70, 229, 0.10);
+  --nav-active-text: #4f46e5;
+
+  --radius-lg: 14px;
+  --focus-ring: 0 0 0 3px rgba(79, 70, 229, 0.26);
+
+  --sidebar-bg: #fbfbfd;
+  --topbar-bg: rgba(247, 248, 250, 0.84);
+  --overlay: rgba(16, 22, 34, 0.42);
+  --row-hover: #f6f7fa;
+  --knob: #ffffff;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Neutral DSH-like charcoal palette with a single muted blue accent. */
+  --bg: #151517;
+  --bg-soft: #19191b;
+  --surface: #1b1b1c;
+  --surface-2: #232324;
+  --surface-3: #2c2c2e;
+  --border: #29292c;
+  --border-strong: #3e3e3f;
+  --text: #f9fafb;
+  --text-2: #bebebf;
+  --text-3: #8a8a8d;
+
+  --accent: #7aaaff;
+  --accent-solid: #4b5e82;
+  --accent-solid-hover: #5a6f9a;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(122, 170, 255, 0.12);
+  --accent-soft-2: rgba(122, 170, 255, 0.06);
+
+  --ok: #22b95a;
+  --ok-soft: rgba(34, 185, 90, 0.13);
+  --warn: #d29922;
+  --warn-soft: rgba(210, 153, 34, 0.14);
+  --danger: #d96363;
+  --danger-soft: rgba(217, 99, 99, 0.14);
+  --info: #7aaaff;
+  --info-soft: rgba(122, 170, 255, 0.12);
+
+  --k-rules: #f47067;
+  --k-rules-soft: rgba(244, 112, 103, 0.13);
+  --k-preferences: #d29922;
+  --k-preferences-soft: rgba(210, 153, 34, 0.13);
+  --k-decisions: #b392f0;
+  --k-decisions-soft: rgba(179, 146, 240, 0.13);
+  --k-facts: #79c0ff;
+  --k-facts-soft: rgba(121, 192, 255, 0.12);
+  --k-architecture: #39c5cf;
+  --k-architecture-soft: rgba(57, 197, 207, 0.12);
+  --k-concepts: #8b949e;
+  --k-concepts-soft: rgba(139, 148, 158, 0.13);
+
+  --brand-from: #3f4a5c;
+  --brand-to: #4b5e82;
+  --nav-active-bg: #2d2d2e;
+  --nav-active-text: #f9fafb;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-2: 0 18px 44px rgba(0, 0, 0, 0.48);
+  --shadow-3: 0 26px 70px rgba(0, 0, 0, 0.60);
+
+  --focus-ring: 0 0 0 3px rgba(122, 170, 255, 0.35);
+
+  --sidebar-bg: #1b1b1c;
+  --topbar-bg: rgba(21, 21, 23, 0.86);
+  --overlay: rgba(0, 0, 0, 0.62);
+  --row-hover: #232324;
+  --knob: #f9fafb;
+}

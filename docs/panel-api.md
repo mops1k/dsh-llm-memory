@@ -4,8 +4,11 @@
 отличаются только базовые пути и форма ответа legacy-адаптера.
 
 - DSH: база `/llm-memory` (настраивается `webPath`), API — `/llm-memory/api/*`.
-- Kilo: страница на `http://<host>:<port>/` отдаёт общий дизайн панели (`src/ui/design/panel.html`),
-  тот же файл будет у OpenCode/MCP; API — `/api/legacy/*`.
+- Kilo: страница на `http://<host>:<port>/` отдаёт общий дизайн панели; файл
+  `src/ui/design/panel.html` генерируется `scripts/build-panel.mjs` из `src/ui/design/panel/` и вшивается
+  в бандл. Страница и JSON-ответы отдаются с `cache-control: no-store`, чтобы после обновления плагина
+  не показывался старый дизайн. API — `/api/legacy/*`.
+- OpenCode: то же самое на порту `8788` (kind `opencode`, apiBase `/api/legacy`), см. [opencode.md](opencode.md).
 - Все ответы — JSON (`content-type: application/json`), ошибки — `{ "error": "..." }` с 4xx.
 - DSH-web принимает только loopback (`127.0.0.1/::1`), иначе 403.
 
@@ -15,7 +18,7 @@
 |---|---|---|
 | снимок экранов | `GET /api/ui/snapshot` | `GET /api/legacy/ui/snapshot[?locale=ru]` |
 | схема настроек + значения | `GET /api/settings/schema` | `GET /api/legacy/settings/snapshot` |
-| сохранить настройки | через settings-сервис DSH | `PUT /api/legacy/settings` |
+| сохранить настройки | через settings-сервис DSH | `PUT /api/legacy/settings` (принимает вложенный объект и dotted-ключи) |
 | сырой конфиг | — | `GET|PUT /api/legacy/config` |
 
 Подробная форма полей/экранов — в [ui-sdk.md](ui-sdk.md).
@@ -30,7 +33,7 @@ Kilo/OpenCode/MCP, хост передаёт ему `window.__LM_PANEL__` (`apiB
 - KPI обзора — `stats.metrics`, данные — `source.operation`.
 
 Кастомные блоки дизайна (фильтры, график с зумом, карта RAG) остаются его собственной логикой поверх этих данных.
-RAG-карта показывает «недоступно» — ждёт `VectorLeg` из плана `p_c7de70db394f`.
+RAG-карта показывает векторы, очередь, здоровье и действия ремонта из `VectorLeg`.
 
 ## 2. Данные
 
@@ -63,7 +66,7 @@ Kilo: `GET /api/legacy/graph`, `GET /api/legacy/lint`, `POST /api/legacy/heal` (
 Отчёты `lint`/`heal` в Kilo — **markdown-строки** (как в прежнем дашборде), в DSH — структурированные объекты.
 Фильтр `?project=` применяется к `/items`, `/status`, `/graph`, `/lint`, `/heal`.
 
-### Векторы и RAG (Kilo)
+### Векторы и RAG (Kilo/OpenCode)
 
 Векторная нога общая (`VectorLeg` ядра); эндпоинты отдают её состояние, карту и очередь:
 
@@ -76,12 +79,15 @@ Kilo: `GET /api/legacy/graph`, `GET /api/legacy/lint`, `POST /api/legacy/heal` (
 - `POST /api/legacy/vectors/rebuild` → `{ ok, status }` — очистить кэш векторов и поставить полный
   backfill в фоновую очередь.
 - `POST /api/legacy/vectors/embed` → `{ ok, status }` — довести очередь до конца (maintenance/тесты).
+- `POST /api/legacy/vectors/repair` → `{ ok, report, status }` — безопасный ремонт: удалить сирот,
+  поправить метаданные, убрать битые/чужие строки и отдать недостающие записи в очередь.
 - `GET /api/legacy/recall?q=<текст>&limit=20` → `{ ok, items, text, sources }` — гибридный поиск:
   лексическая нога (FTS5) + семантическая (RRF), `sources[id] = ["bm25","vector","metadata"]`.
   Панель «Поиск» ходит сюда, а не в `/items?q=` — иначе семантика не видна.
 
-Карта в панели рисуется из `vectors/map` (SVG-проекция, маркер запроса), кнопка «Перестроить векторы»
-активна, когда нога жива. При выключенной ноге эндпоинты отвечают `200` с `null` и текстовой причиной.
+Карта в панели рисуется из `vectors/map` (SVG-проекция, маркер запроса); кнопки «Здоровье векторов»,
+«Оздоровление векторов», «Доиндексировать» и «Перестроить векторы» продублированы на экране
+«Оздоровление» (действия `vectors.health`, `vectors.repair`, `vectors.embed`, `vectors.rebuild`). При выключенной ноге эндпоинты отвечают `200` с `null` и текстовой причиной.
 
 ### Проекты
 

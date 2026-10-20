@@ -22,6 +22,8 @@ export type UIOperation =
   | 'model.status'
   | 'settings.snapshot'
   | 'vectors.health'
+  | 'vectors.repair'
+  | 'vectors.embed'
   | 'vectors.map'
 
 /** All operations the schema is allowed to reference. */
@@ -38,6 +40,8 @@ export const UI_OPERATIONS: readonly UIOperation[] = [
   'model.status',
   'settings.snapshot',
   'vectors.health',
+  'vectors.repair',
+  'vectors.embed',
   'vectors.map',
 ]
 
@@ -233,7 +237,7 @@ export const UI_VIEWS: readonly UIView[] = [
     widgets: [
       { kind: 'report', source: { operation: 'lint.report' } },
       { kind: 'report', source: { operation: 'heal.report' } },
-      { kind: 'actions', actions: ['lint.run', 'heal.report', 'heal.apply'] },
+      { kind: 'actions', actions: ['lint.run', 'heal.report', 'heal.apply', 'vectors.health', 'vectors.repair', 'vectors.embed', 'vectors.rebuild'] },
     ],
   },
   {

@@ -57,8 +57,8 @@ and keeps its own markdown-first store.
   conversation renders the WebUI as a React view inside the shell (no iframe) and
   follows the dsh light/dark theme through the `--dsw-*` design tokens. The view
   has Search & Browse, Create/Edit, Graph, Map, Recall, Status, Lint and Health (lint/heal)
-  sections. The same page is still served standalone at the plugin HTTP path
-  (`<webPath>/ui`), using the same tokens.
+  sections, in the same design as the Kilo/OpenCode panel. The same page is still
+  served standalone at the plugin HTTP path (`<webPath>/ui`), using the same tokens.
 
 ## Install
 
@@ -182,7 +182,7 @@ Then restart DSH.
 ```
 src/index.ts, tool-restrict.ts   DSH plugin entrypoint and scoped preset subpath
 src/core/          storage, engine, ranking, wiki, frontmatter (domain/application/infrastructure/port/layout/isolation/sync)
-src/ui/            headless contracts, design/panel.html (общий дизайн панелей), themes
+src/ui/            headless contracts; design/panel/ (shared design source), design/panel.html (generated), web React panel, themes
 src/adapters/dsh/  DSH wiring: tools, context, settings, web, workspaces
 src/adapters/kilo/ Kilo plugin: service, compatibility API, panel server, migration/cutover
 src/adapters/mcp/  MCP tools (backup)

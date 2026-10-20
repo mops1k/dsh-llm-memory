@@ -61,7 +61,15 @@ describe('schema-driven widgets', () => {
     )
     expect(table).toContain('First')
     expect(table).toContain('1 / 2')
-    expect(table).toContain('Total: 30')
+    expect(table).toContain('1–24 / 30')
+    const projects = renderToStaticMarkup(
+      <StatsView
+        t={en}
+        metrics={[{ path: 'projects', label: 'Projects' }]}
+        payload={{ status: { byProject: { alpha: 2, beta: 1 } } }}
+      />,
+    )
+    expect(projects).toContain('2')
     expect(renderToStaticMarkup(<TableView t={ru} columns={[]} rows={[]} />)).toContain('Записей нет')
   })
 

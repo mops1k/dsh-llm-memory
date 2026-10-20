@@ -1,13 +1,13 @@
 /**
  * Schema-driven panel: navigation and every screen come from the core UI
- * snapshot, so Kilo, OpenCode and MCP render the same screens with their own
- * design (ADR-004). Data operations are ordinary host requests.
+ * snapshot, rendered in the accepted shared design (ADR-004). Data operations
+ * are ordinary host requests; the CSS and markup are the same as the
+ * Kilo/OpenCode page.
  */
 import * as React from 'react'
 
 import type { UiHost } from '../headless/host.js'
-import { createTranslator } from '../headless/i18n.js'
-import { themeVars } from './styles.js'
+import { createTranslator, type MessageKey } from '../headless/i18n.js'
 import {
   payloadBody,
   payloadRows,
@@ -19,9 +19,14 @@ import {
 } from './types.js'
 import {
   ActionBar,
+  Button,
+  Card,
   EditorForm,
+  ErrorBox,
   GraphView,
+  Icon,
   Loading,
+  PageHead,
   ReportView,
   SearchBar,
   SettingsForm,
@@ -41,6 +46,51 @@ interface SettingsState {
   groups: readonly UISettingsGroup[]
   values: Record<string, unknown>
   unsupported: string[]
+}
+
+type ThemePref = 'system' | 'light' | 'dark'
+
+const NAV_GROUPS: readonly { label: MessageKey | null; ids: readonly string[] }[] = [
+  { label: null, ids: ['overview'] },
+  { label: 'nav.group.data', ids: ['items', 'recall'] },
+  { label: 'nav.group.analysis', ids: ['graph', 'map'] },
+  { label: 'nav.group.system', ids: ['health', 'settings', 'backup', 'model'] },
+]
+
+const VIEW_ICONS: Record<string, string> = {
+  overview: 'grid',
+  items: 'list',
+  recall: 'search',
+  graph: 'graph',
+  map: 'map',
+  health: 'pulse',
+  settings: 'sliders',
+  backup: 'archive',
+  model: 'cpu',
+  editor: 'edit',
+}
+
+const THEME_ORDER: readonly ThemePref[] = ['system', 'light', 'dark']
+const THEME_ICON: Record<ThemePref, string> = { system: 'monitor', light: 'sun', dark: 'moon' }
+
+function themeKey(kind: string): string {
+  return `llm-memory:${kind}:theme`
+}
+
+function readThemePref(kind: string): ThemePref {
+  if (typeof localStorage === 'undefined') return 'system'
+  try {
+    const value = localStorage.getItem(themeKey(kind))
+    return value === 'light' || value === 'dark' || value === 'system' ? value : 'system'
+  } catch {
+    return 'system'
+  }
+}
+
+function resolvedTheme(pref: ThemePref): 'light' | 'dark' {
+  if (pref !== 'system') return pref
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'light'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
 function settingsFromPayload(payload: SettingsSnapshotResponse): SettingsState {
@@ -69,10 +119,15 @@ function actionInput(id: string, action: UISettingsAction | undefined): Record<s
   return undefined
 }
 
+function viewSubtitle(view: UIView): MessageKey | undefined {
+  const key = `view.${view.id}.subtitle`
+  return key as MessageKey
+}
+
 export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): React.ReactElement {
   const t = createTranslator(host.locale())
-  const views = snapshot.views.filter(view => view.id !== 'map')
-  const [viewId, setViewId] = React.useState<string>(initialView ?? views[0]?.id ?? snapshot.views[0]?.id ?? 'overview')
+  const views = snapshot.views
+  const [viewId, setViewId] = React.useState<string>(initialView ?? views[0]?.id ?? 'overview')
   const view = snapshot.views.find(item => item.id === viewId) ?? snapshot.views[0]
   const [data, setData] = React.useState<Record<string, unknown>>({})
   const [loading, setLoading] = React.useState(true)
@@ -87,6 +142,19 @@ export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): 
   const [settings, setSettings] = React.useState<SettingsState>({ groups: [], values: {}, unsupported: [] })
   const [dirty, setDirty] = React.useState<Record<string, string | number | boolean>>({})
   const [revision, setRevision] = React.useState(0)
+  const [menuOpen, setMenuOpen] = React.useState(false)
+  const [themePref, setThemePref] = React.useState<ThemePref>(() => readThemePref(host.kind))
+
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return
+    document.documentElement.dataset['theme'] = resolvedTheme(themePref)
+    document.documentElement.dataset['themePref'] = themePref
+    try {
+      localStorage.setItem(themeKey(host.kind), themePref)
+    } catch {
+      // Storage can be unavailable (private mode); the theme still applies.
+    }
+  }, [themePref, host.kind])
 
   React.useEffect(() => {
     let cancelled = false
@@ -115,6 +183,11 @@ export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): 
           }
           if (widget.kind === 'vector-map') input['refresh'] = '1'
           next[widget.source.operation] = await host.request(widget.source.operation, input)
+          if (widget.kind === 'vector-map' && widget.extra) {
+            for (const extra of widget.extra) {
+              next[extra.operation] = await host.request(extra.operation, { ...extra.params })
+            }
+          }
         }
         if (!cancelled) setData(next)
       } catch (failure) {
@@ -127,7 +200,7 @@ export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): 
     return () => {
       cancelled = true
     }
-  }, [host, viewId, page, pageSize, query, revision])
+  }, [host, view, page, pageSize, query, revision])
 
   const reload = (): void => setRevision(value => value + 1)
 
@@ -189,6 +262,22 @@ export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): 
     }
   }
 
+  const openEntry = (id: string): void => {
+    setViewId('editor')
+    setPage(1)
+    setQuery('')
+    setQueryDraft('')
+    setMenuOpen(false)
+    void loadEntry(id)
+  }
+
+  const openEditor = (): void => {
+    setSelected(undefined)
+    setViewId('editor')
+    setPage(1)
+    setMenuOpen(false)
+  }
+
   const saveEntry = async (values: Record<string, unknown>): Promise<void> => {
     setBusy(true)
     setNotice(null)
@@ -236,10 +325,35 @@ export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): 
     }
   }
 
+  const selectView = (id: string): void => {
+    setViewId(id)
+    setPage(1)
+    setQuery('')
+    setQueryDraft('')
+    setMenuOpen(false)
+  }
+
+  const navGroups = React.useMemo(() => {
+    const known = new Set(NAV_GROUPS.flatMap(group => group.ids))
+    const extra = snapshot.views
+      .filter(item => !known.has(item.id) && item.id !== 'editor')
+      .map(item => item.id)
+      .map(id => snapshot.views.find(item => item.id === id))
+      .filter((item): item is UIView => item !== undefined)
+    const groups = NAV_GROUPS.map(group => ({
+      label: group.label,
+      views: group.ids
+        .map(id => snapshot.views.find(item => item.id === id))
+        .filter((item): item is UIView => item !== undefined),
+    }))
+    if (extra.length > 0) groups.push({ label: 'nav.group.system' as MessageKey, views: extra })
+    return groups.filter(group => group.views.length > 0)
+  }, [snapshot])
+
   const renderWidget = (widget: UIView['widgets'][number], index: number): React.ReactNode => {
     switch (widget.kind) {
       case 'stats':
-        return <StatsView key={index} t={t} metrics={widget.metrics} payload={data[widget.source.operation]} />
+        return <StatsView key={index} metrics={widget.metrics} payload={data[widget.source.operation]} />
       case 'table':
       case 'search': {
         const payload = data[widget.source.operation]
@@ -248,6 +362,7 @@ export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): 
           payload !== null && typeof payload === 'object' && typeof (payload as Record<string, unknown>)['total'] === 'number'
             ? Number((payload as Record<string, unknown>)['total'])
             : undefined
+        const title = widget.kind === 'search' ? t.t('nav.recall') : view?.title
         return (
           <React.Fragment key={index}>
             {widget.kind === 'search' ? (
@@ -260,6 +375,27 @@ export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): 
                   setQuery(queryDraft.trim())
                 }}
               />
+            ) : view?.id === 'items' ? (
+              <form
+                className="toolbar"
+                onSubmit={event => {
+                  event.preventDefault()
+                  setPage(1)
+                  setQuery(queryDraft.trim())
+                }}
+              >
+                <div className="input-wrap grow">
+                  <Icon name="search" />
+                  <input
+                    className="input"
+                    type="search"
+                    value={queryDraft}
+                    placeholder={t.t('panel.searchPlaceholder')}
+                    onChange={event => setQueryDraft(event.target.value)}
+                  />
+                </div>
+                <Button type="submit" label={t.t('items.search')} />
+              </form>
             ) : null}
             <TableView
               t={t}
@@ -269,23 +405,23 @@ export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): 
               page={page}
               {...(pageSize !== undefined ? { pageSize } : {})}
               {...(total !== undefined ? { total } : {})}
+              {...(title ? { title } : {})}
               onPage={setPage}
               onPageSize={size => {
                 setPageSize(size)
                 setPage(1)
               }}
-              onOpen={id => {
-                setViewId('editor')
-                void loadEntry(id)
-              }}
+              onOpen={openEntry}
             />
           </React.Fragment>
         )
       }
       case 'graph':
         return <GraphView key={index} t={t} payload={data[widget.source.operation]} />
-      case 'report':
-        return <ReportView key={index} t={t} payload={data[widget.source.operation]} />
+      case 'report': {
+        const key = widget.source.operation === 'lint.report' ? 'health.lint' : widget.source.operation === 'heal.report' ? 'health.heal' : undefined
+        return <ReportView key={index} t={t} title={key ? t.t(key) : undefined} payload={data[widget.source.operation]} />
+      }
       case 'form':
         return (
           <SettingsForm
@@ -300,18 +436,14 @@ export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): 
             onLocale={locale => void changeLocale(locale)}
             onChange={(path, value) => setDirty(previous => ({ ...previous, [path]: value }))}
             onSave={() => void runSettingsSave()}
+            onReset={() => setDirty({})}
           />
         )
       case 'actions':
         return (
-          <ActionBar
-            key={index}
-            t={t}
-            ids={widget.actions}
-            actions={snapshot.actions}
-            busy={busy}
-            onRun={id => void runAction(id)}
-          />
+          <Card key={index} title={t.t('panel.actions')}>
+            <ActionBar t={t} ids={widget.actions} actions={snapshot.actions} busy={busy} onRun={id => void runAction(id)} />
+          </Card>
         )
       case 'editor':
         return (
@@ -334,40 +466,122 @@ export function MemoryPanel({ host, snapshot, initialView }: MemoryPanelProps): 
     }
   }
 
+  const locale = host.locale()
+  const pageActions =
+    view?.id === 'items' ? (
+      <Button label={t.t('panel.newEntry')} icon="plus" variant="primary" onClick={openEditor} />
+    ) : view?.id === 'editor' ? (
+      <Button label={t.t('panel.backToEntries')} icon="chevron-left" variant="ghost" onClick={() => selectView('items')} />
+    ) : undefined
+
   return (
-    <div className="lm-app" data-host={host.kind} style={themeVars(host.theme()) as unknown as React.CSSProperties}>
-      <header className="lm-head">
-        <strong>LLM Memory</strong>
-        <span className="lm-meta">{host.kind}</span>
-        <span className="lm-spacer" />
-        <button type="button" className="lm-btn" disabled={loading} onClick={reload}>
-          {t.t('panel.refresh')}
-        </button>
-      </header>
-      <nav className="lm-nav">
-        {snapshot.views.map(item => (
+    <div className="app" data-host={host.kind}>
+      <aside className={`sidebar${menuOpen ? ' open' : ''}`} id="sidebar" aria-label={t.t('panel.menu')}>
+        <div className="brand">
+          <span className="brand-mark">
+            <Icon name="layers" />
+          </span>
+          <span className="brand-text">
+            <span className="brand-name">LLM Memory</span>
+            <span className="brand-sub">{host.kind}</span>
+          </span>
+        </div>
+        <nav className="nav">
+          {navGroups.map((group, index) => (
+            <div key={`${group.label ?? 'root'}-${index}`} className="nav-group">
+              {group.label ? <div className="nav-label">{t.t(group.label)}</div> : null}
+              {group.views.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`nav-item${item.id === viewId ? ' active' : ''}`}
+                  aria-current={item.id === viewId ? 'page' : undefined}
+                  onClick={() => selectView(item.id)}
+                >
+                  <Icon name={VIEW_ICONS[item.id] ?? 'grid'} />
+                  <span className="nav-text">{item.title}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="sidebar-foot">
+          <span className="mode-chip live">
+            <span className="dot" />
+            <span>{t.t('panel.live')}</span>
+          </span>
+          <span className="sdk-version">UI SDK v{snapshot.version}</span>
+        </div>
+      </aside>
+
+      <div className="main">
+        <header className="topbar">
           <button
-            key={item.id}
             type="button"
-            aria-current={item.id === viewId ? 'page' : undefined}
-            onClick={() => {
-              setViewId(item.id)
-              setPage(1)
-              setQuery('')
-              setQueryDraft('')
-            }}
+            className="icon-btn mobile-only"
+            aria-label={t.t('panel.menu')}
+            title={t.t('panel.menu')}
+            onClick={() => setMenuOpen(open => !open)}
           >
-            {item.title}
+            <Icon name="menu" />
           </button>
-        ))}
-      </nav>
-      <main className="lm-screen" aria-busy={loading}>
-        <h2>{view?.title}</h2>
-        {error ? <p className="lm-error">{t.t('panel.failed')}: {error}</p> : null}
-        {notice ? <p className="lm-ok">{notice}</p> : null}
-        {loading ? <Loading t={t} /> : null}
-        {!loading && view ? view.widgets.map((widget, index) => renderWidget(widget, index)) : null}
-      </main>
+          <span className="badge badge-accent">{host.kind}</span>
+          <div className="topbar-actions">
+            <button type="button" className="icon-btn" title={t.t('panel.refresh')} aria-label={t.t('panel.refresh')} disabled={loading} onClick={reload}>
+              <Icon name="refresh" />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              title={t.t('panel.theme')}
+              aria-label={t.t('panel.theme')}
+              onClick={() => {
+                const index = THEME_ORDER.indexOf(themePref)
+                setThemePref(THEME_ORDER[(index + 1) % THEME_ORDER.length] ?? 'system')
+              }}
+            >
+              <Icon name={THEME_ICON[themePref]} />
+            </button>
+            {host.kind === 'dsh' ? null : (
+              <button
+                type="button"
+                className="icon-btn lang-btn"
+                title={t.t('panel.language')}
+                aria-label={t.t('panel.language')}
+                disabled={busy}
+                onClick={() => void changeLocale(locale === 'ru' ? 'en' : 'ru')}
+              >
+                {locale.toUpperCase()}
+              </button>
+            )}
+          </div>
+        </header>
+
+        <main className="content" id="view" aria-busy={loading}>
+          {view ? (
+            <PageHead
+              title={view.title}
+              subtitle={viewSubtitle(view) ? t.t(viewSubtitle(view) as MessageKey) : undefined}
+              {...(pageActions ? { actions: pageActions } : {})}
+            />
+          ) : null}
+          {error ? <ErrorBox t={t} message={`${t.t('panel.failed')}: ${error}`} retry={reload} /> : null}
+          {notice ? <div className="notice">{notice}</div> : null}
+          {loading ? (
+            <Loading t={t} />
+          ) : view ? (
+            <div className="stack">{view.widgets.map((widget, index) => renderWidget(widget, index))}</div>
+          ) : null}
+        </main>
+      </div>
+
+      {menuOpen ? (
+        <div
+          className="backdrop open"
+          onClick={() => setMenuOpen(false)}
+          role="presentation"
+        />
+      ) : null}
     </div>
   )
 }

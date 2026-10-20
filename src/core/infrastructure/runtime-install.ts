@@ -117,6 +117,9 @@ export class EmbeddingRuntimeInstaller {
 
   /** Current state, including a running installation. */
   status(): EmbeddingRuntimeStatus {
+    // The package may be installed by hand (or by a previous plugin process);
+    // presence is re-checked so the panel does not stay stuck on "missing".
+    this.presence = this.presence || embeddingRuntimeStatus(this.dir).present
     return {
       present: this.presence,
       installing: this.installing,
@@ -133,7 +136,10 @@ export class EmbeddingRuntimeInstaller {
    * call while one install runs joins the same promise.
    */
   async install(): Promise<EmbeddingRuntimeStatus> {
-    if (this.presence) return this.status()
+    if (this.presence || embeddingRuntimeStatus(this.dir).present) {
+      this.presence = true
+      return this.status()
+    }
     if (this.installing) return this.status()
     this.installing = true
     this.error = null

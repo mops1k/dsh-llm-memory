@@ -83,6 +83,14 @@ describe('kilo legacy panel API', () => {
     expect(settings.snapshot.groups[0].title).toBe('Хранилище и проекты')
   })
 
+  it('serves both panel locales for the language switcher', async () => {
+    const base = await start()
+    const english = await (await fetch(`${base}api/legacy/ui/snapshot?locale=en`)).json()
+    expect(english.views.find((view: { id: string }) => view.id === 'items').title).toBe('Entries')
+    const englishSettings = await (await fetch(`${base}api/legacy/settings/snapshot?locale=en`)).json()
+    expect(englishSettings.snapshot.groups[0].title).toBe('Storage & projects')
+  })
+
   it('counts projects from entries even without a project root registry', async () => {
     const service = makeService()
     service.save({ text: 'one', project: 'alpha', scope: 'project' })

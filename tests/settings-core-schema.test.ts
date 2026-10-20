@@ -91,6 +91,8 @@ describe('core settings actions', () => {
       'heal.apply',
       'vectors.rebuild',
       'vectors.health',
+      'vectors.repair',
+      'vectors.embed',
     ]) {
       expect(ids.has(required)).toBe(true)
     }

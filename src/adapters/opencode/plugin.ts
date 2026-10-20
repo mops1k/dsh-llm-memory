@@ -5,13 +5,14 @@
  * optional embedding runtime are resolved at runtime from the config directory,
  * so the plugin survives host upgrades and keeps weights outside the bundle.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { resolveOpenCodeConfig, type OpenCodeMemoryConfig } from './config.js'
 import { createOpenCodeRuntime } from './runtime.js'
 import { OpenCodeService } from './service.js'
+import { startOpenCodeWebServer, type OpenCodeWebHandle } from './web-server.js'
 import type { OpenCodeToolsSdk } from './tools.js'
 
 export interface OpenCodePluginContext {
@@ -76,9 +77,18 @@ const server = async (context: OpenCodePluginContext = {}) => {
   service.init()
   const sdkTool = await loadToolHelper()
   const runtime = createOpenCodeRuntime({ service, config, ...(sdkTool ? { sdkTool } : {}) })
+  let web: OpenCodeWebHandle | null = null
+  if (config.web.enabled) {
+    web = await startOpenCodeWebServer({
+      service,
+      config,
+      saveConfig: next => writeFileSync(join(openCodeConfigDir(), 'llm-memory.json'), JSON.stringify(next, null, 2), 'utf8'),
+    })
+  }
   return {
     ...runtime.hooks,
     dispose: async () => {
+      await web?.close()
       await runtime.hooks.dispose?.()
     },
   }
