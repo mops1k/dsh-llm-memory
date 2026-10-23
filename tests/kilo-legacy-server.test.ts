@@ -108,6 +108,33 @@ describe('kilo legacy panel API', () => {
     expect(projects.projects).toEqual(['alpha', 'beta'])
   })
 
+  it('keeps cross-project and global references out of the broken-link report', async () => {
+    const created = makeService()
+    const beta = created.save({ text: 'beta entry', project: 'beta', scope: 'project' })
+    const global = created.save({ text: 'global entry', scope: 'user' })
+    const alpha = created.save({ text: 'alpha entry', project: 'alpha', scope: 'project', related: [beta.id] })
+    const alphaGlobal = created.save({ text: 'alpha global', project: 'alpha', scope: 'project', related: [global.id] })
+    handle = await startKiloWebServer({
+      service: created,
+      config: resolveKiloConfig({ memory: { storageRoot: created.store.root }, web: { enabled: true } }),
+      port: 0,
+    })
+    const lint = await (await fetch(`${handle.url}api/legacy/lint?project=alpha`)).json()
+    expect(lint.report).toContain('битых ссылок: **0**')
+
+    const healed = await (
+      await fetch(`${handle.url}api/legacy/heal?project=alpha`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: 'apply-safe' }),
+      })
+    ).json()
+    expect(healed.report).toContain('найдено проблем: **0**')
+    const stored = created.store.list({ limit: 10, status: 'all' }).items
+    expect(stored.find(item => item.id === alpha.id)?.related).toEqual([beta.id])
+    expect(stored.find(item => item.id === alphaGlobal.id)?.related).toEqual([global.id])
+  })
+
   it('resolves a relative backupDir inside the store, not the process cwd', async () => {
     const root = mkdtempSync(join(tmpdir(), 'kilo-backup-dir-'))
     dirs.push(root)

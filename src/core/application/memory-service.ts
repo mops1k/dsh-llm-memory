@@ -620,7 +620,10 @@ export class MemoryService {
   }
 
   lint(project?: string): { issues: { entryId: string; kind: string; detail: string }[] } {
-    const report = selfHeal(this.store.list({ limit: 1_000_000, ...(project ? { project } : {}) }).items, 'report')
+    const all = this.store.list({ limit: 1_000_000 }).items
+    const knownIds = new Set(all.map(item => item.id))
+    const scoped = project ? all.filter(item => item.project === project) : all
+    const report = selfHeal(scoped, 'report', DEFAULT_MAINTENANCE, Date.now(), knownIds)
     return {
       issues: report.issues.map(issue => ({ entryId: issue.entryId, kind: issue.kind, detail: issue.detail })),
     }

@@ -6,7 +6,7 @@
  */
 import { writeFileSync } from 'node:fs'
 
-import { selfHeal } from '../../core/application/maintenance.js'
+import { selfHeal, DEFAULT_MAINTENANCE } from '../../core/application/maintenance.js'
 import { clampImportance, type MemoryEntry, type MemoryFilter } from '../../core/domain/types.js'
 import { writeItemPage } from '../../core/application/wiki.js'
 import { panelSnapshot } from '../../core/domain/ui-contract.js'
@@ -337,9 +337,13 @@ export async function handleLegacyApi(
   }
   if (path === '/lint') {
     // The legacy page renders a markdown string, not a report object.
-    const items = service.store.list({ limit: 1_000_000, ...(projectParam(params) ? { project: projectParam(params) as string } : {}) }).items
+    // References resolve against the whole memory: a project-scoped report must
+    // not call links to other projects or the global layer broken.
+    const all = service.store.list({ limit: 1_000_000 }).items
+    const project = projectParam(params)
+    const items = project ? all.filter(item => item.project === project) : all
     const active = items.filter(item => item.status === 'active')
-    const ids = new Set(items.map(item => item.id))
+    const ids = new Set(all.map(item => item.id))
     const broken: string[] = []
     for (const item of active) {
       for (const field of ['supersedes', 'related', 'supersededBy'] as const) {
@@ -361,7 +365,12 @@ export async function handleLegacyApi(
   if (path === '/heal') {
     const body = await readJson(req)
     const mode = body['mode'] === 'apply-safe' ? 'apply-safe' : 'report'
-    const result = selfHeal(service.store.list({ limit: 1_000_000, ...(projectParam(params) ? { project: projectParam(params) as string } : {}) }).items, mode)
+    // Heal a scoped slice but resolve references against the whole memory, so a
+    // safe repair never drops valid cross-project or global links.
+    const all = service.store.list({ limit: 1_000_000 }).items
+    const project = projectParam(params)
+    const scoped = project ? all.filter(entry => entry.project === project) : all
+    const result = selfHeal(scoped, mode, DEFAULT_MAINTENANCE, Date.now(), new Set(all.map(entry => entry.id)))
     if (mode === 'apply-safe') {
       for (const entry of result.items) {
         service.store.upsert(entry)

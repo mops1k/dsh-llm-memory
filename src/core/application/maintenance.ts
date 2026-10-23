@@ -132,17 +132,23 @@ export interface HealReport {
  * Safe self-heal: broken `supersedes/related/supersededBy` references are
  * cleaned in `apply-safe` (immutable entries are never touched); stale and
  * duplicate-title findings are reported only.
+ *
+ * `knownIds` is the id set references are resolved against. Callers that pass a
+ * scoped slice (one project) must supply the ids of the whole memory, otherwise
+ * links to entries of other projects or the global layer look broken and
+ * `apply-safe` would delete them.
  */
 export function selfHeal(
   entries: readonly MemoryEntry[],
   mode: 'report' | 'apply-safe',
   config: MaintenanceConfig = DEFAULT_MAINTENANCE,
   now = Date.now(),
+  knownIds?: ReadonlySet<string>,
 ): HealReport {
   if (!config.selfHealEnabled) {
     return { mode, enabled: false, issues: [], items: [...entries] }
   }
-  const ids = new Set(entries.map(entry => entry.id))
+  const ids = knownIds ?? new Set(entries.map(entry => entry.id))
   const apply = mode === 'apply-safe'
   const issues: HealIssue[] = []
   let fixes = 0

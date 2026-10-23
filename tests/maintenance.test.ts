@@ -98,6 +98,24 @@ describe('maintenance', () => {
     expect(report.issues.filter(issue => issue.fixed).length).toBe(1)
   })
 
+  it('selfHeal resolves references against knownIds outside the processed slice', () => {
+    // A project-scoped pass sees only project `alpha`; the targets live in
+    // another project and in global memory, so they are not broken.
+    const scoped = [entry({ id: 'm_a', scope: 'project', project: 'alpha', related: ['m_b', 'm_global'] })]
+    const knownIds = new Set(['m_a', 'm_b', 'm_global'])
+    const report = selfHeal(scoped, 'apply-safe', DEFAULT_MAINTENANCE, Date.now(), knownIds)
+    expect(report.issues.filter(issue => issue.kind === 'broken-reference')).toEqual([])
+    expect(report.items[0]?.related).toEqual(['m_b', 'm_global'])
+
+    // A reference missing from the whole memory is still reported and cleaned.
+    const mixed = [entry({ id: 'm_a', related: ['m_b', 'm_gone'] })]
+    const cleaned = selfHeal(mixed, 'apply-safe', DEFAULT_MAINTENANCE, Date.now(), new Set(['m_a', 'm_b']))
+    expect(cleaned.items[0]?.related).toEqual(['m_b'])
+    expect(
+      cleaned.issues.filter(issue => issue.kind === 'broken-reference').map(issue => issue.detail),
+    ).toEqual(['m_gone'])
+  })
+
   it('handles a real Kilo fixture without throwing', () => {
     const rows: Record<string, unknown>[] = [
       { id: 'm_1', scope: 'project', kind: 'facts', status: 'active', title: 'a', content: 'x', updatedAt: '2026-01-01T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z' },

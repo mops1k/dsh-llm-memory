@@ -12,8 +12,8 @@
 - [perf.md](perf.md) — performance baseline этапа 11: save/recall/startup/backup.
 - [cross-platform.md](cross-platform.md) — пути и IO на Windows/Linux, нормализация
   storageRoot, UNC/9p, MAX_PATH, SQLite/WAL, установка и обновление плагина, CI-матрица.
-- [release-notes.md](release-notes.md) — версия 2.0.0: состав артефактов, breaking changes,
-  порядок обновления.
+- [release-notes.md](release-notes.md) — версия 2.0.1: изменения, состав артефактов,
+  breaking changes по версиям, порядок обновления.
 
 ## Концепция и архитектура
 
